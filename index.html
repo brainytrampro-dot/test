@@ -1,0 +1,389 @@
+<div class="workflow-task-container " [ngClass]="{expanded:toggleShow}" *ngIf="dossierData$ | async; let dossier">
+  <div class="data-capture-main">
+    <app-timeline></app-timeline>
+    <div class="data-capture-main-body-{{displayMode}}">
+      <div class="main-title-container dossier-png justify-content-between">
+        <div class="d-flex">
+
+          <ng-container *ngIf="dossier.customerData?.blueCardHolder; else checkVip">
+            <img
+              src="assets/img/blueCard.png"
+              width="44"
+              alt="blue-card-icon"
+              class="ml-2"
+            />
+          </ng-container>
+
+          <ng-template #checkVip>
+            <img
+              *ngIf="(dossier.loanData?.loanAmount ?? 0) >= 1500000"
+              src="assets/img/vip.png"
+              width="44"
+              alt="vip-icon"
+              class="ml-2"
+            />
+          </ng-template>
+
+
+          <div class="dossier-title pl-3">
+            <div class="d-flex align-items-end">
+              <h2 class="main-title mr-2">Dossier N° {{dossier.codeDossier}}</h2>
+              <h3 *ngIf="dossier?.assignee">({{"dossier.assignedTo.label" | translate}} {{dossier?.assignee | uppercase}})</h3>
+            </div>
+            <p><span [translate]="'dossier.current.stage.label'" [translateParams]="{ stage:dossier.stage }"></span> -
+              <span class="main-title-status">{{ dossier.status }}</span>
+            </p>
+          </div>
+        </div>
+        <div class="d-flex">
+          <ng-container>
+            <button class="comments-btn mr-3" (click)="openDossierRequestsModal(dossier)">
+              <img src="assets/svg/demandes.svg" alt="demandes-ico" />
+              {{'dossier.requests.label' |
+              translate}} <span>({{ dossierRequests.length }})</span></button>
+          </ng-container>
+          <ng-container *ngIf="dossier.restrictions && dossier.restrictions.length >0">
+            <button [matMenuTriggerFor]="beforeMenu" class="comments-btn mr-3">
+              <img src="../../../../assets/svg/restrictions.svg" alt="restrictions-ico" />
+              {{'dossier.restrictions.label' |
+              translate}} <span>({{countRestrictions}})</span>
+            </button>
+            <mat-menu #beforeMenu="matMenu" class="floated-menu-restrictions" xPosition="before">
+              <app-restrictions (filteredCount)="countRestrictions = $event"></app-restrictions>
+            </mat-menu>
+          </ng-container>
+          <ng-container *ngIf="dossier.comments && dossier.comments.length > 0; else noComments">
+            <button [matMenuTriggerFor]="beforeMenu" class="comments-btn mr-3">
+              <img src="../../../../assets/svg/comment.svg" alt="comment-ico" />
+              {{ 'dossier.comments.label' | translate }} <span>({{ dossier?.comments?.length ?? 0 }})</span>
+            </button>
+            <mat-menu #beforeMenu="matMenu" class="floated-menu-comment" xPosition="before">
+              <app-comments></app-comments>
+            </mat-menu>
+          </ng-container>
+          <ng-template #noComments>
+            <button class="comments-btn mr-3">
+              <img src="../../../../assets/svg/comment.svg" alt="comment-ico" />
+              {{ 'dossier.comments.label' | translate }} <span>(0)</span>
+            </button>
+          </ng-template>
+        </div>
+      </div>
+      <ng-container *ngIf="displayMode===1;else displayMode2">
+        <div class="data-capture-main-body-in row pl-5 pr-5">
+          <app-dossier-attachments-view class="col-6" mode="card" [dossierUuid]="uuid"
+            [showIndicator]="dossier.stage !== undefined && ['Initiation','Validation','Génération OPC','Signature OPC','Mise en place'].includes(dossier.stage)"
+            [showAddFile]="showAddFile(dossier)" (detect)="onDetectChange($event)"></app-dossier-attachments-view>
+          <app-dossier-data class="col-6"></app-dossier-data>
+        </div>
+      </ng-container>
+      <ng-template #displayMode2>
+        <app-dossier-data [showAddFile]="showAddFile(dossier)" [showDocuments]="true" [numberOfColumsPerRow]="5"></app-dossier-data>
+      </ng-template>
+      <div class="navigation-container button" *ngIf="dossier.assignedToMe">
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_UPDATE_DOSSIER],permissions]">
+          <button
+            *ngIf="[status.INITIATION, status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION, status.ADDITIONAL_AGENCY_INFORMATION_DECISION,
+            status.INCA_AANR, status.INCA_AVRS_RANR, status.INFO_COMP_AGREEMENT_RISK, status.INFO_COMP_DECISION_RS].includes(dossier.codeStatus!)"
+            type="button" class="default-btn" (click)="onEditDossier()">
+            {{'button.editDossier.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_RETURN_ADD_INFOS],permissions]">
+          <button *ngIf="dossier.codeStatus === status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION || [status.INCA_EXP, status.INCA_EXPS].includes(dossier.taskStatus!)" type="button"
+            [disabled]="(hasMandatoryAttachments$ | async) !== true" class="action-btn" (click)="onResponseMoreInfo()">
+            {{'button.sendDossier.label' | translate}}
+          </button>
+          <button
+            *ngIf="[status.ADDITIONAL_AGENCY_INFORMATION_DECISION, status.INCA_RIDN, status.INFO_COMP_AGREEMENT_RISK, status.INFO_COMP_DECISION_RS, status.DECS_ANR_INCA_RIDN, status.AVRS_INCA_RIDN, status.AVRS_ANR_INCA_RIDN, status.DECS_RS_INCA_RIDN, status.DECS_RS_FINAL_RIND,status.DECS_RS_FINAL_INCA_RIDN].includes(dossier.codeStatus!)"
+            type="button" class="action-btn" (click)="onResponseMoreInfo()">
+            {{'button.decision.sendDossier.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_TO_DECISION_AUTHORITY],permissions]">
+          <button *ngIf="dossier.codeStatus===status.COMPLIANCE_CONTROL" type="button" class="default-btn"
+            [disabled]="!isAllAttachmentControlledOK" (click)="onSendDossierToDecisionAuthority()">
+            {{'button.sendDossier.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_ADD_INFOS_VALIDATOR],permissions]">
+          <button *ngIf="dossier.codeStatus===status.COMPLIANCE_CONTROL" type="button" class="default-btn"
+            [disabled]="!isAllAttachmentControlled" (click)="onRequestMoreInfo(dossier)">
+            {{'button.requestMoreInfo.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_ADD_INFOS_DECISION, permissionContants.ROLE_PP_REQUEST_ADD_INFOS_RISK, permissionContants.ROLE_PP_REQUEST_ADD_INFOS_CTB_EXPASS,
+        permissionContants.ANALYSIS_RETAIL_MORE_INFOS],permissions]">
+            <button *ngIf="[status.DECISION, status.DECS_RIDN, status.DECISION_RS, status.AGREEMENT_RISK, status.AANR,  status.DECS_ANR_RIDN, status.INFO_COMP_RETOUR_ANALIST_RETAIL, status.AGREEMENT_RISK_ANALIST_RETAIL,status.AVRS_RIDN, status.AVRS_ANR_RIDN,  status.AVRS_ANR_INCANR_RIDN, status.DECS_RS_RIND, status.DECS_RS_FINAL_RIND].includes(dossier.codeStatus!)
+            || [status.REXP, status.REXPR].includes(dossier.taskStatus!)"
+            [disabled]="[status.REXP, status.REXPR].includes(dossier.taskStatus!) && (hasMandatoryAttachments$ | async) === true"
+            type="button" (click)="onRequestMoreInfo(dossier)" class="default-btn add-btn">
+            {{'button.requestMoreInfo.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_ADD_INFOS_CTB],permissions]">
+          <button *ngIf="[status.INCD_GEN, status.A_TRAITER_DSC_CTB, status.OPCAM_GEN].includes(dossier.codeStatus!)"
+            type="button" (click)="onRequestMoreInfo(dossier)" [disabled]="!isAllAttachmentControlled || ((hasMandatoryAttachments$ | async) === true && dossier.codeStatus === status.A_TRAITER_DSC_CTB)"
+            class="default-btn demande-btn">
+            {{'button.requestMoreInfo.label' | translate}}
+          </button>
+        </ng-container>
+        <div *ngIf="[status.DOSSIER_APPROUVED, status.INCA_GEN, status.DOSSIER_AVIS_RISK_APPROUVED, status.INCA_RIDN, status.DECS_ANR_INCA_RIDN, status.AVRS_INCA_RIDN, status.AVRS_ANR_INCA_RIDN, status.DOSSIER_APPROUVED_RISK,  status.DECS_RS_INCA_RIDN, status.DECS_RS_FINAL_RIND, status.DECS_RS_FINAL_INCA_RIDN, status.OPC_REMISE_AU_CLIENT].includes(dossier.codeStatus!) ">
+          <button type="button" class="default-btn" [disabled]="!dossier?.returnDecisionInstance || ((hasMandatoryAttachments$ | async) === true && dossier.codeStatus === status.OPC_REMISE_AU_CLIENT)"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_TO_DECISION],permissions]"
+            (click)="onSendBackToDecision()">
+            <span *ngIf="[status.DOSSIER_APPROUVED, status.INCA_GEN, status.DOSSIER_AVIS_RISK_APPROUVED, status.DOSSIER_APPROUVED_RISK, status.OPC_REMISE_AU_CLIENT].includes(dossier.codeStatus!); else edit">
+              {{'button.returnToDecision.label' | translate }}
+            </span>
+            <ng-template #edit>
+              {{'button.editRequest.label' | translate }}
+            </ng-template>
+          </button>
+        </div>
+        <ng-container *ngIf="dossier.codeStatus?.includes(status.DOSSIER_APPROUVED) && isAccordPrincipe==='PRINCIPE'">
+          <button type="button" class="default-btn" [disabled]="!dossier?.returnDecisionInstance || (hasMandatoryAttachments$ | async) !== true"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_TO_DECISION],permissions]" (click)="onSendAccordToDecision()">
+            {{ 'button.forwardEditer.label' | translate }}
+          </button>
+        </ng-container>
+        <ng-container>
+          <div *ngIf="dossier.codeStatus?.includes(status.DOSSIER_APPROUVED) && isProspect">
+          <button type="button" class="default-btn" *appIsGranted="[[permissionContants.ROLE_PP_RETURN_TO_DECISION],permissions]" (click)="onDupliquerDossier()">
+            {{ 'DUPLIQUER' | translate }}
+          </button>
+          </div>
+        </ng-container>
+        <div *ngIf="dossier.codeStatus && dossier.codeStatus?.includes(status.DOSSIER_APPROUVED)! && isAccordPrincipe==='DEFINITIF'">
+          <button type="button" class="action-btn" [disabled]="(hasMandatoryAttachments$ | async) !== true"
+            *appIsGranted="[[permissionContants.ROLE_PP_FORWARD_TO_DSC],permissions]" (click)="onForwardToDSC()">
+            {{'button.forwardToDSC.label' | translate}}
+          </button>
+        </div>
+        <div *ngIf="dossier.codeStatus===status.A_TRAITER_DSC && dossier.codeStatus===dossier.taskStatus">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_REASSIGN_DOSSIER],permissions]"
+            (click)="onAffectToCTB(dossier)">
+            {{'button.assignToCTB.label' | translate}}
+          </button>
+        </div>
+        <div *ngIf="[status.INCD_GEN, status.A_TRAITER_DSC_CTB,status.OPCAM_GEN].includes(dossier.codeStatus!)">
+          <button type="button" class="action-btn"
+            [disabled]="!isAllAttachmentControlledOK || (hasMandatoryAttachments$ | async) !== true"
+            *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_OPC_VALIDATION],permissions]"
+            (click)="sendOPCToSupervisor()">
+            {{'button.transfer.to.supervisor.label' | translate}}
+          </button>
+        </div>
+        <ng-container *ngIf="dossier.codeStatus === status.INCA_GEN">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_ADD_INFOS],permissions]" (click)="onForwardToCTB()">
+            {{'button.forwardToCtb.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="!dossier.poolCandidate && dossier.assignedToMe &&  dossier.codeStatus === status.OPCA && dossier.codeStatus === dossier.taskStatus">
+          <button type="button" class="default-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_OPC_COMPLETION],permissions]"
+            (click)="onReturnToCTBForUpdate()">
+            {{'button.opcNonValid.label' | translate}}
+          </button>
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_OPC_INITIATOR],permissions]" [disabled]="(hasMandatoryAttachments$ | async) !== true" (click)="validateOPC()">
+            {{'button.opcValid.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="dossier.codeStatus === status.OPC_VALIDATED">
+          <button type="button" class="default-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_OPC_COMPLETION],permissions]"
+            (click)="onReturnToCTBForUpdate()">
+            {{'button.modification.OPC.label' | translate}}
+          </button>
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_DELIVER_OPC],permissions]" (click)="onChangeOpcDates()">
+            {{'button.remise.OPC.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="[status.OPC_SIGNE, status.OPC_WAITING_EXPERTISE].includes(dossier.codeStatus!)">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_CONTROL_PHYSICAL_DOSSIER],permissions]"
+            (click)="onPhysicalTransferToClient()" [disabled]="(hasMandatoryAttachments$ | async) !== true || status.OPC_WAITING_EXPERTISE === dossier.codeStatus">
+            {{'button.dossier.transferToClient' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="dossier.codeStatus === status.OPC_REMISE_AU_CLIENT">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_RECEIVE_SIGNED_OPC],permissions]" (click)="onChangeOpcDates()"
+            [disabled]="(hasMandatoryAttachments$ | async) !== true">
+            {{'receipt.OPC.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container
+          *ngIf="[status.A_TRAITER_DSC_MIS,status.CONTROLE_MIN_ENG,status.INCD_MIS].includes(dossier.codeStatus!)">
+          <button *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_ADD_INFOS_CTB],permissions]"
+            class="default-btn demande-btn" (click)="onRequestMoreInfo(dossier)">
+            {{'button.requestMoreInfo.label' | translate}}
+          </button>
+          <div>
+            <button type="button" class="default-btn mr-2"
+              *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_CONTROL_WARRANTIES],permissions]"
+              (click)="sendToControlWarranties()"
+              [disabled]="!isAllAttachmentControlledOK || (hasMandatoryAttachments$ | async) !== true">
+              {{'button.transfer.control.warranties.label' | translate}}
+            </button>
+            <button type="button" class="action-btn"
+              *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_NOTARY_RELATIONSHIP],permissions]"
+              [hidden]="!isSelectedProductIn(['PPO','PPC','PPO_PPR','Yassir','Pret_Etudes_Bank_In','Prêt Enseignement Plus','Pret_Etudes_Master_Bank_In','Crédit_Ordi_Bank'])"
+              (click)="sendToNotaryRelationship()">
+              {{'button.transfer.notary.relationship.label' | translate}}
+            </button>
+          </div>
+        </ng-container>
+        <ng-container *ngIf="dossier.codeStatus === status.ATTENTE_RETOUR_NOTAIRE">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_MINUTE_CHECK],permissions]"
+            (click)="notaryMinutesRequest()" [disabled]="(hasMandatoryAttachments$ | async) !== true">
+            {{'button.forwardToCtb.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="dossier.codeStatus === status.TRAITER_RELATION_NOTAIRE">
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_MINUTE],permissions]" (click)="onRequestDocuments()">
+            {{'button.request.documents.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container
+          *ngIf="[status.INCA_MIS, status.INCA_DEBL, status.INCA_CMEG_MIS, status.INCA_INCD_MIS, status.INCA_AANR, status.INCA_AVRS_RANR].includes(dossier.codeStatus!)">
+          <button type="button" class="default-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_RETURN_ADD_INFOS],permissions]" (click)="onResponseMoreInfo()">
+            {{'button.sendDossier.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container
+          *ngIf="!dossier.poolCandidate && dossier.assignedToMe &&  dossier.codeStatus === status.CONTROLE_GARANTIE">
+          <button type="button" class="default-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_DOSSIER_COMPLETION],permissions]"
+            (click)="onRejectWarranties()">
+            {{'button.requestMoreInfoForWarranties.label' | translate}}
+          </button>
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_VALIDATE_BEFORE_RELEASE],permissions]"
+            (click)="onForwardToSupervisor()" [disabled]="(hasMandatoryAttachments$ | async) !== true">
+            {{'button.validateWarranties.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="dossier.codeStatus === status.TO_VALIDATE">
+          <button type="button" class="default-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_DOSSIER_COMPLETION],permissions]"
+            (click)="returnDossier()">
+            {{'button.returnDossier.label' | translate}}
+          </button>
+          <button type="button" class="action-btn"
+            *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_FOR_RELEASE],permissions]" (click)="validateDossier()">
+            {{'button.validateDossier.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="[status.INCD_DEBL].includes(dossier.codeStatus!)">
+          <button *appIsGranted="[[permissionContants.ROLE_PP_REQUEST_ADD_INFOS_CTB],permissions]"
+            class="default-btn demande-btn" (click)="onRequestMoreInfo(dossier)">
+            {{'button.requestMoreInfo.label' | translate}}
+          </button>
+          <div>
+            <button *appIsGranted="[[permissionContants.ROLE_PP_RETURN_ADD_INFOS],permissions]" type="button"
+              class="default-btn" [disabled]="!isAllAttachmentControlledOK" (click)="additionalInfoCTBToSupervisor()">
+              {{'button.sendDossier.label' | translate}}
+            </button>
+          </div>
+        </ng-container>
+        <ng-container *ngIf="[status.ADEB, status.DEBP, status.DEM_DEBP].includes(dossier.codeStatus!)">
+          <button *appIsGranted="[[permissionContants.ROLE_PP_RELEASE],permissions]" class="action-btn" (click)="onRelease()">
+            <span *ngIf="[status.ADEB, status.DEBP].includes(dossier.codeStatus!); else request"> {{'button.release.label' | translate}} </span>
+            <ng-template #request> {{'button.partial.release.label' | translate}} </ng-template>
+          </button>
+        </ng-container>
+        <ng-container *ngIf="[status.ATDP].includes(dossier.codeStatus!)">
+          <button *appIsGranted="[[permissionContants.ROLE_PP_RECEIVE_PHYSICAL_FILE],permissions]" class="action-btn"
+            (click)="receivePhysicalFile()">
+            {{'button.receivePhysicalFile.label' | translate}}
+          </button>
+        </ng-container>
+        <div *ngIf="[status.AANR, status.DECS_ANR_RIDN, status.AVRS_ANR_INCANR_RIDN,status.INFO_COMP_RETOUR_ANALIST_RETAIL].includes(dossier.codeStatus!)">
+          <button class="action-btn mr-2" (click)="updateWarranties(dossier)" *appIsGranted="[[permissionContants.ROLE_PP_UPDATE_DOSSIER]]">
+            {{'button.RevoirGarantiesReserves.label' | translate}}
+          </button>
+          <button *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_TO_FEEDEBACK_DRPP_DR]]" type="button" class="default-btn"
+          (click)="onTransferToDrDRPP()">
+            {{'button.sendDossier.label' | translate}}
+          </button>
+        </div>
+        <ng-container *ngIf="[status.REXP, status.EXPS,status.REXPR].includes(dossier.taskStatus!)" >
+          <button type="button" class="default-btn"
+          [disabled]="(hasMandatoryAttachments$ | async) !== true" (click)="onRespenseExpertise(dossier.taskStatus)">
+          <span *ngIf="[status.REXP, status.EXPS].includes(dossier.taskStatus!); else validateExp"> {{'button.sendDossier.label' | translate}}</span>
+          <ng-template #validateExp> {{'button.validateDossier.label' | translate}} </ng-template>
+          </button>
+        </ng-container>
+        <div *ngIf="[stage.DECISION, stage.DECISION_RISK].includes(dossier?.codeStage!) && authorizedActions.length > 0">
+          <ng-container *ngIf="authorizedActions?.length===1; else actionMenu">
+            <ng-container *ngFor="let action of authorizedActions; let i=index">
+              <button type="button" (click)="action.clickAction()" [ngClass]="action.class" >
+                {{ action.labelKey | translate }}
+              </button>
+            </ng-container>
+          </ng-container>
+          <ng-template #actionMenu>
+            <button [matMenuTriggerFor]="afterMenu" class="action-btn" type="button">  {{'button.actions.label' | translate}}</button>
+            <mat-menu #afterMenu="matMenu" class="floated-menu-btndossier" hasBackdrop="true" xPosition="before">
+              <ul class="floated-menu_list">
+                <li class="floated-menu_item" *ngFor="let action of authorizedActions; let i=index">
+                  <ng-container *appIsGranted="[action.permissions,permissions]">
+                    <button type="button" (click)="action.clickAction(dossier)" [ngClass]="action.class" *ngIf="action.isAuthorized">
+                      <img [src]="action.icon" width="15px" alt="sgma"/>
+                      {{ action.labelKey | translate }}
+                    </button>
+                  </ng-container>
+                </li>
+              </ul>
+            </mat-menu>
+          </ng-template>
+        </div>
+      </div>
+      <div class="navigation-container button">
+        <ng-container *ngIf="dossier.poolCandidate && !dossier?.assignedToMe">
+          <button type="button" class="action-btn" (click)="assignToMe()">
+            {{'button.takeCharge.label' | translate}}
+          </button>
+        </ng-container>
+        <ng-container *ngIf="!dossier.assignee && isAuthorizedToAssignToSUPCtb(dossier)">
+          <button type="button" class="action-btn"   (click)="onAffectToCTB(dossier)">
+            {{'button.assignToCTB.label' | translate}}
+          </button>
+        </ng-container>
+        <div>
+          <ng-container *ngIf="dossier?.codeStatus === status.DECISION_RS && !dossier.assignedToMe && !dossier.poolCandidate && isRiskProfession">
+            <button class="action-btn mr-2" (click)="onTransferRespRiskDialog()" *appIsGranted="[[permissionContants.ROLE_PP_TRANSFER_TO_RESP_RISK]]">
+              {{'button.agreementRisk.label' | translate}}
+            </button>
+          </ng-container>
+          <ng-container *ngIf="showReassignMenuTrigger(dossier)  && !dossier?.assignedToMe">
+            <button type="button" class="action-btn" (click)="showAffectDialog(dossier)" *appIsGranted="[[permissionContants.ROLE_PP_REASSIGN_DOSSIER],permissions]">
+              {{'button.reaffect.label' | translate}}
+            </button>
+          </ng-container>
+        </div>
+      </div>
+  </div>
+  <div class="data-view-main">
+    <app-vertical-tabs [(toggleShow)]="toggleShow">
+      <app-vertical-tab-item [label]="'customer.info.data.tiers' | translate">
+        <app-customer-personal-info>
+        </app-customer-personal-info>
+      </app-vertical-tab-item>
+      <app-vertical-tab-item  *ngIf="!isProspect" [label]="'customer.info.mvt.bank' | translate">
+        <app-customer-balance-activity-wrapper>
+        </app-customer-balance-activity-wrapper>
+      </app-vertical-tab-item>
+      <app-vertical-tab-item [label]="'customer.info.loan.history' | translate">
+        <app-loan-history></app-loan-history>
+      </app-vertical-tab-item>
+    </app-vertical-tabs>
+  </div>
+</div>
