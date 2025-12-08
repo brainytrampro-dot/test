@@ -200,3 +200,168 @@ export class ActionIntegration {
     }
   }
 }
+
+
+
+********************
+
+  /**
+ * DisplayDossierViewComponent (excerpt)
+ *
+ * This file shows a minimal, complete integration of the action system:
+ * - Uses ActionIntegration helper to compute left/right actions and execute them.
+ * - Exposes getters used by the template (leftActions/rightActions).
+ * - Keeps all existing component methods untouched (handlers like onRequestMoreInfo, onGrantLoan, ...).
+ *
+ * IMPORTANT:
+ * - This is an integration-ready excerpt. Keep your existing methods in the class (I didn't re-include the entire original file).
+ * - Adjust import paths if you place the actions files in a different folder.
+ */
+
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Subscription } from 'rxjs';
+
+// Import the helper integration class (file created earlier)
+import { ActionIntegration } from './display-dossier.actions.integration';
+
+// If you put actions.* files in a subfolder adjust the imports above accordingly.
+
+@Component({
+  selector: 'app-display-dossier-view',
+  templateUrl: './index.html' // uses the repo template (we replace actions area in template)
+  // styles, providers, etc. as in your original component
+})
+export class DisplayDossierViewComponent implements OnInit, OnDestroy {
+  // DI-provided services that your original component uses (declare the ones required by rules)
+  constructor(
+    private changeDetectorRef: ChangeDetectorRef,
+    // keep your existing injections here: dossierStore, userService, permManager, dossierDataService, router, etc.
+    // example:
+    // private dossierStore: DossierStore,
+    // private userService: UserService,
+    // private permManager: PermissionManager,
+    // private dossierDataService: DossierDataService,
+    // private router: Router
+  ) {}
+
+  // the action integration instance (wraps rules evaluation + mapping + execution)
+  private actionIntegration!: ActionIntegration;
+
+  // any other subscriptions you already have
+  private subs: Subscription[] = [];
+
+  // Example synchronous flag used by rules — update it from observables in the real component
+  public hasMandatoryAttachments: boolean | undefined = undefined;
+
+  // --- lifecycle hooks ---
+  ngOnInit(): void {
+    // existing component init code (keep it)
+    // ...
+
+    // create integration and init it (it subscribes to dossierStore.dossierData$ internally)
+    this.actionIntegration = new ActionIntegration(this, this.changeDetectorRef);
+    this.actionIntegration.init();
+
+    // example: keep a local subscription to an observable you already had
+    // if you have hasMandatoryAttachments$ Observable, subscribe and set the boolean:
+    // const s = this.someService.hasMandatoryAttachments$.subscribe(v => {
+    //   this.hasMandatoryAttachments = v;
+    //   // recompute actions when that flag changes
+    //   const dossier = this.dossierStore.get();
+    //   this.actionIntegration.computeActionsFor(dossier);
+    //   this.changeDetectorRef.markForCheck();
+    // });
+    // this.subs.push(s);
+  }
+
+  ngOnDestroy(): void {
+    // teardown integration
+    if (this.actionIntegration) this.actionIntegration.destroy();
+
+    // teardown other subscriptions
+    this.subs.forEach(s => s.unsubscribe());
+  }
+
+  // --- Template getters (expose actions to template) ---
+  // The template can bind to leftActions/rightActions either directly via actionIntegration.* or via these getters.
+  get leftActions() {
+    return this.actionIntegration ? this.actionIntegration.leftActions : [];
+  }
+
+  get rightActions() {
+    return this.actionIntegration ? this.actionIntegration.rightActions : [];
+  }
+
+  // --- UI click entrypoint used in template ---
+  // Pass the ActionMeta object from template to this method
+  public onActionClick(action: any) {
+    // delegate to integration handler that maps action -> component method
+    this.actionIntegration.onActionClick(action).catch(err => {
+      // optional: show global error toast / log
+      console.error('Action execution failed', err);
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // IMPORTANT: The component must keep all existing handler methods referenced
+  // in handlers.map.ts (for example: onRequestMoreInfo, onGrantLoan, assignToMe, ...)
+  // The ActionIntegration will call them by name via the mapping.
+  //
+  // If any of those methods accept arguments (dossier, taskStatus,...), keep
+  // the same signature — ActionIntegration passes dossier or dossier[prop].
+  // ------------------------------------------------------------------
+
+  // Example placeholder methods (replace with your real implementations)
+  // NOTE: Remove these placeholders if your real methods already exist in this component.
+
+  // public onRequestMoreInfo(dossier?: any) { console.log('onRequestMoreInfo', dossier); }
+  // public onGrantLoan() { console.log('onGrantLoan'); }
+  // public assignToMe() { console.log('assignToMe'); }
+  // ... keep the rest of your existing methods here ...
+
+}
+
+
+***************************
+
+
+  <!-- index.html (excerpt)
+ Replace the actions / authorizedActions block in your template with this snippet.
+ This snippet expects the component to expose leftActions and rightActions (getters above).
+ Keep the rest of your original template unchanged.
+-->
+
+<!-- ... previous template content ... -->
+
+<!-- ACTIONS UI block (LEFT buttons + RIGHT dropdown) -->
+<div class="navigation-container button" *ngIf="dossier.assignedToMe">
+  <!-- LEFT actions: direct buttons -->
+  <div class="left-actions">
+    <ng-container *ngFor="let a of leftActions">
+      <button type="button"
+              [ngClass]="a.class || 'action-btn'"
+              [disabled]="a.disabled"
+              (click)="onActionClick(a)">
+        <img *ngIf="a.icon" [src]="a.icon" width="15px" alt="ico"/>
+        {{ a.labelKey | translate }}
+      </button>
+    </ng-container>
+  </div>
+
+  <!-- RIGHT actions (dropdown) -->
+  <div class="right-actions" *ngIf="rightActions?.length > 0">
+    <button [matMenuTriggerFor]="actionsMenu" class="action-btn" type="button">{{ 'button.actions.label' | translate }}</button>
+    <mat-menu #actionsMenu="matMenu" class="floated-menu-btndossier" hasBackdrop="true" xPosition="before">
+      <ul class="floated-menu_list">
+        <li class="floated-menu_item" *ngFor="let a of rightActions">
+          <button mat-menu-item type="button" (click)="onActionClick(a)" [disabled]="a.disabled">
+            <img *ngIf="a.icon" [src]="a.icon" width="15" alt="ico" />
+            {{ a.labelKey | translate }}
+          </button>
+        </li>
+      </ul>
+    </mat-menu>
+  </div>
+</div>
+
+<!-- ... following template content ... -->
