@@ -1,0 +1,2940 @@
+{
+  "product": {
+    "code": "PPI_CLASSIQUE",
+    "designation": "PPI CLASSIQUE"
+  },
+  "customerData": {
+    "customerCode": "002451797",
+    "personalInfo": {
+      "lastName": "AIT ABDELLAH OULMOKHTAR",
+      "firstName": "SALMA",
+      "sexe": "F",
+      "birthDate": "2002-09-30",
+      "address1": "AV HASSAN II  IMM  14",
+      "address2": "N° 14",
+      "address3": "SALA AL JADIDA",
+      "phone": "+212657272133",
+      "city": "SALE",
+      "country": "MAROC",
+      "email": "salmalili8080@gmail.com",
+      "cardType": "CIN",
+      "cardID": "AS10868",
+      "cardIDEmissionDate": "2026-03-11",
+      "cardIDExpirationDate": "2036-03-10",
+      "nationalityCountry": "MAROCAINE",
+      "residenceCountry": "MAROC",
+      "maritalStatus": "Célibataire",
+      "numberOfChildren": 0,
+      "legalStatus": "MAJEUR",
+      "creationDate": "2024-07-03",
+      "segment": "BONNE GAMME",
+      "lastHireDate": "2024-01-01",
+      "lastProfession": "702 - Employe",
+      "market": "MCH/01",
+      "topFonctionnaire": false,
+      "pprFonctionnaire": "PPR/N",
+      "branchCode": "00335",
+      "branchDesignation": "SALA AL JADIDA",
+      "isKyc": true,
+      "lastKycDate": "2024-07-03",
+      "notationClient": "A3",
+      "prospect": false
+    },
+    "balanceActivity": {
+      "accountNumber": "022815000318002781488263",
+      "displayedName": "AIT ABDELLAH OULMOKHTAR SALMA",
+      "averageBalance": "3830.5606",
+      "averageDebitBalance": "0.0000",
+      "averageCreditBalance": "3830.5606"
+    },
+    "prospect": false,
+    "blueCardHolder": false
+  },
+  "debts": [],
+  "debtsinfon": [],
+  "financialData": {
+    "income": 7500.00,
+    "spouseIncome": 0.00,
+    "otherIncome": 0.00,
+    "rentalIncome": 0.00,
+    "familyAllowance": 0.00,
+    "pension": 0.00,
+    "dividends": 0.00
+  },
+  "loanData": {
+    "delayed": false,
+    "rateType": {
+      "code": "FIXE",
+      "designation": "Fixe"
+    },
+    "rateNature": {
+      "code": "PRM",
+      "designation": "Offre Promotionnelle"
+    },
+    "loanObject": {
+      "code": "AQS",
+      "designation": "Acquisition"
+    },
+    "periodicity": {
+      "code": "MONTHLY",
+      "designation": "Périodicité mensuelle"
+    },
+    "propertyType": {
+      "code": "APT",
+      "designation": "Appartement"
+    },
+    "apport": 100000.00,
+    "percentOfApport": 30.86,
+    "acquisitionPrice": 300000.00,
+    "acquisitionFee": 24000.00,
+    "applicationFee": 0.00,
+    "freeHandFee": 800.00,
+    "investmentAmount": 324000.00,
+    "claimedAmountOfPurchase": 200000.00,
+    "loanAmount": 224000.00,
+    "deadlineNumber": 132,
+    "rate": 4.3,
+    "debtRatio": 39.0,
+    "firstDueDate": "2026-05-25",
+    "isExternDebtsRetrieved": true,
+    "isExternDebtsInfnRetrieved": true,
+    "externalRealStateLoan": 0.00,
+    "externalConsomptionLoan": 751.00,
+    "paymentInstallments": [],
+    "requestedNotaryFee": 24000.00
+  },
+  "employer": {
+    "activitySector": {
+      "code": "ACT4",
+      "designation": "ACTIVITÉS FINANCIÈRES ET D'ASSURANCE"
+    },
+    "name": "AXA ",
+    "phone": "0537569088",
+    "contractType": "CDI"
+  },
+  "guarantors": [],
+  "beneficiaries": [
+    {
+      "firstname": "SALMA",
+      "lastname": "AIT ABDELLAH OULMOKHTAR",
+      "address": "AV HASSAN II IMM 14 N 14 SALA AL JADIDA",
+      "idCardNumber": "AS10868",
+      "issuedAt": "2036-03-10",
+      "adult": true,
+      "isGuarantor": false,
+      "isBorrower": false
+    }
+  ],
+  "dossierAttachmentTypes": [
+    {
+      "uuid": "68881b3a-eaa3-4812-9c91-ecbadfdf7a45",
+      "codeRefAttachmentType": "CERTIFICATE_PROPRIETE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "da7c80a4-3373-47cc-ac26-50a002baef13",
+      "codeRefAttachmentType": "DEMANDE_EXPETISE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "b99ee586-77be-4810-a95f-3c7493224c0a",
+      "codeRefAttachmentType": "RAPPORT_EXPETISE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "c12afbad-49c4-4af8-bcc0-da3146b1cc94",
+      "codeRefAttachmentType": "DEMANDE_EXPETISE_SIGNED",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "c8f2b773-7557-4e40-a6fe-47b8ecc83686",
+      "codeRefAttachmentType": "NOTIFICATION",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33072,
+          "uuid": "3b52633f-58d5-46d5-80eb-2b324a5575e5",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "notification00001616.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/NOTIFICATION/1775489370091",
+          "extension": "pdf",
+          "byteSize": 57332,
+          "storageDocumentId": 1501425,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:29:30",
+          "uploadedBy": "002691",
+          "attachmentTypeCode": "NOTIFICATION",
+          "dossierAttachmentTypeUuid": "c8f2b773-7557-4e40-a6fe-47b8ecc83686",
+          "interventions": [
+            {
+              "id": 26261,
+              "createdAt": "2026-04-07T08:50:06.644661",
+              "controls": [
+                {
+                  "code": "CTL24",
+                  "conform": false
+                },
+                {
+                  "code": "CTL25",
+                  "conform": false
+                },
+                {
+                  "code": "CTL26",
+                  "conform": false
+                },
+                {
+                  "code": "CTL27",
+                  "conform": false
+                },
+                {
+                  "code": "CTL28",
+                  "conform": false
+                },
+                {
+                  "code": "CTL29",
+                  "conform": false
+                },
+                {
+                  "code": "CTL30",
+                  "conform": false
+                },
+                {
+                  "code": "CTL31",
+                  "conform": false
+                },
+                {
+                  "code": "CTL32",
+                  "conform": false
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "cffbb005-fc4a-4c46-8d1f-3405c9450d6f",
+      "codeRefAttachmentType": "IDCARD",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33044,
+          "uuid": "31f199c0-b0ac-459f-8edd-371d27aadbae",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "CINAITABDELLAHOULMOKHTARSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/IDCARD/1775488370496",
+          "extension": "pdf",
+          "byteSize": 136382,
+          "storageDocumentId": 1501353,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:12:50",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "IDCARD",
+          "dossierAttachmentTypeUuid": "cffbb005-fc4a-4c46-8d1f-3405c9450d6f",
+          "interventions": [
+            {
+              "id": 26240,
+              "createdAt": "2026-04-06T16:24:52.925846",
+              "controls": [
+                {
+                  "code": "CTL1",
+                  "conform": true
+                },
+                {
+                  "code": "CTL3",
+                  "conform": true
+                },
+                {
+                  "code": "CTL2",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26276,
+              "createdAt": "2026-04-07T08:53:20.846446",
+              "controls": [
+                {
+                  "code": "CTL1",
+                  "conform": true
+                },
+                {
+                  "code": "CTL3",
+                  "conform": true
+                },
+                {
+                  "code": "CTL2",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "c8867b83-1a0c-499b-a164-aaf063e0c3c6",
+      "codeRefAttachmentType": "LDN",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33059,
+          "uuid": "6ca1ab88-7284-445c-a6a6-4b97f50700e6",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "LDNAITABDELLAHSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/LDN/1775488530218",
+          "extension": "pdf",
+          "byteSize": 78808,
+          "storageDocumentId": 1501380,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:15:30",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "LDN",
+          "dossierAttachmentTypeUuid": "c8867b83-1a0c-499b-a164-aaf063e0c3c6",
+          "interventions": [
+            {
+              "id": 26228,
+              "createdAt": "2026-04-06T16:21:58.150813",
+              "controls": [
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL33",
+                  "conform": true
+                },
+                {
+                  "code": "CTL34",
+                  "conform": true
+                },
+                {
+                  "code": "CTL35",
+                  "conform": true
+                },
+                {
+                  "code": "CTL36",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26264,
+              "createdAt": "2026-04-07T08:51:18.908785",
+              "controls": [
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL33",
+                  "conform": true
+                },
+                {
+                  "code": "CTL34",
+                  "conform": true
+                },
+                {
+                  "code": "CTL35",
+                  "conform": true
+                },
+                {
+                  "code": "CTL36",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "8752be3f-be8e-4296-86ce-4ffbc97192e8",
+      "codeRefAttachmentType": "BUTAAIMTCUS",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33060,
+          "uuid": "375b9437-8481-4fc0-a30a-ef91498871e2",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "TAAMINEBAYTISALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/BUTAAIMTCUS/1775488554170",
+          "extension": "pdf",
+          "byteSize": 172079,
+          "storageDocumentId": 1501381,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:15:54",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "BUTAAIMTCUS",
+          "dossierAttachmentTypeUuid": "8752be3f-be8e-4296-86ce-4ffbc97192e8",
+          "interventions": [
+            {
+              "id": 26227,
+              "createdAt": "2026-04-06T16:21:41.91403",
+              "controls": [
+                {
+                  "code": "CTL37",
+                  "conform": true
+                },
+                {
+                  "code": "CTL38",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26263,
+              "createdAt": "2026-04-07T08:51:10.498693",
+              "controls": [
+                {
+                  "code": "CTL37",
+                  "conform": true
+                },
+                {
+                  "code": "CTL38",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "5c7f73ed-6e13-4f3a-bdbd-e46d1289f180",
+      "codeRefAttachmentType": "ACCEPTASSUR",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "19b0ed33-5d1a-4d2f-a7e9-642484dc2b30",
+      "codeRefAttachmentType": "DCHARGEASSUR",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "74445516-30d6-4878-854f-47ccb36650fa",
+      "codeRefAttachmentType": "DCHARGEASSURLMV",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "2f7a19db-e820-454b-88d8-838910462a69",
+      "codeRefAttachmentType": "BULLTACH",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33061,
+          "uuid": "7964693b-0021-4e6c-b592-660f836783cc",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "ACHSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/BULLTACH/1775488566446",
+          "extension": "pdf",
+          "byteSize": 122640,
+          "storageDocumentId": 1501382,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:16:06",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "BULLTACH",
+          "dossierAttachmentTypeUuid": "2f7a19db-e820-454b-88d8-838910462a69",
+          "interventions": [
+            {
+              "id": 26226,
+              "createdAt": "2026-04-06T16:21:30.541171",
+              "controls": [
+                {
+                  "code": "CTL41",
+                  "conform": true
+                },
+                {
+                  "code": "CTL42",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26262,
+              "createdAt": "2026-04-07T08:51:04.022169",
+              "controls": [
+                {
+                  "code": "CTL41",
+                  "conform": true
+                },
+                {
+                  "code": "CTL42",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "72454348-4ff1-4758-823e-11363d902c16",
+      "codeRefAttachmentType": "COMPROMISCONTRAT",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33051,
+          "uuid": "4464e6a1-59cf-425a-84ec-453893dc283b",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "compromisdeventeSALMAAITABDELLAH.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/COMPROMISCONTRAT/1775488425773",
+          "extension": "pdf",
+          "byteSize": 466857,
+          "storageDocumentId": 1501371,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:45",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "COMPROMISCONTRAT",
+          "dossierAttachmentTypeUuid": "72454348-4ff1-4758-823e-11363d902c16",
+          "interventions": [
+            {
+              "id": 26235,
+              "createdAt": "2026-04-06T16:23:41.609228",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26271,
+              "createdAt": "2026-04-07T08:52:12.909664",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        },
+        {
+          "id": 33052,
+          "uuid": "e8d34e05-f4e3-42e0-94b5-98f318607d5b",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "CPSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/COMPROMISCONTRAT/1775488432281",
+          "extension": "pdf",
+          "byteSize": 134758,
+          "storageDocumentId": 1501372,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:52",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "COMPROMISCONTRAT",
+          "dossierAttachmentTypeUuid": "72454348-4ff1-4758-823e-11363d902c16",
+          "interventions": [
+            {
+              "id": 26234,
+              "createdAt": "2026-04-06T16:23:29.251489",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26270,
+              "createdAt": "2026-04-07T08:52:06.308363",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        },
+        {
+          "id": 33054,
+          "uuid": "09530df5-3943-4331-a4df-9251daf155f9",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "DEVISNOTAIRESALMAAITABDELLAH.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/COMPROMISCONTRAT/1775488443890",
+          "extension": "pdf",
+          "byteSize": 69249,
+          "storageDocumentId": 1501374,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:14:03",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "COMPROMISCONTRAT",
+          "dossierAttachmentTypeUuid": "72454348-4ff1-4758-823e-11363d902c16",
+          "interventions": [
+            {
+              "id": 26233,
+              "createdAt": "2026-04-06T16:23:15.458226",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26269,
+              "createdAt": "2026-04-07T08:51:57.998779",
+              "controls": [
+                {
+                  "code": "CTL5",
+                  "conform": true
+                },
+                {
+                  "code": "CTL43",
+                  "conform": true
+                },
+                {
+                  "code": "CTL44",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "7f149bf3-15a7-4356-9f9a-ace3bb166560",
+      "codeRefAttachmentType": "LOANBUREAU",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33055,
+          "uuid": "f3422ce5-157c-4c91-9fa6-f83f21ea4ba0",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "CBSALMAAITABDELLAH.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/LOANBUREAU/1775488460191",
+          "extension": "pdf",
+          "byteSize": 87099,
+          "storageDocumentId": 1501375,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:14:20",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "LOANBUREAU",
+          "dossierAttachmentTypeUuid": "7f149bf3-15a7-4356-9f9a-ace3bb166560",
+          "interventions": [
+            {
+              "id": 26232,
+              "createdAt": "2026-04-06T16:22:46.841979",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL64",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26268,
+              "createdAt": "2026-04-07T08:51:49.334099",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL64",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "735d5e01-1d78-4a79-80a9-bce193fa71be",
+      "codeRefAttachmentType": "SCIP",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33056,
+          "uuid": "cec2ee47-47b5-4211-92ef-03189a26d3c8",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "IDPSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/SCIP/1775488499617",
+          "extension": "pdf",
+          "byteSize": 65885,
+          "storageDocumentId": 1501376,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:14:59",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "SCIP",
+          "dossierAttachmentTypeUuid": "735d5e01-1d78-4a79-80a9-bce193fa71be",
+          "interventions": [
+            {
+              "id": 26231,
+              "createdAt": "2026-04-06T16:22:35.730801",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26267,
+              "createdAt": "2026-04-07T08:51:41.602315",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        },
+        {
+          "id": 33057,
+          "uuid": "4eda3ec7-ef76-4c09-b7b9-09030bd9ee3a",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "KYCSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/SCIP/1775488508314",
+          "extension": "pdf",
+          "byteSize": 100247,
+          "storageDocumentId": 1501378,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:15:08",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "SCIP",
+          "dossierAttachmentTypeUuid": "735d5e01-1d78-4a79-80a9-bce193fa71be",
+          "interventions": [
+            {
+              "id": 26230,
+              "createdAt": "2026-04-06T16:22:26.019198",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26266,
+              "createdAt": "2026-04-07T08:51:34.831451",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        },
+        {
+          "id": 33058,
+          "uuid": "c450fa2b-5a2c-403d-b591-642615597fc1",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "NOTESCOREA3.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/SCIP/1775488516912",
+          "extension": "pdf",
+          "byteSize": 99537,
+          "storageDocumentId": 1501379,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:15:16",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "SCIP",
+          "dossierAttachmentTypeUuid": "735d5e01-1d78-4a79-80a9-bce193fa71be",
+          "interventions": [
+            {
+              "id": 26229,
+              "createdAt": "2026-04-06T16:22:12.672838",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26265,
+              "createdAt": "2026-04-07T08:51:28.769068",
+              "controls": [
+                {
+                  "code": "CTL7",
+                  "conform": true
+                },
+                {
+                  "code": "CTL65",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "976839f3-8078-4c8e-b98f-bb4d5a6995e9",
+      "codeRefAttachmentType": "DOMIREVENU",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "dbc76954-7780-4b53-963a-1664916504e0",
+      "codeRefAttachmentType": "ATTESTATIONTRAVAIL",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33046,
+          "uuid": "7ca3c69b-7d34-4017-8125-e37418000476",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "CDISALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/ATTESTATIONTRAVAIL/1775488390696",
+          "extension": "pdf",
+          "byteSize": 97512,
+          "storageDocumentId": 1501358,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:10",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "ATTESTATIONTRAVAIL",
+          "dossierAttachmentTypeUuid": "dbc76954-7780-4b53-963a-1664916504e0",
+          "interventions": [
+            {
+              "id": 26238,
+              "createdAt": "2026-04-06T16:24:26.910549",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL11",
+                  "conform": true
+                },
+                {
+                  "code": "CTL12",
+                  "conform": true
+                },
+                {
+                  "code": "CTL13",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL15",
+                  "conform": true
+                },
+                {
+                  "code": "CTL57",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26274,
+              "createdAt": "2026-04-07T08:52:51.214617",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL11",
+                  "conform": true
+                },
+                {
+                  "code": "CTL12",
+                  "conform": true
+                },
+                {
+                  "code": "CTL13",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL15",
+                  "conform": true
+                },
+                {
+                  "code": "CTL57",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "edac3975-3b78-4f8d-87c7-70629203ab23",
+      "codeRefAttachmentType": "ATTESTATIONSALAIRE",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33045,
+          "uuid": "1caa72c2-fc8f-4d65-9e7c-04aa1a670027",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "ATTESTAIONSALAIRETRAVAILDOMICILIATIONCONFIRMATIONSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/ATTESTATIONSALAIRE/1775488380027",
+          "extension": "pdf",
+          "byteSize": 72970,
+          "storageDocumentId": 1501356,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:00",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "ATTESTATIONSALAIRE",
+          "dossierAttachmentTypeUuid": "edac3975-3b78-4f8d-87c7-70629203ab23",
+          "interventions": [
+            {
+              "id": 26239,
+              "createdAt": "2026-04-06T16:24:41.700042",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL11",
+                  "conform": true
+                },
+                {
+                  "code": "CTL12",
+                  "conform": true
+                },
+                {
+                  "code": "CTL13",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL15",
+                  "conform": true
+                },
+                {
+                  "code": "CTL57",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26275,
+              "createdAt": "2026-04-07T08:53:09.74264",
+              "controls": [
+                {
+                  "code": "CTL6",
+                  "conform": true
+                },
+                {
+                  "code": "CTL11",
+                  "conform": true
+                },
+                {
+                  "code": "CTL12",
+                  "conform": true
+                },
+                {
+                  "code": "CTL13",
+                  "conform": true
+                },
+                {
+                  "code": "CTL14",
+                  "conform": true
+                },
+                {
+                  "code": "CTL15",
+                  "conform": true
+                },
+                {
+                  "code": "CTL57",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "59708939-5c1b-4144-844d-9c0ec04752e4",
+      "codeRefAttachmentType": "BULLETINPAIE",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33047,
+          "uuid": "eddaad4a-01f8-45cb-82ab-afe8690c7ed5",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "BPMOIS1201022026SALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/BULLETINPAIE/1775488399509",
+          "extension": "pdf",
+          "byteSize": 110608,
+          "storageDocumentId": 1501359,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:19",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "BULLETINPAIE",
+          "dossierAttachmentTypeUuid": "59708939-5c1b-4144-844d-9c0ec04752e4",
+          "interventions": [
+            {
+              "id": 26237,
+              "createdAt": "2026-04-06T16:24:06.008945",
+              "controls": [
+                {
+                  "code": "CTL9",
+                  "conform": true
+                },
+                {
+                  "code": "CTL10",
+                  "conform": true
+                },
+                {
+                  "code": "CTL58",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26273,
+              "createdAt": "2026-04-07T08:52:42.516975",
+              "controls": [
+                {
+                  "code": "CTL9",
+                  "conform": true
+                },
+                {
+                  "code": "CTL10",
+                  "conform": true
+                },
+                {
+                  "code": "CTL58",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "ad12acd6-1c21-49d2-bf46-399e9ff15328",
+      "codeRefAttachmentType": "ATTESTATIONDECLACNSS",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33048,
+          "uuid": "6d43d341-6652-409c-b6e2-c90c0b5f4c87",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "CNSSSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/ATTESTATIONDECLACNSS/1775488415416",
+          "extension": "pdf",
+          "byteSize": 187157,
+          "storageDocumentId": 1501362,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:13:35",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "ATTESTATIONDECLACNSS",
+          "dossierAttachmentTypeUuid": "ad12acd6-1c21-49d2-bf46-399e9ff15328",
+          "interventions": [
+            {
+              "id": 26236,
+              "createdAt": "2026-04-06T16:23:54.717241",
+              "controls": [
+                {
+                  "code": "CTL17",
+                  "conform": true
+                },
+                {
+                  "code": "CTL18",
+                  "conform": true
+                },
+                {
+                  "code": "CTL19",
+                  "conform": true
+                },
+                {
+                  "code": "CTL56",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "138",
+                "firstname": "YASSINE",
+                "lastname": "HAMDANI",
+                "fullName": "HAMDANI YASSINE",
+                "matricule": "002691",
+                "poste": "DIRECTEUR D'AGENCE",
+                "email": "Yassine.Hamdani@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "R218",
+                "drDesignation": "DELEGATION REGIONALE NORD",
+                "drppCode": "C10640002",
+                "drppDesignation": "DRPP  RABAT",
+                "ucCode": "UC005",
+                "ucDesignation": "SALE",
+                "agencyCode": "A335",
+                "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+                "active": false,
+                "identifier": "hamdani yassine"
+              }
+            },
+            {
+              "id": 26272,
+              "createdAt": "2026-04-07T08:52:25.286381",
+              "controls": [
+                {
+                  "code": "CTL17",
+                  "conform": true
+                },
+                {
+                  "code": "CTL18",
+                  "conform": true
+                },
+                {
+                  "code": "CTL19",
+                  "conform": true
+                },
+                {
+                  "code": "CTL56",
+                  "conform": true
+                }
+              ],
+              "comments": [],
+              "userDto": {
+                "id": "202",
+                "firstname": "HIBA",
+                "lastname": "CHOUKI",
+                "fullName": "CHOUKI HIBA",
+                "matricule": "E001904",
+                "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+                "email": "hiba.chouki@sahambank.com",
+                "buCode": "P10",
+                "buDesignation": "DIRECTOIRE",
+                "drCode": "0023",
+                "drDesignation": "SU OPERATIONS ET RESSOURCES",
+                "drppCode": "D126",
+                "drppDesignation": "DIRECTION DES OPERATIONS",
+                "agencyCode": "D86",
+                "agencyDesignation": "DIRECTION SERVICE CLIENT",
+                "active": false,
+                "identifier": "chouki hiba"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "ae7eba60-57e0-41fb-b0aa-ce44e411a429",
+      "codeRefAttachmentType": "ENGAGEMENTVALANTCESSION",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "1b2acafd-d2a8-498f-8196-27c8d37e6d1f",
+      "codeRefAttachmentType": "ENGAGEMENTNOTAIRE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "0bba9cbd-3ed5-48f5-8003-e18550a82ccf",
+      "codeRefAttachmentType": "MINUTE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "89472a6a-28a5-4057-978a-c23684d89957",
+      "codeRefAttachmentType": "OPC",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "7da5066b-285a-4186-87ca-941d324cc85d",
+      "codeRefAttachmentType": "CHEQUEBANQUE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "3d003f1c-9d78-4045-94ca-2e02517b7ad5",
+      "codeRefAttachmentType": "AUTRESDOCUMENTS",
+      "completed": true,
+      "attachments": [
+        {
+          "id": 33065,
+          "uuid": "7bef2c5c-0f47-4b4c-b9fc-6f8a100dc009",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "OFFRECRDITSEGMENTSHGBGFINJUIN2026.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/AUTRESDOCUMENTS/1775488636806",
+          "extension": "pdf",
+          "byteSize": 154811,
+          "storageDocumentId": 1501388,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:17:16",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "AUTRESDOCUMENTS",
+          "dossierAttachmentTypeUuid": "3d003f1c-9d78-4045-94ca-2e02517b7ad5",
+          "interventions": []
+        },
+        {
+          "id": 33063,
+          "uuid": "6793bf93-fa83-4856-b2cb-5552e6e348cf",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "SEGMENTBONNEGAMMEAITABDELLAHOULMOKHTARSALMA.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/AUTRESDOCUMENTS/1775488599726",
+          "extension": "pdf",
+          "byteSize": 95510,
+          "storageDocumentId": 1501386,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:16:39",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "AUTRESDOCUMENTS",
+          "dossierAttachmentTypeUuid": "3d003f1c-9d78-4045-94ca-2e02517b7ad5",
+          "interventions": []
+        },
+        {
+          "id": 33064,
+          "uuid": "02420102-a90a-4d13-a6de-4a297d8bbf31",
+          "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+          "filename": "RecuDaamSakan1774382146688150salma.pdf",
+          "path": "f5302080-8b9e-4922-999d-5445ae485526/AUTRESDOCUMENTS/1775488606740",
+          "extension": "pdf",
+          "byteSize": 289110,
+          "storageDocumentId": 1501387,
+          "contentType": "application/pdf",
+          "uploadedAt": "2026-04-06T16:16:46",
+          "uploadedBy": "005058",
+          "attachmentTypeCode": "AUTRESDOCUMENTS",
+          "dossierAttachmentTypeUuid": "3d003f1c-9d78-4045-94ca-2e02517b7ad5",
+          "interventions": []
+        }
+      ]
+    },
+    {
+      "uuid": "dab97c33-658b-42c1-ad6e-d76a4bc7c8f9",
+      "codeRefAttachmentType": "SAISIEGARANTIE",
+      "completed": false,
+      "attachments": []
+    },
+    {
+      "uuid": "4555a8b9-35f3-42ac-8de8-0b8b2fbdc680",
+      "codeRefAttachmentType": "OPCS",
+      "completed": false,
+      "attachments": []
+    }
+  ],
+  "propertyData": {
+    "landCertificateNumber": "81/28322",
+    "propertyArea": 35.0,
+    "propertyCity": {
+      "code": "TIFLET",
+      "designation": "TIFLET"
+    }
+  },
+  "notary": {
+    "name": "SAMIA EL ATRASSI",
+    "address": "COMPLEXE COMMERCIAL AL HAMD 1 ER ETAGE BUREAU 18 SALA AL JADIDA",
+    "phone": "0537801246",
+    "email": "elatrassisamia@gmail.com"
+  },
+  "insuranceData": {
+    "insuredPercentage": 100.00,
+    "insuranceCoefficient": 0.5280,
+    "typeBInsuranceCoefficient": 0.0000,
+    "typeAInsuranceCoefficient": 0.0000,
+    "aditionalCreditInsuranceCoefficient": 0.0000,
+    "suportedInsuranceCoefficient": 0.0000,
+    "subsidizedInsuranceCoefficient": 0.0000,
+    "bonusInsuranceCoefficient": 0.0000
+  },
+  "dossierUsers": [
+    {
+      "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+      "user": {
+        "id": "13",
+        "firstname": "JIHANE MIRIAM",
+        "lastname": "HARBILI",
+        "fullName": "HARBILI JIHANE MIRIAM",
+        "matricule": "006022",
+        "poste": "DELIVERY MANAGER RETAIL",
+        "email": "Jihane-Miriam.Harbili@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "0023",
+        "drDesignation": "SU OPERATIONS ET RESSOURCES",
+        "drppCode": "D126",
+        "drppDesignation": "DIRECTION DES OPERATIONS",
+        "agencyCode": "D86",
+        "agencyDesignation": "DIRECTION SERVICE CLIENT",
+        "active": false,
+        "identifier": "harbili jihane miriam"
+      },
+      "role": {
+        "code": "DELIVERY_MANAGER",
+        "designation": "Delivery manager",
+        "permissions": [
+          {
+            "code": "ROLE_PP_REASSIGN_DOSSIER",
+            "designation": "Réaffection Dossier",
+            "uniqueId": "ROLE_PP_REASSIGN_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_VIEW_TASKS",
+            "designation": "Visualiser le bloc mes taches",
+            "uniqueId": "ROLE_PP_VIEW_TASKS"
+          },
+          {
+            "code": "ROLE_PP_VIEW_DOSSIER",
+            "designation": "Consultation dossier",
+            "uniqueId": "ROLE_PP_VIEW_DOSSIER"
+          }
+        ],
+        "uniqueId": "DELIVERY_MANAGER"
+      },
+      "codeProfession": "DMR"
+    },
+    {
+      "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+      "user": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      },
+      "role": {
+        "code": "INITIATOR",
+        "designation": "Initiateur",
+        "permissions": [
+          {
+            "code": "ROLE_PP_RECEIVE_SIGNED_OPC",
+            "designation": "Réception OPC signée",
+            "uniqueId": "ROLE_PP_RECEIVE_SIGNED_OPC"
+          },
+          {
+            "code": "ROLE_PP_UPDATE_DOSSIER",
+            "designation": "Modification dossier",
+            "uniqueId": "ROLE_PP_UPDATE_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_OPC_PREPARATION",
+            "designation": "Demande de confection des OPC",
+            "uniqueId": "ROLE_PP_REQUEST_OPC_PREPARATION"
+          },
+          {
+            "code": "ROLE_PM_DELIVER_CONTRACT",
+            "designation": "Deliver contrat",
+            "uniqueId": "ROLE_PM_DELIVER_CONTRACT"
+          },
+          {
+            "code": "ROLE_PP_RETURN_ADD_INFOS",
+            "designation": "Retour infos complémentaires",
+            "uniqueId": "ROLE_PP_RETURN_ADD_INFOS"
+          },
+          {
+            "code": "ROLE_PP_RETURN_TO_DECISION",
+            "designation": "Retour à l'instance de décision",
+            "uniqueId": "ROLE_PP_RETURN_TO_DECISION"
+          },
+          {
+            "code": "ROLE_PP_RIND",
+            "designation": "Retour instance de décision",
+            "uniqueId": "ROLE_PP_RIND"
+          },
+          {
+            "code": "ROLE_PP_SAVE_DOSSIER",
+            "designation": "Enregistrement dossier",
+            "uniqueId": "ROLE_PP_SAVE_DOSSIER"
+          },
+          {
+            "code": "ROLE_DELETE_DOCUMENTS",
+            "designation": "Supprimer des documents rattachés au dossier",
+            "uniqueId": "ROLE_DELETE_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_TRANSFER_TO_VALIDATOR",
+            "designation": "Transmission au validateur",
+            "uniqueId": "ROLE_PP_TRANSFER_TO_VALIDATOR"
+          },
+          {
+            "code": "ROLE_PP_VALIDATE_DOSSIER",
+            "designation": "Validation dossier",
+            "uniqueId": "ROLE_PP_VALIDATE_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_DELIVER_OPC",
+            "designation": "Remise OPC au client",
+            "uniqueId": "ROLE_PP_DELIVER_OPC"
+          },
+          {
+            "code": "ROLE_PP_RETURN_OPC_COMPLETION",
+            "designation": "Retour pour compléter l'OPC",
+            "uniqueId": "ROLE_PP_RETURN_OPC_COMPLETION"
+          },
+          {
+            "code": "ROLE_PP_ABORT_DOSSIER",
+            "designation": "Abandon dossier",
+            "uniqueId": "ROLE_PP_ABORT_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_CONTROL_PHYSICAL_DOSSIER",
+            "designation": "Transmission pour contrôle dossier physique",
+            "uniqueId": "ROLE_PP_CONTROL_PHYSICAL_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_FORWARD_TO_DSC",
+            "designation": "Transmettre à DSC",
+            "uniqueId": "ROLE_PP_FORWARD_TO_DSC"
+          },
+          {
+            "code": "ROLE_PP_VIEW_TASKS",
+            "designation": "Visualiser le bloc mes taches",
+            "uniqueId": "ROLE_PP_VIEW_TASKS"
+          },
+          {
+            "code": "ROLE_PP_CREATE_DOSSIER",
+            "designation": "Création dossier",
+            "uniqueId": "ROLE_PP_CREATE_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_ATTACH_DOCUMENTS",
+            "designation": "Rattachement des documents au dossier",
+            "uniqueId": "ROLE_PP_ATTACH_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_RELEASE",
+            "designation": "Déblocage",
+            "uniqueId": "ROLE_PP_RELEASE"
+          },
+          {
+            "code": "ROLE_PP_VIEW_DOSSIER",
+            "designation": "Consultation dossier",
+            "uniqueId": "ROLE_PP_VIEW_DOSSIER"
+          }
+        ],
+        "uniqueId": "INITIATOR"
+      },
+      "codeProfession": "CCP"
+    },
+    {
+      "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+      "user": {
+        "id": "138",
+        "firstname": "YASSINE",
+        "lastname": "HAMDANI",
+        "fullName": "HAMDANI YASSINE",
+        "matricule": "002691",
+        "poste": "DIRECTEUR D'AGENCE",
+        "email": "Yassine.Hamdani@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "hamdani yassine"
+      },
+      "role": {
+        "code": "VALIDATOR",
+        "designation": "Validateur",
+        "permissions": [
+          {
+            "code": "ROLE_PP_SAVE_DOSSIER",
+            "designation": "Enregistrement dossier",
+            "uniqueId": "ROLE_PP_SAVE_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_ADD_INFOS_VALIDATOR",
+            "designation": "Demande Infos Complémentaires",
+            "uniqueId": "ROLE_PP_REQUEST_ADD_INFOS_VALIDATOR"
+          },
+          {
+            "code": "ROLE_PP_TRANSFER_TO_DECISION_AUTHORITY",
+            "designation": "Transmission à l'instance de décision",
+            "uniqueId": "ROLE_PP_TRANSFER_TO_DECISION_AUTHORITY"
+          },
+          {
+            "code": "ROLE_PP_VIEW_TASKS",
+            "designation": "Visualiser le bloc mes taches",
+            "uniqueId": "ROLE_PP_VIEW_TASKS"
+          },
+          {
+            "code": "ROLE_PP_CONTROL_CHECKLIST",
+            "designation": "Contrôler la liste des documents attachés au dossier",
+            "uniqueId": "ROLE_PP_CONTROL_CHECKLIST"
+          },
+          {
+            "code": "ROLE_PP_VIEW_DOSSIER",
+            "designation": "Consultation dossier",
+            "uniqueId": "ROLE_PP_VIEW_DOSSIER"
+          }
+        ],
+        "uniqueId": "VALIDATOR"
+      },
+      "codeProfession": "DA"
+    },
+    {
+      "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+      "user": {
+        "id": "138",
+        "firstname": "YASSINE",
+        "lastname": "HAMDANI",
+        "fullName": "HAMDANI YASSINE",
+        "matricule": "002691",
+        "poste": "DIRECTEUR D'AGENCE",
+        "email": "Yassine.Hamdani@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "hamdani yassine"
+      },
+      "role": {
+        "code": "DECISION_AUTHORITY_WITHOUTRISK",
+        "designation": "Instance de décision (Hors Risque)",
+        "permissions": [
+          {
+            "code": "ROLE_PP_REQUEST_RISK_AGREEMENT",
+            "designation": "Demande accord Risque",
+            "uniqueId": "ROLE_PP_REQUEST_RISK_AGREEMENT"
+          },
+          {
+            "code": "ROLE_PP_REVIEW_REQUEST",
+            "designation": "Revoir proposition",
+            "uniqueId": "ROLE_PP_REVIEW_REQUEST"
+          },
+          {
+            "code": "ROLE_PP_TRANSFER_TO_RISK",
+            "designation": "Role Transmettre risque",
+            "uniqueId": "ROLE_PP_TRANSFER_TO_RISK"
+          },
+          {
+            "code": "ROLE_DELETE_DOCUMENTS",
+            "designation": "Supprimer des documents rattachés au dossier",
+            "uniqueId": "ROLE_DELETE_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_ACCORD_DOSSIER",
+            "designation": "Accord dossier",
+            "uniqueId": "ROLE_PP_ACCORD_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_REJECT_DOSSIER",
+            "designation": "Refus dossier",
+            "uniqueId": "ROLE_PP_REJECT_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_ADD_INFOS_DECISION",
+            "designation": "Demande Infos Complémentaires",
+            "uniqueId": "ROLE_PP_REQUEST_ADD_INFOS_DECISION"
+          },
+          {
+            "code": "ROLE_PP_VIEW_TASKS",
+            "designation": "Visualiser le bloc mes taches",
+            "uniqueId": "ROLE_PP_VIEW_TASKS"
+          },
+          {
+            "code": "ROLE_PP_VALIDATE_REQUEST",
+            "designation": "Valider proposition",
+            "uniqueId": "ROLE_PP_VALIDATE_REQUEST"
+          },
+          {
+            "code": "ROLE_PP_REJECT_REQUEST",
+            "designation": "Rejeter proposition",
+            "uniqueId": "ROLE_PP_REJECT_REQUEST"
+          },
+          {
+            "code": "ROLE_PP_ATTACH_DOCUMENTS",
+            "designation": "Rattachement des documents au dossier",
+            "uniqueId": "ROLE_PP_ATTACH_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_VIEW_DOSSIER",
+            "designation": "Consultation dossier",
+            "uniqueId": "ROLE_PP_VIEW_DOSSIER"
+          }
+        ],
+        "uniqueId": "DECISION_AUTHORITY_WITHOUTRISK"
+      },
+      "codeProfession": "DA"
+    },
+    {
+      "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+      "user": {
+        "id": "202",
+        "firstname": "HIBA",
+        "lastname": "CHOUKI",
+        "fullName": "CHOUKI HIBA",
+        "matricule": "E001904",
+        "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+        "email": "hiba.chouki@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "0023",
+        "drDesignation": "SU OPERATIONS ET RESSOURCES",
+        "drppCode": "D126",
+        "drppDesignation": "DIRECTION DES OPERATIONS",
+        "agencyCode": "D86",
+        "agencyDesignation": "DIRECTION SERVICE CLIENT",
+        "active": false,
+        "identifier": "chouki hiba"
+      },
+      "role": {
+        "code": "CTB",
+        "designation": "CTB",
+        "permissions": [
+          {
+            "code": "ROLE_PP_UPDATE_DOSSIER",
+            "designation": "Modification dossier",
+            "uniqueId": "ROLE_PP_UPDATE_DOSSIER"
+          },
+          {
+            "code": "ROLE_PP_RETURN_ADD_INFOS",
+            "designation": "Retour infos complémentaires",
+            "uniqueId": "ROLE_PP_RETURN_ADD_INFOS"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_OPC_VALIDATION",
+            "designation": "Demande de validation des OPC",
+            "uniqueId": "ROLE_PP_REQUEST_OPC_VALIDATION"
+          },
+          {
+            "code": "ROLE_DELETE_DOCUMENTS",
+            "designation": "Supprimer des documents rattachés au dossier",
+            "uniqueId": "ROLE_DELETE_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_TRANSFER_NOTARY_RELATIONSHIP",
+            "designation": "Transmission à Relation Notaire",
+            "uniqueId": "ROLE_PP_TRANSFER_NOTARY_RELATIONSHIP"
+          },
+          {
+            "code": "ROLE_PP_CONTROL_CHECKLIST",
+            "designation": "Contrôler la liste des documents attachés au dossier",
+            "uniqueId": "ROLE_PP_CONTROL_CHECKLIST"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_ADD_INFOS_CTB",
+            "designation": "Demande Infos Complémentaires",
+            "uniqueId": "ROLE_PP_REQUEST_ADD_INFOS_CTB"
+          },
+          {
+            "code": "ROLE_PP_VIEW_TASKS",
+            "designation": "Visualiser le bloc mes taches",
+            "uniqueId": "ROLE_PP_VIEW_TASKS"
+          },
+          {
+            "code": "ROLE_PP_ATTACH_DOCUMENTS",
+            "designation": "Rattachement des documents au dossier",
+            "uniqueId": "ROLE_PP_ATTACH_DOCUMENTS"
+          },
+          {
+            "code": "ROLE_PP_RELEASE",
+            "designation": "Déblocage",
+            "uniqueId": "ROLE_PP_RELEASE"
+          },
+          {
+            "code": "ROLE_PP_TRANSFER_CONTROL_WARRANTIES",
+            "designation": "Transmission pour contrôle des garanties",
+            "uniqueId": "ROLE_PP_TRANSFER_CONTROL_WARRANTIES"
+          },
+          {
+            "code": "ROLE_PP_REQUEST_OPC_GENERATION",
+            "designation": "Demande de generation des OPC",
+            "uniqueId": "ROLE_PP_REQUEST_OPC_GENERATION"
+          },
+          {
+            "code": "ROLE_PP_VIEW_DOSSIER",
+            "designation": "Consultation dossier",
+            "uniqueId": "ROLE_PP_VIEW_DOSSIER"
+          }
+        ],
+        "uniqueId": "CTB"
+      },
+      "codeProfession": "CTB"
+    }
+  ],
+  "createdAt": "2026-04-06T16:00:33.227408",
+  "uuid": "f5302080-8b9e-4922-999d-5445ae485526",
+  "codeStatus": "DECS_RIDN",
+  "codeStage": "DECS",
+  "status": "Approbation retour instance de décision",
+  "stage": "Décision",
+  "codeDossier": "00001616",
+  "comments": [
+    {
+      "uuid": "c1047f11-bfa6-4fa1-9e7b-364f18cd782f",
+      "message": "MERCI DE RECTIFIER TF SUR LA NOTIF \nCDT",
+      "type": "COMMENT",
+      "createdAt": "2026-04-07T09:18:21.078064",
+      "codeStage": "GEN",
+      "author": {
+        "id": "202",
+        "firstname": "HIBA",
+        "lastname": "CHOUKI",
+        "fullName": "CHOUKI HIBA",
+        "matricule": "E001904",
+        "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+        "email": "hiba.chouki@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "0023",
+        "drDesignation": "SU OPERATIONS ET RESSOURCES",
+        "drppCode": "D126",
+        "drppDesignation": "DIRECTION DES OPERATIONS",
+        "agencyCode": "D86",
+        "agencyDesignation": "DIRECTION SERVICE CLIENT",
+        "active": false,
+        "identifier": "chouki hiba"
+      }
+    },
+    {
+      "uuid": "2921120c-09be-4a88-8c80-c3cfb85af929",
+      "message": "MERCI DE RECTIFIER TF SUR LA NOTIF \nCDT",
+      "type": "COMMENT",
+      "createdAt": "2026-04-07T09:18:20.535219",
+      "codeStage": "GEN",
+      "author": {
+        "id": "202",
+        "firstname": "HIBA",
+        "lastname": "CHOUKI",
+        "fullName": "CHOUKI HIBA",
+        "matricule": "E001904",
+        "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+        "email": "hiba.chouki@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "0023",
+        "drDesignation": "SU OPERATIONS ET RESSOURCES",
+        "drppCode": "D126",
+        "drppDesignation": "DIRECTION DES OPERATIONS",
+        "agencyCode": "D86",
+        "agencyDesignation": "DIRECTION SERVICE CLIENT",
+        "active": false,
+        "identifier": "chouki hiba"
+      }
+    },
+    {
+      "uuid": "d67c4cd6-79ae-4e0a-8edb-2094ccfe78cd",
+      "message": "POUR OPC",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:33:00.010525",
+      "codeStage": "DECS",
+      "author": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      }
+    },
+    {
+      "uuid": "e26cc96b-4455-4856-ae48-c6c84532a503",
+      "message": "POUR OPC",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:32:59.5092",
+      "codeStage": "DECS",
+      "author": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      }
+    },
+    {
+      "uuid": "46a88808-7df1-4628-8bf9-0e50f0836fac",
+      "message": "PPI",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:32:59.147457",
+      "codeStage": "INST",
+      "author": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      }
+    },
+    {
+      "uuid": "35f21ea2-3f47-4a0a-8531-3e9473550060",
+      "message": "Accord sur ce dossier PPI 224.000,00 MAD sur 132 mois (200.000,00 Acquisition plus 24.000,00 Frais notaire), et ce, eu égard à la domiciliation du salaire et la convention avec l'employeur.",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:32:59.145294",
+      "codeStage": "VALD",
+      "author": {
+        "id": "138",
+        "firstname": "YASSINE",
+        "lastname": "HAMDANI",
+        "fullName": "HAMDANI YASSINE",
+        "matricule": "002691",
+        "poste": "DIRECTEUR D'AGENCE",
+        "email": "Yassine.Hamdani@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "hamdani yassine"
+      }
+    },
+    {
+      "uuid": "35f21ea2-3f47-4a0a-8531-3e9473550060",
+      "message": "Accord sur ce dossier PPI 224.000,00 MAD sur 132 mois (200.000,00 Acquisition plus 24.000,00 Frais notaire), et ce, eu égard à la domiciliation du salaire et la convention avec l'employeur.",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:27:24.650796",
+      "codeStage": "VALD",
+      "author": {
+        "id": "138",
+        "firstname": "YASSINE",
+        "lastname": "HAMDANI",
+        "fullName": "HAMDANI YASSINE",
+        "matricule": "002691",
+        "poste": "DIRECTEUR D'AGENCE",
+        "email": "Yassine.Hamdani@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "hamdani yassine"
+      }
+    },
+    {
+      "uuid": "386bfa68-563d-4631-a917-05ad48f460bf",
+      "message": "Accord sur ce dossier PPI 224.000,00 MAD sur 132 mois (200.000,00 Acquisition plus 24.000,00 Frais notaire), et ce, eu égard à la domiciliation du salaire et la convention avec l'employeur.",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:27:24.435607",
+      "codeStage": "VALD",
+      "author": {
+        "id": "138",
+        "firstname": "YASSINE",
+        "lastname": "HAMDANI",
+        "fullName": "HAMDANI YASSINE",
+        "matricule": "002691",
+        "poste": "DIRECTEUR D'AGENCE",
+        "email": "Yassine.Hamdani@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "hamdani yassine"
+      }
+    },
+    {
+      "uuid": "46a88808-7df1-4628-8bf9-0e50f0836fac",
+      "message": "PPI",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:17:36.884786",
+      "codeStage": "INST",
+      "author": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      }
+    },
+    {
+      "uuid": "66c1664e-4c25-4d4d-8345-2e06cf17080e",
+      "message": "PPI",
+      "type": "COMMENT",
+      "createdAt": "2026-04-06T16:17:36.702316",
+      "codeStage": "INST",
+      "author": {
+        "id": "523",
+        "firstname": "IMANE",
+        "lastname": "BENSAID",
+        "fullName": "BENSAID IMANE",
+        "matricule": "005058",
+        "poste": "CONSEILLER CLIENTELE PRIVEE",
+        "email": "Imane.Bensaid@sahambank.com",
+        "buCode": "P10",
+        "buDesignation": "DIRECTOIRE",
+        "drCode": "R218",
+        "drDesignation": "DELEGATION REGIONALE NORD",
+        "drppCode": "C10640002",
+        "drppDesignation": "DRPP  RABAT",
+        "ucCode": "UC005",
+        "ucDesignation": "SALE",
+        "agencyCode": "A335",
+        "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS",
+        "active": false,
+        "identifier": "bensaid imane"
+      }
+    }
+  ],
+  "restrictions": [],
+  "warranties": [
+    {
+      "id": 60410,
+      "type": "PROPOSED",
+      "content": "HYPOTHEQUE 1ER RANG SUR TF N 84/28322"
+    },
+    {
+      "id": 60411,
+      "type": "PROPOSED",
+      "content": "ACH"
+    },
+    {
+      "id": 60412,
+      "type": "PROPOSED",
+      "content": "TAMIN BAYTI"
+    },
+    {
+      "id": 60433,
+      "type": "TO_COLLECT",
+      "content": "HYPOTHEQUE 1ER RANG SUR TF N 84/28322",
+      "attachment": {
+        "id": 33072,
+        "uuid": "3b52633f-58d5-46d5-80eb-2b324a5575e5",
+        "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+        "filename": "notification00001616.pdf",
+        "path": "f5302080-8b9e-4922-999d-5445ae485526/NOTIFICATION/1775489370091",
+        "extension": "pdf",
+        "byteSize": 57332,
+        "storageDocumentId": 1501425,
+        "contentType": "application/pdf",
+        "uploadedAt": "2026-04-06T16:29:30",
+        "uploadedBy": "002691",
+        "attachmentTypeCode": "NOTIFICATION",
+        "dossierAttachmentTypeUuid": "c8f2b773-7557-4e40-a6fe-47b8ecc83686",
+        "interventions": [
+          {
+            "id": 26261,
+            "createdAt": "2026-04-07T08:50:06.644661",
+            "controls": [
+              {
+                "code": "CTL24",
+                "conform": false
+              },
+              {
+                "code": "CTL25",
+                "conform": false
+              },
+              {
+                "code": "CTL26",
+                "conform": false
+              },
+              {
+                "code": "CTL27",
+                "conform": false
+              },
+              {
+                "code": "CTL28",
+                "conform": false
+              },
+              {
+                "code": "CTL29",
+                "conform": false
+              },
+              {
+                "code": "CTL30",
+                "conform": false
+              },
+              {
+                "code": "CTL31",
+                "conform": false
+              },
+              {
+                "code": "CTL32",
+                "conform": false
+              }
+            ],
+            "comments": [],
+            "userDto": {
+              "id": "202",
+              "firstname": "HIBA",
+              "lastname": "CHOUKI",
+              "fullName": "CHOUKI HIBA",
+              "matricule": "E001904",
+              "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+              "email": "hiba.chouki@sahambank.com",
+              "buCode": "P10",
+              "buDesignation": "DIRECTOIRE",
+              "drCode": "0023",
+              "drDesignation": "SU OPERATIONS ET RESSOURCES",
+              "drppCode": "D126",
+              "drppDesignation": "DIRECTION DES OPERATIONS",
+              "agencyCode": "D86",
+              "agencyDesignation": "DIRECTION SERVICE CLIENT",
+              "active": false,
+              "identifier": "chouki hiba"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 60434,
+      "type": "TO_COLLECT",
+      "content": "ACH",
+      "attachment": {
+        "id": 33072,
+        "uuid": "3b52633f-58d5-46d5-80eb-2b324a5575e5",
+        "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+        "filename": "notification00001616.pdf",
+        "path": "f5302080-8b9e-4922-999d-5445ae485526/NOTIFICATION/1775489370091",
+        "extension": "pdf",
+        "byteSize": 57332,
+        "storageDocumentId": 1501425,
+        "contentType": "application/pdf",
+        "uploadedAt": "2026-04-06T16:29:30",
+        "uploadedBy": "002691",
+        "attachmentTypeCode": "NOTIFICATION",
+        "dossierAttachmentTypeUuid": "c8f2b773-7557-4e40-a6fe-47b8ecc83686",
+        "interventions": [
+          {
+            "id": 26261,
+            "createdAt": "2026-04-07T08:50:06.644661",
+            "controls": [
+              {
+                "code": "CTL24",
+                "conform": false
+              },
+              {
+                "code": "CTL25",
+                "conform": false
+              },
+              {
+                "code": "CTL26",
+                "conform": false
+              },
+              {
+                "code": "CTL27",
+                "conform": false
+              },
+              {
+                "code": "CTL28",
+                "conform": false
+              },
+              {
+                "code": "CTL29",
+                "conform": false
+              },
+              {
+                "code": "CTL30",
+                "conform": false
+              },
+              {
+                "code": "CTL31",
+                "conform": false
+              },
+              {
+                "code": "CTL32",
+                "conform": false
+              }
+            ],
+            "comments": [],
+            "userDto": {
+              "id": "202",
+              "firstname": "HIBA",
+              "lastname": "CHOUKI",
+              "fullName": "CHOUKI HIBA",
+              "matricule": "E001904",
+              "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+              "email": "hiba.chouki@sahambank.com",
+              "buCode": "P10",
+              "buDesignation": "DIRECTOIRE",
+              "drCode": "0023",
+              "drDesignation": "SU OPERATIONS ET RESSOURCES",
+              "drppCode": "D126",
+              "drppDesignation": "DIRECTION DES OPERATIONS",
+              "agencyCode": "D86",
+              "agencyDesignation": "DIRECTION SERVICE CLIENT",
+              "active": false,
+              "identifier": "chouki hiba"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 60435,
+      "type": "TO_COLLECT",
+      "content": "TAMIN BAYTI",
+      "attachment": {
+        "id": 33072,
+        "uuid": "3b52633f-58d5-46d5-80eb-2b324a5575e5",
+        "dossierUuid": "f5302080-8b9e-4922-999d-5445ae485526",
+        "filename": "notification00001616.pdf",
+        "path": "f5302080-8b9e-4922-999d-5445ae485526/NOTIFICATION/1775489370091",
+        "extension": "pdf",
+        "byteSize": 57332,
+        "storageDocumentId": 1501425,
+        "contentType": "application/pdf",
+        "uploadedAt": "2026-04-06T16:29:30",
+        "uploadedBy": "002691",
+        "attachmentTypeCode": "NOTIFICATION",
+        "dossierAttachmentTypeUuid": "c8f2b773-7557-4e40-a6fe-47b8ecc83686",
+        "interventions": [
+          {
+            "id": 26261,
+            "createdAt": "2026-04-07T08:50:06.644661",
+            "controls": [
+              {
+                "code": "CTL24",
+                "conform": false
+              },
+              {
+                "code": "CTL25",
+                "conform": false
+              },
+              {
+                "code": "CTL26",
+                "conform": false
+              },
+              {
+                "code": "CTL27",
+                "conform": false
+              },
+              {
+                "code": "CTL28",
+                "conform": false
+              },
+              {
+                "code": "CTL29",
+                "conform": false
+              },
+              {
+                "code": "CTL30",
+                "conform": false
+              },
+              {
+                "code": "CTL31",
+                "conform": false
+              },
+              {
+                "code": "CTL32",
+                "conform": false
+              }
+            ],
+            "comments": [],
+            "userDto": {
+              "id": "202",
+              "firstname": "HIBA",
+              "lastname": "CHOUKI",
+              "fullName": "CHOUKI HIBA",
+              "matricule": "E001904",
+              "poste": "CHARGE DE TRAITEMENT BANCAIRE",
+              "email": "hiba.chouki@sahambank.com",
+              "buCode": "P10",
+              "buDesignation": "DIRECTOIRE",
+              "drCode": "0023",
+              "drDesignation": "SU OPERATIONS ET RESSOURCES",
+              "drppCode": "D126",
+              "drppDesignation": "DIRECTION DES OPERATIONS",
+              "agencyCode": "D86",
+              "agencyDesignation": "DIRECTION SERVICE CLIENT",
+              "active": false,
+              "identifier": "chouki hiba"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "poolCandidate": false,
+  "assignedToMe": false,
+  "returnDecisionInstance": true,
+  "assignee": "hamdani yassine",
+  "dossierOrganization": {
+    "drCode": "R218",
+    "drDesignation": "DELEGATION REGIONALE NORD",
+    "drppCode": "C10640002",
+    "drppDesignation": "DRPP  RABAT",
+    "ucCode": "UC005",
+    "ucDesignation": "SALE",
+    "agencyCode": "A335",
+    "agencyDesignation": "SOCIETE GENERALE TECHNOPOLIS"
+  },
+  "taskStatus": "DECS_RIDN",
+  "hasTaskExpertise": false,
+  "accord": "DEFINITIF"
+}
