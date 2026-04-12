@@ -1,379 +1,795 @@
 import { CdkStepper } from '@angular/cdk/stepper';
-import { AfterViewInit, Component, EventEmitter, Injector, OnDestroy, OnInit, Output, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Injector, Input, OnInit, Output, ViewChild } from '@angular/core';
 import {
   AbstractControl,
-  FormArray,
   FormControl,
   FormGroup,
   Validators,
   ValidatorFn,
-  ValidationErrors
+  FormArray
 } from '@angular/forms';
 import {
-  ActivitySector,
-  ActivitySectorType,
   CodeLabel,
-  CustomerData,
   DelayType,
   DossierData,
-  Products, PropertyData,
-  PropertyType,
+  Mechanism,
+  MechanismType,
+  Products,
+  PropertyData,
+  RateType,
   RefCity,
+  Warranty,
   WarrantyType,
 } from '@core/models';
-import { Observable, Subject, Subscription } from 'rxjs';
-import { map, skip, take } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, Observable} from 'rxjs';
+import { distinctUntilChanged, map, startWith } from 'rxjs/operators';
 import { BaseComponent } from '@shared/components';
-import { Guarantor } from '@core/models/guarantor';
+import { TopVipService } from '@loan-dossier/services';
 import { DossierDataService, DossierDataStoreService, ReferentialService } from '@core/services';
 import { SelectSearchService } from '@loan-dossier/services/select.service';
-import { ObjectUtils } from '@core/util';
-import { DialogMessageService, NumberValidators } from '@octroi-credit-common';
+import { NumberUtils, ObjectUtils } from '@core/util';
+import { DialogMessageService } from '@octroi-credit-common';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
+import { RateTypes } from '@core/models/rate-type';
+import { MatChipInputEvent } from '@angular/material/chips';
+import { NumberValidators } from '@shared/validators';
 import { AccordType } from '@core/models/Accord';
-import { convertFormValuesToDossierData } from '@loan-dossier/mapper/dossier-data-mapper';
-import { RefCustomerProfession } from '@core/models/RefCustomerProfession';
 import { Status } from '@loan-dossier/constants';
+import { DossierRequest } from '@core/models/dossier-request';
+import { UpdateAccordComponent } from '../update-accord/update-accord.component';
 
 @Component({
-  selector: 'app-initiation-stepper',
-  templateUrl: './initiation-stepper.component.html',
-  styleUrls: ['./initiation-stepper.component.scss'],
+  selector: 'app-back-decsion-stepper',
+  templateUrl: './back-decsion-stepper.component.html',
+  styleUrls: ['./back-decsion-stepper.component.scss'],
 })
-export class InitiationStepperComponent extends BaseComponent implements OnInit, AfterViewInit, OnDestroy {
+export class BackToDecisionStepperComponent extends BaseComponent implements OnInit {
   dossierData!: DossierData;
   formGroup!: FormGroup;
-  loanDataFormGroup!: FormGroup;
-  propertyData!: FormGroup;
-  insuranceDataFormGroup!: FormGroup;
-  customerDataFormGroup!: FormGroup;
-  propertyDataNotaryFormGroup!: FormGroup;
-  isProspect: boolean = false;
-  activitySector$?: Observable<CodeLabel[]>;
-  cities$?: Observable<RefCity[]>;
-  activitiesSectors$!: Observable<ActivitySector[]>;
-  addGuarantorEnabled: boolean = false;
-  representativeFormDisplayed: boolean = false;
-  savedGuarantors: Guarantor[] = [];
-  stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
-  patchedForm: boolean = false;
-  dossierSavedSubject: Subject<boolean> = new Subject();
-  dossierSaved$: Observable<Boolean> = this.dossierSavedSubject.asObservable();
-  dossierStoreSubscription!: Subscription;
-  delayTypes$?: Observable<DelayType[]>;
-  customerHasNonSegement:boolean=false;
-  showContractType:boolean=false;
-  cityFilterControl=new FormControl();
-  sectorActivityFilterControl=new FormControl;
-  accord: string | undefined;
-  filteredCities$?: Observable<RefCity[]>;
-  filteredActivitiesSectors$?: Observable<ActivitySector[]>;
-  professions$?: Observable<RefCustomerProfession[]>;
-  filteredProfessions$?: Observable<RefCustomerProfession[]>;
-  professionFilterControl = new FormControl();
-  showProfessionList:boolean = false;
-  showSeparation:boolean = false;
-  isClientMRE:boolean=false;
-  segmentClient!:string;
-  prospect: boolean | undefined;
-  filteredPropertyTypes$?: Observable<DelayType[]>;
-  propertyTypes$!: Observable<PropertyType[]>;
-  propertyTypeFilterControl=new FormControl();
-  accountFilterControl = new FormControl('');
+  rateTypes = RateTypes;
+  rateTypes$!: Observable<CodeLabel[]>;
+  loanObject!: string;
+  acquisitionPrice!: number;
+  acquisitionFee!: number;
+  isImtilak!: boolean;
+  isImtilakPPR!: boolean;
+  isSalafBaytiSante!: boolean;
+  isSalafBaytiSantePPR!: boolean;
+  isAdlSakane!: boolean;
+  isAdlSakanePPR!: boolean;
+  isPPIProduct!:boolean;
+  buildDevelopmentQuotation!:number;
+  selectedProduct!: CodeLabel;
+  selectedMechanism: CodeLabel[]= [];
+  requestedNotaryFee!:number;
+  isFogarim!: boolean;
+  isFogaloge!: boolean;
+  isClipriMRE! : boolean;
+  isYassir!:boolean;
+  isPpoPpc!:boolean;
+  insuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  aditionalCreditnsuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  claimedAmountOfPurchase!: number;
+  claimedAmountOfBuildDevelopment!: number;
 
-  @Output() goToloanHistoryStep=new EventEmitter<any>();
-  @Output() validation = new EventEmitter<any>();
+  delayTypes$?: Observable<DelayType[]>;
+  valuesHasChanged: boolean = false;
+  dossierData$!: Observable<DossierData>;
+
+  @Input() data: any = {};
+  @Output() returnToDecision = new EventEmitter<any>();
+
   @ViewChild('principalStepper') principalStepper!: CdkStepper;
 
+  rateTypeFilterControl=new FormControl();
+  delayTypeFilterControl=new FormControl();
+
+  filteredRateTypes$?: Observable<RateType[]>;
+  filteredDelayTypes$?: Observable<DelayType[]>;
+  propertyType!: string;
+  periodicity!:string;
+  maxDeadline!:number;
+  maxDeadlineValues: Map<string,number>=new Map([['MONTHLY',120],['ANNUAL',10],['BIMONTHLY',240],['QUARTERLY',40]]);
+  warranties: Warranty[] = [];
+  addOnBlur = true;
+  removableWarranty = true;
+  readonly separatorKeysCodes = [ENTER, COMMA] as const;
+  selectableWarranty = true;
+  private warrantiesSubject: BehaviorSubject<Warranty[]> = new BehaviorSubject<Warranty[]>([]);
+  stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
+  cities$?: Observable<RefCity[]>;
+  accord: string | undefined;
+  isProspect: boolean = false;
+  propertyDataNotaryFormGroup!: FormGroup;
+  dossier: any;
+  isAccord: any;
+
+
   constructor(
-    public dossierStore: DossierDataStoreService,
+    private dossierStore: DossierDataStoreService,
     public dossierDataService: DossierDataService,
+    public topVipService: TopVipService,
     public refService: ReferentialService,
     public selectService:SelectSearchService,
     public dialogMessageService: DialogMessageService,
     injector: Injector
   ) {
     super(injector);
-    this.activitiesSectors$ = this.refService.getAllActivitiesSectors();
+    this.dossierData$ = this.dossierStore.dossierData$;
     this.cities$ = this.refService.getCities();
     this.delayTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllDelayTypes());
-
   }
 
-  //TODO: [Urgent] To be refactored and split it to small methods and keep it simple and clean
-  ngOnInit(): void {
-    this.initForm();
-    this.dossierStore.dossierData$.pipe(take(1)).subscribe(dossierData => {
-      this.refService.getAllPropertyTypes();
-      this.dossierData= dossierData;
-      this.showContractType= dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
-      this.patchedForm = true;
-      if (dossierData.uuid) { this.stepsVisited = new Array(7).fill(true); }
-      if (dossierData.representative) {
-        this.representativeFormDisplayed = Object.keys(dossierData.representative).length > 0 && ObjectUtils.isAllFieldsNotEmpty(dossierData.representative);
+ ngOnInit(): void {
+  this.refService.getAllPropertyTypes();
+    this.loanObject = this.data.loanData.loanObject.code;
+    this.acquisitionFee= this.data.loanData.acquisitionFee;
+    this.acquisitionPrice= this.data.loanData.acquisitionPrice;
+    this.requestedNotaryFee=this.data.loanData.requestedNotaryFee;
+    this.claimedAmountOfPurchase=this.data.loanData.claimedAmountOfPurchase;
+    this.claimedAmountOfBuildDevelopment= this.data.loanData.claimedAmountOfBuildDevelopment;
+    this.buildDevelopmentQuotation= this.data.loanData.buildDevelopmentQuotation;
+    this.propertyType = this.data.loanData?.propertyType?.code;
+    this.periodicity = this.data.loanData?.periodicity?.code;
+    this.propertyType=this.data.loanData?.propertyType?.code;
+    this.periodicity=this.data.loanData?.periodicity?.code;
+    this.warranties = this.data.warranties;
+    this.maxDeadline= this.maxDeadlineValues.get(this.periodicity) || 0;
+    this.rateTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllRateTypes());
+    this.selectedProduct= this.data.product;
+    this.selectedMechanism=this.data.loanData?.mechanisms!;
+    this.isClipriMRE= this.data.personalInfo?.market === "MCH/01PRI";
+    this.isFogarim = this.isSelectedProduct(Products.FOGARIM);
+    this.isFogaloge = this.isSelectedProduct(Products.FOGALOGE);
+    this.isPPIProduct=this.isSelectedProductIn([Products.PPI_CLASSIQUE,Products.PPI_PPR_FONC]);
+    this.isImtilak = this.isSelectedProduct(Products.IMTILAK);
+    this.isImtilakPPR = this.isSelectedProduct(Products.IMTILAK_PPR);
+    this.isAdlSakane = this.isSelectedProduct(Products.ADL_SAKANE);
+    this.isAdlSakanePPR = this.isSelectedProduct(Products.ADL_SAKANE_PPR);
+    this.isSalafBaytiSante = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE);
+    this.isSalafBaytiSantePPR = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE_PPR);
+    this.isYassir=this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
+    this.isPpoPpc = this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
+    this.isAccord = this.data?.accord;
+    this.initFormGroup();
+    this.initDelayedType();
+    this.initDelayed();
+     this.updateNotaryValidations();
+    this.formGroup.patchValue(this.data);
+    this.insuranceCoefficient$.subscribe((value) => this.insuranceCoefficientFormControl?.setValue(value));
+   if(this.isYassir || this.isPpoPpc){
+      this.initClaimedAmountOfPurchaseValidators();
+   }
+
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR]) ){
+      this.initCappedRateValidators();
+      if(this.data?.insuranceData?.insuranceCoefficient) {
+      const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.insuranceCoefficient,'1.4-4');
+      this.insuranceCoefficientFormControl.setValue(coefficient);
       }
-      const market = dossierData.customerData?.personalInfo?.market?.slice(-1);
-      const segementClient=dossierData.customerData?.personalInfo?.segment;
-      const isMRE=dossierData.customerData?.personalInfo?.country !== "MAROC";
-      this.isClientMRE=isMRE;
-      this.segmentClient=segementClient!;
-    
-      if(market==='9' &&  (!segementClient || !(segementClient?.includes("CLIPRI") && segementClient?.includes("CLIPRO")) )){
-        this.customerHasNonSegement=true;
-      }
-      const marketitem = dossierData.customerData?.personalInfo?.market?.split('/')[1];
-      switch (marketitem) {
-        case '01': {
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
-          this.dossierStore.updateTypeClient("CLIPRI")
-          this.showContractType= dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
-          break;
-        } case '09': {
-          if( this.customerHasNonSegement)   this.dossierStore.updateTypeClient('')
-          if(segementClient?.includes('CLIPRI')){
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
-          this.dossierStore.updateTypeClient("CLIPRI")
-          }else if(segementClient?.includes('CLIPRO')){
-            this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRO));
-            this.dossierStore.updateTypeClient("CLIPRO")
-          }
-          break;
-        }
-        case '09PRI': {
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
-          break;
-        }
-        case '09PRO': {
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRO));
-          break;
-        }
-        default: {
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRO));
-          this.dossierStore.updateTypeClient("CLIPRO")
-          break;
-        }
       }
 
-      if(isMRE && market==='1'){
-        this.customerHasNonSegement=true;
-        this.dossierStore.updateTypeClient('')
+      if (this.isMechanism1()) {
+          const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.subsidizedInsuranceCoefficient,'1.4-4');
+          this.subsidizedInsuranceCoefficientFormControl.setValue(coefficient);
       }
-      if((segementClient?.includes('CLIPRO') || ['02','03','09PRO'].includes(marketitem!)) && isMRE==false){
-             this.showProfessionList=true;
+      if (this.isMechanism2()) {
+          const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.bonusInsuranceCoefficient,'1.4-4')
+          this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
       }
-      if((['03','02'].includes(marketitem!))){
-          this.showSeparation=true;
+      if (this.isMechanism3()) {
+          const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.suportedInsuranceCoefficient,'1.4-4');
+          this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
       }
-      this.updatePropertyData(dossierData, {});
-      const cutomerType=dossierData.customerData?.personalInfo?.market?.includes("PRI")?'CLIPRI':'CLIPRO';
-      this.professions$ = this.refService.getAllCustomerProfessions(cutomerType!);
-    }
-    );
 
-    if(this.customerHasNonSegement){
-      this.employerCutomerTypeControl?.addValidators([Validators.required]);
-      this.employerCutomerTypeControl?.valueChanges.subscribe(value=>{
-        if(value?.includes('CLIPRI')){
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
-          this.dossierStore.updateTypeClient("CLIPRI")
-          this.showProfessionList=false
-          }else{
-            this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRO));
-            this.dossierStore.updateTypeClient("CLIPRO")
-            if(this.isClientMRE==false && !this.separation){
-              this.showProfessionList=true;
-            }
-          }
-      })
-    }else{
-      this.employerCutomerTypeControl?.removeValidators([Validators.required]);
-      this.employerCutomerTypeControl?.reset();
-    }
-
-    this.dossierStoreSubscription = this.dossierStore.dossierData$.pipe(skip(1)).subscribe(dossierData => {
-      this.dossierData= dossierData;
-      if(dossierData.changeToSave){
-        this.onSave(convertFormValuesToDossierData(this.formGroupRawValue, dossierData));
+      if (this.isTypeA()) {
+          const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.typeAInsuranceCoefficient,'1.4-4');
+          this.typeAInsuranceCoefficientFormControl.setValue(coefficient);
       }
+      if (this.isTypeB()) {
+          const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.typeBInsuranceCoefficient,'1.4-4');
+          this.typeBInsuranceCoefficientFormControl.setValue(coefficient);
+      }
+
+      if (this.isTypeB() || this.isTypeA() ||this.isMechanism1() ||this.isMechanism2() ) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.aditionalCreditInsuranceCoefficient,'1.4-4');
+        this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
+      }
+
+
+     this.formGroup.get('insuranceData.promotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateInsuranceCoefficient();
+
+     })
+
+     this.formGroup.get('insuranceData.subsidizedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateSubsidizedInsuranceCoefficient();
+
+     })
+
+     this.formGroup.get('insuranceData.bonusPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateBonusInsuranceCoefficient();
+     })
+
+      this.formGroup.get('insuranceData.suportedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateSuportedInsuranceCoefficient();
+     })
+
+     this.formGroup.get('insuranceData.typeAPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateTypeAInsuranceCoefficient();
+
+     })
+
+     this.formGroup.get('insuranceData.typeBPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateTypeBInsuranceCoefficient();
+     })
+
+
+     this.formGroup.get('insuranceData.aditionalCreditPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateAdditionalInsuranceCoefficient();
+     })
+    this.formGroup.valueChanges.subscribe(() => {
+      this.valuesHasChanged = this.isFormValuesChanged();
     });
 
-    if(this.showContractType){
-      this.contractTypeControl.addValidators([Validators.required]);
-    }
-
-    this.filteredActivitiesSectors$= this.selectService.filterOptions(this.activitiesSectors$,this.sectorActivityFilterControl,'designation')
-    this.filteredCities$= this.selectService.filterOptions(this.cities$ || [],this.cityFilterControl,'designation')
-    this.filteredProfessions$= this.selectService.filterOptions(this.professions$ || [],this.professionFilterControl,'designation');
-    this.dossierStore.typeClient$.subscribe(value=>{
-      this.showContractType = value !== 'CLIPRO' &&
-                      !["MCH/09PRO"].includes(this.dossierData.customerData?.personalInfo?.market!)
-                    && this.dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
-      if(!this.showContractType){
-        this.contractTypeControl.removeValidators([Validators.required]);
-        this.contractTypeControl.reset();
+     this.filteredRateTypes$= this.selectService.filterOptions(this.rateTypes$ || [],this.rateTypeFilterControl,'designation')
+      this.filteredDelayTypes$= this.selectService.filterOptions(this.delayTypes$ || [],this.delayTypeFilterControl,'designation')
+      this.warrantiesSubject.subscribe(() => {
+        this.isWarrantiesChange();
+      });
+     if(this.isPPIProduct || this.isClipriMRE){
+        this.acquisitionPriceFormControl?.clearValidators();
+        this.acquisitionPriceFormControl?.addValidators([Validators.required,  NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: 0.08, fieldName: 'requestedNotaryFee' })]);
+        this.acquisitionPriceFormControl?.updateValueAndValidity();
       }
-    })
-    this.updateNotaryValidations();
-
-    this.contractTypeControl?.valueChanges.subscribe(value=>{
-      if(value ==='CDI'){
-        this.isTitularizedControl.addValidators([Validators.required]);
-      }else{
-        this.isTitularizedControl.removeValidators([Validators.required]);
-        this.isTitularizedControl.reset();
+      if (!this.isImtilak && !this.isImtilakPPR && !this.isAdlSakane && !this.isAdlSakanePPR && !this.isSalafBaytiSante && !this.isSalafBaytiSantePPR)  {
+        this.loanDataFormGroup.addControl("rate", new FormControl(null, [Validators.required]));
       }
-    })
+
+      this.initDurationListeners();
+  }
+  isAnyMechanismOrType(): boolean {
+    return this.isTypeA() || this.isTypeB() || this.isMechanism1() || this.isMechanism2();
+  }
+  public isSelectedProductIn(productsCode: string[]) {
+    return productsCode.includes(this.selectedProduct?.code) ;
   }
 
-  ngAfterViewInit(): void {
-    if (this.patchedForm) {
-      const dossier = this.dossierStore.get();
-      const isImtilak = [Products.IMTILAK.toString(), Products.IMTILAK_PPR.toString()].includes(dossier.product?.code!);
-      const mechanisms = dossier.loanData?.mechanisms ?? [];
-      const loanData = {...dossier.loanData, mechanisms: (isImtilak && mechanisms.length > 0) ? mechanisms[0]: mechanisms};
-      this.initDelayedType(dossier);
-      this.formGroup.patchValue({...dossier, loanData, personalInfo: dossier.customerData?.personalInfo});
-      this.customerDataFormGroup?.updateValueAndValidity();
-      this.propertyDataNotaryFormGroup?.updateValueAndValidity();
-      this.employerFormGroup?.updateValueAndValidity();
-      this.prospectFormGroup?.updateValueAndValidity();
-    }
+  lessThanEqualToFixValue(max:number): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const loanAmount = this.claimedAmountOfPurchaseFormControl?.value;
+      return !loanAmount || loanAmount<=max ? null : { lessThanEqualToFixedValue: true }; };
 
-
-    this.getControlValueChanges(this.separationFormControl).subscribe(value=>{
-      if (value === false && this.isClientMRE === false && (this.employerCutomerTypeControl?.value=='CLIPRO'||this.segmentClient?.includes('CLIPRO') )) {
-      this.professionFormControl.addValidators(Validators.required);
-      this.showProfessionList=true;
-      }
-      if(value === true){
-        this.professionFormControl.removeValidators(Validators.required);
-        this.professionFormControl.reset()
-      }
-    })
   }
+
+
 
   nextStep = () => {
-    if(!this.customerHasNonSegement ||( this.customerHasNonSegement  && this.employerCutomerTypeControl?.valid)){
       this.principalStepper.next();
-    }
   }
 
   previousStep = () => {
     this.principalStepper.previous();
   }
 
-  update = () => {
-    if(!this.customerHasNonSegement ||( this.customerHasNonSegement  && this.employerCutomerTypeControl?.valid)){
+  doneStepper = () => {
+    this.onValidate();
+  };
+
+  previousStepper = () => {
+    this.principalStepper.previous();
+  }
+
+
+  public isSelectedProduct(productCode: string) {
+    return this.selectedProduct?.code === productCode;
+  }
+
+  validateForm(){
+    return !this.valuesHasChanged || !(this.formGroup.valid && this.valuesHasChanged)
+  }
+
+  initFormGroup() {
+    this.formGroup = this.formBuilder.group({
+      propertyData: this.formBuilder.group({
+        properties: this.formBuilder.array([], this.minLengthArray(1)),
+        coFinancing: new FormControl()
+      }),
+      notary: this.formBuilder.group({
+        name: new FormControl(null, [Validators.required]),
+        address: new FormControl(null, [Validators.required]),
+        phone: new FormControl(null, [Validators.required, Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
+        email: new FormControl(null, [Validators.required, Validators.email])
+      }),
+      loanData: this.formBuilder.group({
+        rateType: this.formBuilder.group({
+          code: new FormControl(null, [Validators.required]),
+        }),
+        cappedRate: new FormControl(null),
+        delayed: new FormControl(false, ...(this.data?.loanData?.delayed ? [Validators.required] : [])),
+        delayType: new FormControl(),
+        delayDuration: new FormControl()
+      }),
+        beneficiaries: this.formBuilder.array([], this.minLengthArray(1)),
+      insuranceData: this.formBuilder.group({})
+    });
+
+
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+      this.loanDataFormGroup.addControl(
+        'rate',
+        new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })])
+      );
+
+      this.loanDataFormGroup.addControl(
+        'deadlineNumber',
+        new FormControl(null, [
+          Validators.required,
+          NumberValidators.sumLessThanEqualTo({ fieldNameToAdd: 'delayDuration', value: 300 }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isYasserProduct() || this.isPpoPpcProduct(), value: 36 }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isItABuildingLotAcquisition(), value: this.maxDeadline })
+        ])
+      );
+    }
+
+    if (this.loanObject.includes('AMN') || this.loanObject.includes('CST')) {
+      this.loanDataFormGroup.addControl('claimedAmountOfBuildDevelopment', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value: this.buildDevelopmentQuotation})]));
+     }
+    if (this.loanObject.includes('RCH') || this.loanObject.includes('AQS') || this.isYassir || this.isPpoPpc) {
+      this.loanDataFormGroup.addControl('claimedAmountOfPurchase', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionFee)+NumberUtils.toForcedNumber(this.acquisitionPrice))})]));
+    }
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.08)})]));
+
+    }
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.01)})]));
+
+    }
+    if (this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+
+      this.loanDataFormGroup.addControl("additionalCredit", new FormControl());
+      this.loanDataFormGroup.addControl("additionalCreditRate", new FormControl());
+      this.loanDataFormGroup.addControl("additionalLoanDuration", new FormControl());
+
+      if (this.isAdlSakane || this.isAdlSakanePPR ){
+      this.loanDataFormGroup.addControl("typeAloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 100000 }) }));
+      this.loanDataFormGroup.addControl("typeBloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 150000 }) }));
+      this.loanDataFormGroup.addControl("typeAloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 120 }) }));
+      this.loanDataFormGroup.addControl("typeBloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 240 }) }));
+      this.loanDataFormGroup.addControl("typeAloanRate", new FormControl());
+      this.loanDataFormGroup.addControl("typeBloanRate", new FormControl());
+
+      this.loanDataFormGroup.addValidators(this.sumLoanAmountsValidator.bind(this));
+      }
+      if (this.isSalafBaytiSante || this.isSalafBaytiSantePPR) {
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [Validators.required,
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 240, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+        this.loanDataFormGroup.addValidators(this.sumCreditAmountsValidator.bind(this));
+      }
+      if (this.isImtilak || this.isImtilakPPR) {
+        this.loanDataFormGroup.addControl("subsidizedCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 200000 }) }));
+        this.loanDataFormGroup.addControl("suportedCreditAmount", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("suportedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditDuration", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [Validators.required,
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 180, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+        this.loanDataFormGroup.addControl("suportedCreditDuration", new FormControl());
+
+        this.loanDataFormGroup.addValidators(this.sumCreditAmountsValidator.bind(this));
+      }
+
+    }
+     this.initInsuranceDataForm()
+
+    this.loanDataFormGroup.addControl("applicationFee", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addValidators([this.applicationFeesValidator])
+
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.08)})]));
+    }
+    if(this.isYassir || this.isPpoPpc){
+      this.setControlNumberValue(this.rateFormControl, 0);
+      this.rateFormControl.disable();
+      this.insuranceCoefficientFormControl.disable();
+    }
+    /** for regrouping notary & propertyData only in front presentation**/
+    this.propertyDataNotaryFormGroup = this.formBuilder.group({});
+    this.propertyDataNotaryFormGroup.addControl('notary', this.formGroup.get('notary') as FormGroup);
+  }
+
+  private minLengthArray(min: number): ValidatorFn {
+    return (control: AbstractControl): {[key: string]: any} | null => {
+      if(control.value && control.value.length >= min){
+        return null;
+      }
+      return { minLengthArray: { valid: false, requiredLength: min, actualLength: control.value.length}};
+    }
+  }
+
+  private initInsuranceDataForm() {
+    const insuranceDataFormGroup = this.formGroup.get('insuranceData') as FormGroup;
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+      insuranceDataFormGroup.addControl("insuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+      insuranceDataFormGroup.addControl("promotionalInsuranceRate", new FormControl());
+      insuranceDataFormGroup.addControl("insuranceCoefficient", new FormControl(null, [Validators.required]));
+    } else {
+      if (this.isMechanism1()) {
+        insuranceDataFormGroup.addControl("subsidizedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("subsidizedPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("subsidizedInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isMechanism2()) {
+        insuranceDataFormGroup.addControl("bonusInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("bonusPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("bonusInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isMechanism3()) {
+        insuranceDataFormGroup.addControl("suportedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("suportedPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("suportedInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isTypeA()) {
+        insuranceDataFormGroup.addControl("typeAInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("typeAPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("typeAInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isTypeB()) {
+        insuranceDataFormGroup.addControl("typeBInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("typeBPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("typeBInsuranceCoefficient", new FormControl(null, [Validators.required]));
+      }
+        insuranceDataFormGroup.addControl("aditionalCreditInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("aditionalCreditPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("aditionalCreditInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+    }
+  }
+
+  private sumLoanAmountsValidator(control: AbstractControl): { [key: string]: any } | null {
+    const typeAloanAmount = Number(control.get('typeAloanAmount')?.value) || 0;
+    const typeBloanAmount = Number(control.get('typeBloanAmount')?.value) || 0;
+    const additionalCredit = Number(control.get('additionalCredit')?.value) || 0;
+
+    const total = typeAloanAmount + typeBloanAmount + additionalCredit;
+    const maxAmount = Number(this.data?.loanData?.loanAmount);
+
+    if (!isNaN(maxAmount) && total > maxAmount) {
+      return { sumExceedsLoanAmount: true };
+    }
+    return null;
+  }
+
+  private sumCreditAmountsValidator(control: AbstractControl): { [key: string]: any } | null {
+    const subsidizedCreditAmount = Number(control.get('subsidizedCreditAmount')?.value) || 0;
+    const bonusCreditAmount = Number(control.get('bonusCreditAmount')?.value) || 0;
+    const suportedCreditAmount = Number(control.get('suportedCreditAmount')?.value) || 0;
+    const additionalCredit = Number(control.get('additionalCredit')?.value) || 0;
+
+    const total = subsidizedCreditAmount + bonusCreditAmount +suportedCreditAmount+ additionalCredit;
+    const maxAmount = Number(this.data?.loanData?.loanAmount);
+
+    if (!isNaN(maxAmount) && total > maxAmount) {
+      return { sumExceedsLoanAmount: true };
+    }
+    return null;
+  }
+
+  private applicationFeesValidator(control: AbstractControl): { [key: string]: any } | null {
+    const parse = (val: any) => {
+    if (val === null || val === undefined) return 0;
+    return parseFloat(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+    };
+
+    const claimedAmountOfPurchase = parse(control.get('claimedAmountOfPurchase')?.value);
+    const claimedAmountOfBuildDevelopment = parse(control.get('claimedAmountOfBuildDevelopment')?.value);
+    const requestedNotaryFee = parse(control.get('requestedNotaryFee')?.value);
+    const applicationFee = parse(control.get('applicationFee')?.value);
+
+    const sum = claimedAmountOfPurchase + claimedAmountOfBuildDevelopment + requestedNotaryFee;
+
+    if (sum * 0.001 < applicationFee) {
+    return { feeExcess: true };
+   }
+    return null;
+
+  };
+
+  isWarrantiesChange() {
+    const { warranties } = this.data;
+    const warrantiesChanged = ObjectUtils.compareByField(this.warranties, warranties,'content');
+    this.valuesHasChanged =warrantiesChanged;
+  }
+
+  private getDefaultRate( type: 'subventionné' | 'complémentaire' | 'soutenu',  years: number): number | null {
+    switch (type) {
+      case 'subventionné':
+        if (years <= 7)   return 2.20;
+        if (years <= 15)  return 2.50;
+        if (years <= 25)  return 2.75;
+        break;
+
+      case 'complémentaire':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+
+      case 'soutenu':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+    }
+
+    return null;
+  }
+
+  private initDurationListeners(): void {
+    if (!(this.isImtilak || this.isImtilakPPR)) return;
+    const subsidized$ = this.subsidizedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.subsidizedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    const additional$ = this.additionalloanDurationFormControl.valueChanges.pipe(
+      startWith(this.additionalloanDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+    const supported$ = this.suportedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.suportedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    combineLatest([subsidized$, additional$,supported$])
+      .subscribe(([subYears, addYears,supYears]) => {
+        const subRate = this.getDefaultRate('subventionné', subYears);
+        const addRate = this.getDefaultRate('complémentaire', addYears);
+        const supRate = this.getDefaultRate('soutenu', supYears);
+        this.setControlNumberValue(this.subsidizedCreditRateFormControl, subRate!);
+        this.setControlNumberValue(this.additionalCreditRateFormControl, addRate!);
+        this.setControlNumberValue(this.suportedCreditRateFormControl, supRate!);
+      });
+  }
+
+  public isYasserProduct() {
+    return this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
+  }
+
+  public isPpoPpcProduct(){
+    return this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
+  }
+  public isItABuildingLotAcquisition() {
+    return this.loanObject === 'AQS' &&  this.propertyType === 'TRN';
+  }
+
+  calculateApplicationFee() {
+    const claimedAmountOfPurchase = this.loanDataFormGroup.get('claimedAmountOfPurchase');
+    const claimedAmountOfBuildDevelopment = this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment');
+    const requestedNotaryFee = this.loanDataFormGroup.get('requestedNotaryFee');
+
+    let sum = 0;
+    if(claimedAmountOfPurchase?.value && !this.isPpoPpc){
+      sum += claimedAmountOfPurchase?.value;
+    }
+    if(claimedAmountOfBuildDevelopment?.value && !this.isPpoPpc){
+      sum += claimedAmountOfBuildDevelopment?.value;
+    }
+    if(requestedNotaryFee?.value && !this.isPpoPpc){
+      sum += requestedNotaryFee?.value;
+    }
+
+    this.applicationFeeFormControl?.patchValue(NumberUtils.round(sum/1000, 2));
+  }
+
+
+  private computeInsuranceCoefficient(promotionalRate: any, Amount: number): string | null {
+    if(this.isYassir || this.isPpoPpc) return this.decimalPipe.transform(0.8, '1.4-4');
+    Amount = NumberUtils.toForcedNumber(Amount);
+    if (Amount <= 0) {
+      return null;
+    }
+
+    promotionalRate = NumberUtils.toForcedNumber(promotionalRate);
+    let rate = 0;
+
+    if (promotionalRate > 0) {
+      rate = promotionalRate / 12;
+      const decimalString: string = rate.toString();
+      const dotIndex = decimalString.indexOf('.');
+      if (dotIndex !== -1) {
+        const truncatedString: string = decimalString.substring(0, dotIndex + 4);
+        rate = Number(truncatedString);
+      }
+    } else if (Amount >= 600000) {
+      rate = 0.035;
+    } else {
+      rate = 0.04;
+    }
+
+    return this.decimalPipe.transform(Number(rate * 1.1 * 12), '1.4-4');
+  }
+
+  calculateInsuranceCoefficient() {
+    if(this.isYassir || this.isPpoPpc){
+      this.insuranceCoefficientFormControl.setValue(0.8);
+    }
+    const loanAmount = this.data.loanData?.loanAmount;
+    const promotionalRate = this.promotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.insuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateSubsidizedInsuranceCoefficient() {
+    const subsidizedCreditAmount = this.data.loanData?.subsidizedCreditAmount;
+    const promotionalRate = this.subsidizedPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, subsidizedCreditAmount);
+    this.subsidizedInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateBonusInsuranceCoefficient() {
+    const bonusCreditAmount = this.data.loanData?.bonusCreditAmount;
+    const promotionalRate = this.bonusPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, bonusCreditAmount);
+    this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+    calculateSuportedInsuranceCoefficient() {
+    const suportedCreditAmount = this.data.loanData?.suportedCreditAmount;
+    const promotionalRate = this.suportedPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, suportedCreditAmount);
+    this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+
+  calculateTypeAInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.typeAloanAmount;
+    const promotionalRate = this.typeAPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.typeAInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateTypeBInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.typeBloanAmount;
+    const promotionalRate = this.typeBPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.typeBInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateAdditionalInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.additionalCredit;
+    const promotionalRate = this.aditionalCreditPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+
+  initCappedRateValidators() {
+    this.formGroup.get('loanData.rateType.code')?.valueChanges.subscribe(value => {
+      if (value === this.rateTypes.CAPE) {
+        this.cappedRateFormControl?.addValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+      } else {
+        this.cappedRateFormControl?.removeValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+        this.cappedRateFormControl?.reset();
+      }
+      this.cappedRateFormControl?.updateValueAndValidity();
+    });
+  }
+
+  initClaimedAmountOfPurchaseValidators(){
+    this.claimedAmountOfPurchaseFormControl.clearValidators();
+    if(this.isYassir){
+    this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required,this.lessThanEqualToFixValue(30000)]);}
+
+    if(this.loanObject.includes('AQS') && this.isYassir){
+      this.claimedAmountOfPurchaseFormControl?.addValidators(
+        [NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionFee)+NumberUtils.toForcedNumber(this.acquisitionPrice))})]);
+      }
+
+    this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
+  }
+  private initDelayedType() {
+      this.delayTypes$?.subscribe();
+  }
+
+  private initDelayed() {
+    this.getControlValueChanges(this.delayedFormControl).subscribe(value => {
+    const isPPRProduct= this.isImtilakPPR || this.isAdlSakanePPR||this.isSalafBaytiSantePPR;
+      if (value === true && !isPPRProduct) {
+        this.delayTypeFormControl.addValidators(Validators.required);
+        this.delayDurationFormControl.addValidators(Validators.required);
+      } else {
+        this.delayTypeFormControl.removeValidators(Validators.required);
+        this.delayTypeFormControl.reset();
+        this.delayDurationFormControl.removeValidators(Validators.required);
+        this.delayDurationFormControl.reset();
+      }
+      this.delayTypeFormControl.updateValueAndValidity();
+      this.delayDurationFormControl.updateValueAndValidity();
+    });
+  }
+
+
+
+  compareObjects(o1: any, o2: any): boolean {
+    return o1?.code === o2?.code
+  }
+
+  onValidate() {
+    if(this.formGroup.valid && this.valuesHasChanged){
+      const emitData = {
+        ...this.formGroup.getRawValue(),
+        warranties: this.warranties.map(({content})=> ({content, type: WarrantyType.PROPOSED}))
+    };
+      this.returnToDecision.emit(emitData);
+
+    }else{
+      this.showErrorMessage({bodyKey: "action.error.message"});
+    }
+  }
+
+  addWarranty(event: MatChipInputEvent): void {
+    const value = (event.value || '').trim();
+    if (value && value.trim() !== '') {
+      const warranty: Warranty = {
+        content: value
+      };
+      this.warranties.push(warranty);
+      this.warranties = [...new Set(this.warranties.map(w => JSON.stringify(w)))].map(w => JSON.parse(w));
+      this.warrantiesSubject.next(this.warranties);
+    }
+    event.chipInput!.clear();
+  }
+
+  removeWarranty(index: number, isAuto: boolean): void {
+    if (index >= 0 && !isAuto) {
+      this.warranties.splice(index, 1);
+      this.warrantiesSubject.next(this.warranties);
+    }
+  }
+
+
+  isFormValuesChanged(): boolean {
+    const {loanData, insuranceData, propertyData} = this.data;
+    let newFormObject: any = {};
+    newFormObject={...this.formGroup.value,
+      insuranceData:  {...this.formGroup.value.insuranceData ,
+        insuranceCoefficient: NumberUtils.toForcedNumber((this.isYassir || this.isPpoPpc)?0.8:this.formGroup.value.insuranceData?.insuranceCoefficient ),
+
+        subsidizedInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.subsidizedInsuranceCoefficient ),
+        bonusInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.bonusInsuranceCoefficient ),
+        suportedInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.suportedInsuranceCoefficient ),
+
+        typeAInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.typeAInsuranceCoefficient),
+        typeBInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.typeBInsuranceCoefficient),
+        aditionalCreditInsuranceCoefficient: NumberUtils.toForcedNumber(this.formGroup.value.insuranceData?.aditionalCreditInsuranceCoefficient),
+      },
+    };
+    return ObjectUtils.compareProperties(newFormObject, { loanData, insuranceData, propertyData });
+
+  }
+
+    update = () => {
       const dossier = this.dossierStore.get();
       this.dossierStore.update({
         ...dossier,
         ...this.formGroupRawValue,
-        customerData:{
-          ...(dossier.customerData || {}),
-          personalInfo:{
-            ...(dossier.customerData?.personalInfo ||{}),
-            ...(this.personalInfoFormGroup instanceof FormGroup ? this.personalInfoFormGroup.getRawValue(): {})
-          }
-        },
-        warranties: dossier.warranties,
       });
-    }
-  }
-
-  statmentValidation = () => {
-    const isExternDebtsRetrieved=this.dossierStore.get()?.loanData?.isExternDebtsRetrieved;
-    if(!isExternDebtsRetrieved && !this.isProspect){
-      this.dialogMessageService.info({
-        messageKey: 'loan.extern.dialog.demande.message',
-        headerKey: 'loan.extern.dialog.demande.header',
-        closeLabel: 'loan.extern.dialog.demande.close.label',
-        afterCloseCallback: () => this.goToloanHistoryStep.emit(true),
-      });
-    }else{
-      this.validation.emit(true);
-    }
-  }
-
-  isStepCompleted(formGroup: AbstractControl, stepIndex: number) {
-    return this.stepsVisited[stepIndex] && formGroup?.valid
-  }
-
-  isStepHasError(formGroup: AbstractControl, stepIndex: number) {
-    return this.stepsVisited[stepIndex] && !formGroup?.valid
-  }
-
-  onSave(dossierPayload: DossierData) {
-      const errors: any[] = [];
-      this.calculateFormValidationErrors(this.formGroup, errors);
-    if (!errors.find(error => error.errorName != 'required')) {
-        this.dossierDataService.save(dossierPayload)
-        .subscribe({
-          next: savedDossier => this.postSave(dossierPayload, savedDossier),
-          complete: () => {
-            this.dossierSavedSubject.next(true);
-            this.showSuccessMessage({ bodyKey: "loan.save.success.message" });
-            this.changeDetectorRef.detectChanges();
-          }
-        });
-    } else {
-      const errorMessage = errors
-      .filter(({ errorName }) => errorName !== 'required')
-      .map(({ controlName }) => controlName)
-      .join('\n');
-
-      this.showErrorMessage({ bodyKey: errorMessage });
-
-    }
-  }
-
-  postSave(dossierPayload: any, savedDossier: any) {
-    this.updateLoanData(dossierPayload,savedDossier);
-    this.updatePropertyData(dossierPayload,savedDossier);
-    this.dossierStore.update({warranties: savedDossier.warranties}, true, false);
-
-    if (!dossierPayload.uuid) {
-      let dossierData:any = {
-        uuid: savedDossier.uuid,
-        codeDossier: savedDossier.codeDossier,
-        dossierUsers:savedDossier.dossierUsers,
-        assignee:savedDossier.assignee
-      }
-        const customerData= {
-          ...this.dossierStore.get()?.customerData,
-          personalInfo:{
-            ...this.dossierStore.get()?.customerData?.personalInfo,
-            market:savedDossier?.customerData?.personalInfo.market},
-            prospect: savedDossier?.customerData?.prospect,
-            ...(savedDossier?.customerData?.balanceActivity
-               && { balanceActivity: savedDossier.customerData.balanceActivity })
-        } as CustomerData
-        dossierData ={...dossierData, customerData}
-
-
-      this.dossierStore.update(dossierData,true,false);
-      if(dossierPayload?.employer?.cutomerType){
-        this.dossierStore.updateTypeClient(dossierPayload?.employer?.cutomerType)
-      }
-    }
-  }
-
-  /**
-   * The purpose of this method is to change same attribute in Loan data
-   * in the backend
-   * @param dossierPayload Dossier data comes from front end
-   * @param savedDossier Dossier data saved & returned from back end
-   */
-  updateLoanData(dossierPayload:any,savedDossier: any) {
-    let oldLoanData = dossierPayload.loanData;
-    let newLoanData = {
-      ...oldLoanData,
-      debtRatio : savedDossier?.loanData?.debtRatio,
-      isExternDebtsRetrieved: savedDossier?.loanData?.isExternDebtsRetrieved,
-      isExternDebtsInfnRetrieved : savedDossier?.loanData?.isExternDebtsInfnRetrieved
-    }
-    this.dossierStore.update({ loanData: newLoanData }, false);
-    this.loanDataFormGroup?.get('debtRatio')?.setValue(savedDossier?.loanData?.debtRatio);
-    this.loanDataFormGroup?.get('isExternDebtsRetrieved')?.setValue(savedDossier?.loanData?.isExternDebtsRetrieved);
-    this.loanDataFormGroup?.get('isExternDebtsInfnRetrieved')?.setValue(savedDossier?.loanData?.isExternDebtsInfnRetrieved);
   }
   updatePropertyData(dossierPayload: any, savedDossier: any) {
     const propertyData = dossierPayload.propertyData;
@@ -386,168 +802,14 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
     this.dossierStore.update({ propertyData: newPropertyData }, false);
   }
 
-  compareObjects(o1: any, o2: any): boolean {
-    return o1?.code === o2?.code
-  }
-
-  onSelectionChange(event: any) {
-    this.stepsVisited[event.selectedIndex] = true;
-    this.dossierStore.update(this.formGroupRawValue);
-  }
-
-  validateProspectData() {
-    return this.dossierStore.get()?.customerData?.personalInfo?.prospect;
-  }
-
-  isStepValid(formGroup: AbstractControl) {
-    return !this.isFormHasFunctionalErrors(formGroup as FormGroup);
-  }
-
-  isControlHasFunctionalErrors(formGroup: AbstractControl) {
-    return this.isFormHasFunctionalErrors(formGroup as FormGroup);
-  }
-
-  activateRepresentativeForm(event: any) {
-    this.representativeFormDisplayed = event.target.checked;
-    if (event.target.checked) {
-      this.representativeLastname.addValidators(Validators.required);
-      this.representativeFirstName.addValidators(Validators.required);
-      this.representativeCIN.addValidators(Validators.required);
-      this.representativeCinIssuedAt.addValidators(Validators.required);
-    } else {
-      this.representativeLastname.removeValidators(Validators.required);
-      this.representativeLastname.reset();
-      this.representativeFirstName.removeValidators(Validators.required);
-      this.representativeFirstName.reset();
-      this.representativeCIN.removeValidators(Validators.required);
-      this.representativeCIN.reset();
-      this.representativeCinIssuedAt.removeValidators(Validators.required);
-      this.representativeCinIssuedAt.reset();
-      this.representativeFormGroup.reset();
-    }
-  }
-
-  ngOnDestroy(): void {
-    this.dossierStoreSubscription.unsubscribe();
-  }
-
-  getTomorrow(fromDate?: Date): Date {
-    const baseDate = fromDate ? new Date(fromDate) : new Date();
-    baseDate.setDate(baseDate.getDate() + 1);
-    return baseDate;
-  }
-
-  private initDelayedType(dossierPayload: DossierData) {
-    let pCode = dossierPayload?.product?.code;
-    if (pCode === Products.PPI_PPR_FONC.toString()) {
-      this.delayTypes$?.subscribe(dts => {
-        let capitalInteretsType = dts.find(dt => dt.code === "CAPITAL_INTERETS")
-        if (capitalInteretsType) {
-          this.loanDataFormGroup?.get('delayed')?.setValue(true);
-          this.loanDataFormGroup?.get('delayed')?.disable();
-          this.loanDataFormGroup?.get('delayType')?.setValue({ code: capitalInteretsType.code, label: capitalInteretsType.designation });
-          this.loanDataFormGroup?.get('delayType')?.disable();
-          this.loanDataFormGroup?.get('delayDuration')?.setValue(2);
-          this.loanDataFormGroup?.get('delayDuration')?.disable();
-        }
-      });
-    }
-  }
-
-  private initForm( ) {
-    this.formGroup = this.formBuilder.group({
-      personalInfo: this.buildProspectFormGroup(),
-      employer: this.formBuilder.group({
-          activitySector: new FormControl(null, [Validators.required]),
-          cutomerType: new FormControl(),
-          contractType: new FormControl(),
-          isTitularized: new FormControl(false),
-          name: new FormControl(null, [Validators.required]),
-          address: new FormControl(null),
-          separation: new FormControl(true, [Validators.required]),
-          profession: new FormControl(),
-          phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')
-        ]),
-      }),
-      financialData: this.formBuilder.group({
-        income: new FormControl(null, [Validators.required]),
-        spouseIncome: new FormControl(),
-        otherIncome: new FormControl(),
-        rentalIncome: new FormControl(),
-        familyAllowance: new FormControl(),
-        pension: new FormControl(),
-        dividends: new FormControl(),
-      }),
-      guarantors: this.formBuilder.array([]),
-      warranties: this.formBuilder.array([], this.minLengthArray(1)),
-      beneficiaries: this.formBuilder.array([], this.minLengthArray(1)),
-      propertyData: this.formBuilder.group({
-        properties: this.formBuilder.array([], this.minLengthArray(1)),
-        coFinancing: new FormControl()
-      }),
-      notary: this.formBuilder.group({
-        name: new FormControl(null, [Validators.required]),
-        address: new FormControl(null, [Validators.required]),
-        phone: new FormControl(null, [Validators.required, Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
-        email: new FormControl(null, [Validators.required, Validators.email])
-      }),
-      representative: this.formBuilder.group({
-        lastname: new FormControl(),
-        firstname: new FormControl(),
-        cin: new FormControl(),
-        cinIssuedAt: new FormControl(),
-      }),
-      loanData: this.formBuilder.group({}),
-      insuranceData: this.formBuilder.group({})
-    });
-    this.loanDataFormGroup = this.formGroup.get('loanData')! as FormGroup;
-    this.insuranceDataFormGroup = this.formGroup.get('insuranceData') as FormGroup;
-
-    /** for regrouping employer & financialData only in front presentation**/
-    this.customerDataFormGroup = this.formBuilder.group({});
-    this.customerDataFormGroup.addControl('employer', this.formGroup.get('employer') as FormGroup);
-    this.customerDataFormGroup.addControl('financialData', this.formGroup.get('financialData') as FormGroup);
-    this.customerDataFormGroup.addControl('personalInfo', this.formGroup.get('personalInfo') as FormGroup);
-
-
-    /** for regrouping notary & propertyData only in front presentation**/
-    this.propertyDataNotaryFormGroup = this.formBuilder.group({});
-    this.propertyDataNotaryFormGroup.addControl('notary', this.formGroup.get('notary') as FormGroup);
-    this.propertyData = this.formGroup.get('propertyData')! as FormGroup;
-  }
-
-
-
-  private updateNotaryValidations() {
-    if (!this.notaryFormGroup || !this.propertyDataFormGroup) return;
-
-    if (this.fieldsClearingCondition('Notary')) {
-      this.clearNotaryFieldValidators();
-    }
-
-    this.notaryMailFormControl.updateValueAndValidity();
-    this.notaryPhoneFormControl.updateValueAndValidity();
-    this.notaryFormGroup.get('name')?.updateValueAndValidity();
-    this.notaryFormGroup.get('address')?.updateValueAndValidity();
-  }
-
-  private clearNotaryFieldValidators(): void {
-    this.notaryMailFormControl.clearValidators();
-    this.notaryPhoneFormControl.clearValidators();
-    this.notaryMailFormControl.addValidators([Validators.email]);
-    this.notaryPhoneFormControl.addValidators([Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]);
-    this.notaryFormGroup.get('name')?.clearValidators();
-    this.notaryFormGroup.get('address')?.clearValidators();
-  }
-
-  private fieldsClearingCondition(fileds:'Notary'): boolean {
+  private fieldsClearingCondition(fileds: 'Notary'): boolean {
     const dossier = this.dossierStore.get();
-    this.accord= dossier?.accord;
-    this.isProspect=!!dossier?.customerData?.personalInfo?.prospect;
-    const product= dossier.product?.code
+    this.accord = dossier?.accord;
+    this.isProspect = !!dossier?.customerData?.personalInfo?.prospect;
+    const product = dossier.product?.code
 
     const allowedCodesByField: Record<typeof fileds, string[]> = {
-      Notary:   [Products.MOULKIA.toString(),Products.PPI_VEFA.toString()]
+      Notary: [Products.MOULKIA.toString(), Products.PPI_VEFA.toString(), Products.YASSIR.toString(), Products.YASSIR_PPR.toString(), Products.PPO.toString(), Products.PPO_PPR.toString(), Products.PPC.toString(),]
     };
 
     return (
@@ -557,184 +819,229 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
     );
   }
 
-  private filterByType(type: ActivitySectorType): Observable<ActivitySector[]> {
-    return this.activitiesSectors$.pipe(
-      map((aSectors) =>
-        aSectors.filter((as) => as.type == ActivitySectorType[type])
-      )
-    );
+  isStepCompleted(formGroup: AbstractControl, stepIndex: number) {
+    return this.stepsVisited[stepIndex] && formGroup?.valid
   }
 
-  private minLengthArray(min: number): ValidatorFn {
-    return (control: AbstractControl): {[key: string]: any} | null => {
-      if(control.value && control.value.length >= min){
-        return null;
-      }
-      return { minLengthArray: { valid: false, requiredLength: min, actualLength: control.value.length}};
-    }
+  isStepHasError(formGroup: AbstractControl, stepIndex: number) {
+    return this.stepsVisited[stepIndex] && !formGroup?.valid
   }
 
-  private ageValidator(control: AbstractControl): ValidationErrors | null {
-    if (!control.value) {
-      return null;
+  updateNotaryValidations() {
+    if (!this.formGroup || !this.notaryFormGroup) return;
+
+    if (this.fieldsClearingCondition('Notary')) {
+      this.clearNotaryFieldValidators();
     }
 
-    const birthDate = new Date(control.value);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-
-    if (
-      today.getMonth() < birthDate.getMonth() ||
-      (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())
-    ) {
-      age--;
-    }
-
-    return age <= 70 ? null : { ageLimitExceeded: true };
+    // Mise à jour sécurisée de la validité
+    this.notaryMailFormControl?.updateValueAndValidity();
+    this.notaryPhoneFormControl?.updateValueAndValidity();
+    this.notaryFormGroup.get('name')?.updateValueAndValidity();
+    this.notaryFormGroup.get('address')?.updateValueAndValidity();
   }
-
-  private buildProspectFormGroup(): FormGroup | undefined{
-    const dossier = this.dossierStore.get();
-    const isProspect = dossier.customerData?.personalInfo?.prospect;
-    if(!isProspect) return;
-    const prospectForm = this.formBuilder.group({
-      lastName:  new FormControl(null, [Validators.required]),
-      firstName:  new FormControl(null, [Validators.required]),
-      lastProfession: new FormControl(null, [Validators.required]),
-      legalStatus:  new FormControl(null, [Validators.required]),
-      maritalStatus:  new FormControl(null, [Validators.required]),
-      cardID:  new FormControl(null, [Validators.required]),
-      cardIDEmissionDate:  new FormControl(null, [Validators.required]),
-      cardIDExpirationDate: new FormControl(null, [Validators.required]),
-      cardType:   new FormControl(null, [Validators.required]),
-      birthDate: new FormControl(null, [Validators.required, this.ageValidator]),
-      address1: new FormControl(null, [Validators.required]),
-      phone: new FormControl(null, [ Validators.required,Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
-      topFonctionnaire: new FormControl(false),
-      sexe: new FormControl(null, [Validators.required]),
-      pprFonctionnaire: new FormControl(),
-      nationalityCountry: new FormControl(null, [Validators.required]),
-      residenceCountry: new FormControl(null, [Validators.required])
-    });
-    prospectForm.get("lastProfession")?.valueChanges.subscribe((value) => {
-      const isFonctionnaire = value && value === "TOP_FONCTIONNAIRE";
-      prospectForm.get("topFonctionnaire")?.setValue(isFonctionnaire);
-      if(isFonctionnaire){
-        prospectForm.get("pprFonctionnaire")?.addValidators([Validators.required]);
-      }else{
-        prospectForm.get("pprFonctionnaire")?.reset();
-        prospectForm.get("pprFonctionnaire")?.clearValidators();
-      }
-    });
-    return prospectForm;
+  private clearNotaryFieldValidators(): void {
+    this.notaryMailFormControl.clearValidators();
+    this.notaryPhoneFormControl.clearValidators();
+    this.notaryMailFormControl.addValidators([Validators.email]);
+    this.notaryPhoneFormControl.addValidators([Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]);
+    this.notaryFormGroup.get('name')?.clearValidators();
+    this.notaryFormGroup.get('address')?.clearValidators();
   }
-
-  get ProspectPhoneControl(): FormControl{
-    return this.personalInfoFormGroup.get('phone') as FormControl;
-  }
-
-  get formGroupRawValue(): any {
+    get formGroupRawValue(): any {
     return this.formGroup.getRawValue();
   }
 
-  get prospectFormGroup(): AbstractControl{
-    return this.formGroup.get('prospect')!;
+  get cappedRateFormControl() {
+    return this.formGroup.get('loanData.cappedRate') as FormControl;
   }
 
-  get employerFormGroup(): AbstractControl {
-    return this.formGroup.get('employer')!;
+  get applicationFeeFormControl() {
+    return this.loanDataFormGroup.get('applicationFee') as FormControl;
+  }
+  get insuranceCoefficientFormControl() {
+    return this.formGroup.get('insuranceData.insuranceCoefficient') as FormControl;
   }
 
-  get financialData(): FormGroup {
-    return this.formGroup.get('financialData') as FormGroup;
-  }
-    get incomeControl(): AbstractControl {
-    return this.financialData?.get('income') as FormControl;
+  get aditionalCreditPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditPromotionalInsuranceRate") as FormControl;
   }
 
-  get employerPhoneControl(): AbstractControl {
-    return this.employerFormGroup.get('phone') as FormControl;
+  get aditionalCreditInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditInsuredPercentage") as FormControl;
   }
 
-  get employerCutomerTypeControl(): AbstractControl {
-    return this.employerFormGroup?.get('cutomerType') as FormControl;
+  get aditionalCreditInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditInsuranceCoefficient") as FormControl;
   }
 
-  get contractTypeControl(): AbstractControl {
-    return this.employerFormGroup?.get('contractType') as FormControl;
+  get subsidizedPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedPromotionalInsuranceRate") as FormControl;
   }
-  get isTitularizedControl(): AbstractControl {
-    return this.employerFormGroup?.get('isTitularized') as FormControl;
-  }
-  get contratType() {
-    return this.contractTypeControl?.value;
+  get bonusPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.bonusPromotionalInsuranceRate") as FormControl;
   }
 
-  get separationFormControl() {
-    return this.employerFormGroup.get('separation') as FormControl;
+  get suportedPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;
   }
 
-  get professionFormControl() {
-    return this.employerFormGroup.get('profession') as FormControl;
+
+  get subsidizedInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;
+  }
+    get bonusInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.bonusInsuranceCoefficient") as FormControl;
+  }
+  get suportedInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.suportedInsuranceCoefficient") as FormControl;
   }
 
-  get separation() {
-    return this.employerFormGroup?.get('separation')?.value;
+  get subsidizedInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedInsuredPercentage") as FormControl;
   }
 
-  get financialDataFormGroup(): AbstractControl {
-    return this.formGroup.get('financialData')!;
+  get bonusInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.bonusInsuredPercentage") as FormControl;
   }
 
+  get suportedInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.suportedInsuredPercentage") as FormControl;
+  }
+  get typeAPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.typeAPromotionalInsuranceRate") as FormControl;
+  }
+
+  get typeAInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.typeAInsuredPercentage") as FormControl;
+  }
+
+  get typeAInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.typeAInsuranceCoefficient") as FormControl;
+  }
+
+  get typeBPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.typeBPromotionalInsuranceRate") as FormControl;
+  }
+
+  get typeBInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.typeBInsuredPercentage") as FormControl;
+  }
+
+  get typeBInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.typeBInsuranceCoefficient") as FormControl;
+  }
+  get deadlineNumberFormControl() {
+    return this.loanDataFormGroup.get('deadlineNumber') as FormControl;
+  }
+  get delayedFormControl() {
+    return this.loanDataFormGroup.get('delayed') as FormControl;
+  }
+  get delayDurationFormControl() {
+    return this.loanDataFormGroup.get('delayDuration') as FormControl;
+  }
+  get rateTypeCodeFormControl() {
+    return this.formGroup.get('loanData.rateType.code') as FormControl;
+  }
+
+  get loanDataFormGroup() {
+    return this.formGroup.get('loanData') as FormGroup;
+  }
+  get delayed() {
+    return this.formGroup?.get('loanData.delayed')?.value;
+  }
+  get acquisitionPriceFormControl() {
+    return this.loanDataFormGroup?.get('acquisitionPrice');
+  }
+  get delayType() {
+    return this.formGroup?.get('loanData.delayType')?.value;
+  }
+  get delayDuration() {
+    return this.formGroup?.get('loanData.delayDuration')?.value;
+  }
+  get rateFormControl() {
+    return this.formGroup.get('loanData.rate') as FormControl;
+  }
+  get delayTypeFormControl() {
+    return this.formGroup?.get('loanData.delayType') as FormControl;
+  }
+
+  get subsidizedCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl;
+  }
+  get bonusCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl;
+  }
+  get suportedCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl;
+  }
+  get additionalloanDurationFormControl() {
+    return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;
+  }
+  get subsidizedCreditRateFormControl() {
+    return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl;
+  }
+  get bonusCreditRateFormControl() {
+    return this.loanDataFormGroup.get('bonusCreditRate') as FormControl;
+  }
+  get suportedCreditRateFormControl() {
+    return this.loanDataFormGroup.get('suportedCreditRate') as FormControl;
+  }
+  get additionalCreditRateFormControl() {
+    return this.loanDataFormGroup.get('additionalCreditRate') as FormControl;
+  }
+
+  get notaryPhoneFormControl(): FormControl {
+    return this.notaryFormGroup?.get('phone') as FormControl;
+  }
+
+  get notaryMailFormControl(): FormControl {
+    return this.notaryFormGroup?.get('email') as FormControl;
+  }
   get propertyDataFormGroup(): FormGroup {
     return this.formGroup.get('propertyData') as FormGroup;
   }
 
-  get notaryFormGroup(): AbstractControl {
-    return this.formGroup.get('notary')!;
-  }
-
-  get notaryMailFormControl(): FormControl {
-    return this.notaryFormGroup.get('email') as FormControl;
-  }
-
-  get notaryPhoneFormControl(): FormControl {
-    return this.notaryFormGroup.get('phone') as FormControl;
-  }
-
-  get guarantorsFormArray(): FormArray {
-    return this.formGroup.controls['guarantors'] as FormArray;
-  }
-
-  get warrantiesFormArray(): FormArray {
-    return this.formGroup.controls['warranties'] as FormArray;
+  get notaryFormGroup(): FormGroup {
+    return this.formGroup.get('notary') as FormGroup;
   }
 
   get beneficiariesFormArray(): FormArray {
-    return this.formGroup.controls['beneficiaries'] as FormArray;
+    return this.formGroup.get('beneficiaries') as FormArray;
   }
 
-  get representativeLastname(): FormControl {
-    return this.representativeFormGroup.get('lastname') as FormControl;
+
+  public isMechanism1() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_1);
   }
 
-  get representativeFirstName(): FormControl {
-    return this.representativeFormGroup.get('firstname') as FormControl;
+  public isMechanism2() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_2);
   }
 
-  get representativeCIN(): FormControl {
-    return this.representativeFormGroup.get('cin') as FormControl;
+  public isMechanism3() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_3);
+  }
+  public isTypeA() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_A);
   }
 
-  get representativeCinIssuedAt(): FormControl {
-    return this.representativeFormGroup.get('cinIssuedAt') as FormControl;
+  public isTypeB() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_B);
   }
 
-  get representativeFormGroup(): FormGroup {
-    return this.formGroup.get('representative') as FormGroup;
+  private isMechanismExists(arrayValues: Mechanism | Mechanism[], value: string): boolean {
+    if (!Array.isArray(arrayValues)) {
+      arrayValues = [arrayValues];
+    }
+    return !!arrayValues.find(mechanism => mechanism && mechanism.code === value);
   }
-
-  get personalInfoFormGroup(): FormGroup {
-    return this.formGroup.get('personalInfo') as FormGroup;
+  get promotionalInsuranceRateFormControl() {
+    return this.formGroup?.get("insuranceData.promotionalInsuranceRate") as FormControl;
+  }
+  get claimedAmountOfPurchaseFormControl() {
+    return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;
   }
 }
+
+
