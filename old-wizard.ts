@@ -96,7 +96,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
   readonly separatorKeysCodes = [ENTER, COMMA] as const;
   selectableWarranty = true;
   private warrantiesSubject: BehaviorSubject<Warranty[]> = new BehaviorSubject<Warranty[]>([]);
-  stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
+  stepsVisited: boolean[] = [true, ...new Array(5).fill(false)];
   cities$?: Observable<RefCity[]>;
   accord: string | undefined;
   isProspect: boolean = false;
@@ -120,7 +120,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.delayTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllDelayTypes());
   }
 
- ngOnInit(): void {
+  ngOnInit(): void {
   this.refService.getAllPropertyTypes();
     this.loanObject = this.data.loanData.loanObject.code;
     this.acquisitionFee= this.data.loanData.acquisitionFee;
@@ -248,9 +248,11 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
 
       this.initDurationListeners();
   }
+
   isAnyMechanismOrType(): boolean {
     return this.isTypeA() || this.isTypeB() || this.isMechanism1() || this.isMechanism2();
   }
+
   public isSelectedProductIn(productsCode: string[]) {
     return productsCode.includes(this.selectedProduct?.code) ;
   }
@@ -258,11 +260,9 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
   lessThanEqualToFixValue(max:number): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const loanAmount = this.claimedAmountOfPurchaseFormControl?.value;
-      return !loanAmount || loanAmount<=max ? null : { lessThanEqualToFixedValue: true }; };
-
+      return !loanAmount || loanAmount<=max ? null : { lessThanEqualToFixedValue: true }; 
+    };
   }
-
-
 
   nextStep = () => {
       this.principalStepper.next();
@@ -310,8 +310,9 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
         delayType: new FormControl(),
         delayDuration: new FormControl()
       }),
-        beneficiaries: this.formBuilder.array([], this.minLengthArray(1)),
-      insuranceData: this.formBuilder.group({})
+      insuranceData: this.formBuilder.group({}),
+      beneficiaries: this.formBuilder.array([], this.minLengthArray(1)),
+      warranties: this.formBuilder.array([], this.minLengthArray(1)),
     });
 
 
@@ -387,7 +388,8 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
       }
 
     }
-     this.initInsuranceDataForm()
+    
+    this.initInsuranceDataForm()
 
     this.loanDataFormGroup.addControl("applicationFee", new FormControl(null, [Validators.required]));
     this.loanDataFormGroup.addValidators([this.applicationFeesValidator])
@@ -567,10 +569,10 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
       });
   }
 
+
   public isYasserProduct() {
     return this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
   }
-
   public isPpoPpcProduct(){
     return this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
   }
@@ -649,13 +651,12 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
   }
 
-    calculateSuportedInsuranceCoefficient() {
+  calculateSuportedInsuranceCoefficient() {
     const suportedCreditAmount = this.data.loanData?.suportedCreditAmount;
     const promotionalRate = this.suportedPromotionalInsuranceRateFormControl?.value;
     const coefficient = this.computeInsuranceCoefficient(promotionalRate, suportedCreditAmount);
     this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
   }
-
 
   calculateTypeAInsuranceCoefficient() {
     const loanAmount = this.data.loanData?.typeAloanAmount;
@@ -677,7 +678,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
     this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
   }
-
 
   initCappedRateValidators() {
     this.formGroup.get('loanData.rateType.code')?.valueChanges.subscribe(value => {
@@ -703,6 +703,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
 
     this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
   }
+
   private initDelayedType() {
       this.delayTypes$?.subscribe();
   }
@@ -723,8 +724,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
       this.delayDurationFormControl.updateValueAndValidity();
     });
   }
-
-
 
   compareObjects(o1: any, o2: any): boolean {
     return o1?.code === o2?.code
@@ -784,13 +783,14 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
 
   }
 
-    update = () => {
-      const dossier = this.dossierStore.get();
-      this.dossierStore.update({
-        ...dossier,
-        ...this.formGroupRawValue,
-      });
+  update = () => {
+    const dossier = this.dossierStore.get();
+    this.dossierStore.update({
+      ...dossier,
+      ...this.formGroupRawValue,
+    });
   }
+
   updatePropertyData(dossierPayload: any, savedDossier: any) {
     const propertyData = dossierPayload.propertyData;
     const newPropertyData: PropertyData = {
@@ -819,14 +819,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     );
   }
 
-  isStepCompleted(formGroup: AbstractControl, stepIndex: number) {
-    return this.stepsVisited[stepIndex] && formGroup?.valid
-  }
-
-  isStepHasError(formGroup: AbstractControl, stepIndex: number) {
-    return this.stepsVisited[stepIndex] && !formGroup?.valid
-  }
-
   updateNotaryValidations() {
     if (!this.formGroup || !this.notaryFormGroup) return;
 
@@ -840,6 +832,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.notaryFormGroup.get('name')?.updateValueAndValidity();
     this.notaryFormGroup.get('address')?.updateValueAndValidity();
   }
+
   private clearNotaryFieldValidators(): void {
     this.notaryMailFormControl.clearValidators();
     this.notaryPhoneFormControl.clearValidators();
@@ -848,7 +841,8 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.notaryFormGroup.get('name')?.clearValidators();
     this.notaryFormGroup.get('address')?.clearValidators();
   }
-    get formGroupRawValue(): any {
+  
+  get formGroupRawValue(): any {
     return this.formGroup.getRawValue();
   }
 
@@ -885,7 +879,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
   get suportedPromotionalInsuranceRateFormControl() {
     return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;
   }
-
 
   get subsidizedInsuranceCoefficientFormControl() {
     return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;
@@ -1006,11 +999,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     return this.formGroup.get('notary') as FormGroup;
   }
 
-  get beneficiariesFormArray(): FormArray {
-    return this.formGroup.get('beneficiaries') as FormArray;
-  }
-
-
   public isMechanism1() {
     return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_1);
   }
@@ -1041,6 +1029,14 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
   }
   get claimedAmountOfPurchaseFormControl() {
     return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;
+  }
+
+  get warrantiesFormArray(): FormArray {
+    return this.formGroup.controls['warranties'] as FormArray;
+  }
+
+  get beneficiariesFormArray(): FormArray {
+    return this.formGroup.controls['beneficiaries'] as FormArray;
   }
 }
 
