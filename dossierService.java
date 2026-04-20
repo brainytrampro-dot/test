@@ -162,10 +162,6 @@ public class DossierDataService {
 		if (newDossier.getGuarantors() != null) {
 			oldDossier.getGuarantors().addAll(newDossier.getGuarantors());
 		}
-		oldDossier.getBeneficiaries().clear();
-		if (newDossier.getBeneficiaries() != null) {
-			oldDossier.getBeneficiaries().addAll(newDossier.getBeneficiaries());
-		}
 
 		//TODO change Hardcoded String 022 to properties.local
 		if (oldDossier.getLoanData() != null && oldDossier.getLoanData().getIsExternDebtsRetrieved() != null &&
