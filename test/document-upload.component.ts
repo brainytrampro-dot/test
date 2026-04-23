@@ -1,231 +1,169 @@
-import { Component, OnInit } from '@angular/core';
-import { trigger, state, style, animate, transition } from '@angular/animations';
+import {
+  Component, OnInit, HostListener, Output, EventEmitter
+} from '@angular/core';
+import {
+  trigger, state, style, animate, transition
+} from '@angular/animations';
 
-export type StatutIA = 'conforme' | 'a-verifier' | 'non-conforme' | 'en-traitement' | 'en-attente';
+export type DocStatut = 'uploade' | 'erreur' | 'avertissement' | 'vide';
+export type TRStatut  = 'ok' | 'erreur' | 'avertissement' | 'en-cours';
 
-export interface ChampOCR {
-  champ: string;
-  valeurOCR: string;
-  ficheClient: string;
-  statut: 'ok' | 'erreur' | 'avertissement';
-  confiance: number;
-}
-
-export interface Document {
-  id: string;
-  nom: string;
-  type: string;
-  statutIA: StatutIA;
-  qualiteOCR?: number;
-  action?: 'ok' | 'remplacer' | 'analyse';
-  champsOCR?: ChampOCR[];
-  expanded?: boolean;
+export interface DocFile {
+  id:       string;
+  nom:      string;
+  desc:     string;
+  statut:   DocStatut;
   fichier?: File;
+  isDragOver?: boolean;
 }
 
-export interface DocumentRequis {
-  id: string;
-  nom: string;
-  description: string;
-  obligatoire: boolean;
-  fichier?: File;
-  statut: 'uploade' | 'erreur' | 'avertissement' | 'vide';
+export interface DocGroup {
+  id:        string;
+  label:     string;        // ex. "Identité", "Revenus", "Bien immobilier"
+  icon:      string;        // material icon name
+  expanded:  boolean;
+  docs:      DocFile[];
 }
 
-export interface StatutTempsReel {
-  type: string;
-  label: string;
+export interface StatutTR {
+  label:       string;
   description: string;
-  statut: 'ok' | 'erreur' | 'avertissement' | 'en-cours';
+  statut:      TRStatut;
 }
 
 @Component({
-  selector: 'app-document-upload',
-  templateUrl: './document-upload.component.html',
-  styleUrls: ['./document-upload.component.scss'],
+  selector: 'app-loan-doc-upload',
+  templateUrl: './loan-doc-upload.component.html',
+  styleUrls:  ['./loan-doc-upload.component.scss'],
   animations: [
-    trigger('expandCollapse', [
-      state('collapsed', style({ height: '0', overflow: 'hidden', opacity: 0 })),
-      state('expanded', style({ height: '*', overflow: 'hidden', opacity: 1 })),
-      transition('collapsed <=> expanded', animate('300ms ease-in-out')),
-    ]),
-    trigger('fadeIn', [
-      transition(':enter', [
-        style({ opacity: 0, transform: 'translateY(8px)' }),
-        animate('250ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
-      ]),
+    trigger('collapse', [
+      state('open',   style({ height: '*',   opacity: 1, overflow: 'hidden' })),
+      state('closed', style({ height: '0px', opacity: 0, overflow: 'hidden' })),
+      transition('open <=> closed', animate('260ms cubic-bezier(0.4,0,0.2,1)')),
     ]),
   ],
 })
-export class DocumentUploadComponent implements OnInit {
-  // Step 1: Vue "Documents Requis" avec vérification IA inline
-  documents: Document[] = [
+export class LoanDocUploadComponent implements OnInit {
+
+  @Output() stepBack      = new EventEmitter<void>();
+  @Output() stepValidated = new EventEmitter<void>();
+
+  // ── Groupes de documents (collapsible cards) ─────────────────────
+  docGroups: DocGroup[] = [
     {
-      id: 'cin',
-      nom: "Carte d'Identité Nationale",
-      type: 'CIN',
-      statutIA: 'conforme',
-      qualiteOCR: 91,
-      action: 'ok',
-      champsOCR: [
-        { champ: 'Nom', valeurOCR: 'DOGCNOIYIX', ficheClient: 'DOGCNOIYIX', statut: 'ok', confiance: 98 },
-        { champ: 'Prénom', valeurOCR: 'DOGCNOIYIX', ficheClient: 'DOGCNOIYIX', statut: 'ok', confiance: 97 },
-        { champ: "N°CIN", valeurOCR: '341092', ficheClient: '341092', statut: 'ok', confiance: 99 },
-        { champ: 'Date naissance', valeurOCR: '15/03/1982', ficheClient: '15/03/1982', statut: 'ok', confiance: 96 },
-        { champ: 'Date de validité', valeurOCR: '06/12/2030', ficheClient: '06/12/2030', statut: 'ok', confiance: 98 },
-        { champ: 'MRZ vs données', valeurOCR: 'Cohérence recto/verso validée', ficheClient: '', statut: 'ok', confiance: 100 },
+      id: 'identite', label: 'Identité', icon: 'badge', expanded: true,
+      docs: [
+        { id: 'attes-cnss', nom: 'Attes CNSS',    desc: 'Attestation CNSS en cours de validité', statut: 'uploade' },
+        { id: 'avis-impo',  nom: "Avis d'Imposi", desc: "Avis d'imposition dernière année",       statut: 'erreur'  },
+        { id: 'cin-caution',nom: 'CIN Caution',   desc: 'CIN de la caution',                      statut: 'vide'    },
       ],
-      expanded: true,
     },
     {
-      id: 'attest-sal',
-      nom: 'Attestation de salaire',
-      type: 'Attest_sal',
-      statutIA: 'conforme',
-      qualiteOCR: 93,
-      action: 'ok',
+      id: 'revenus', label: 'Revenus', icon: 'payments', expanded: true,
+      docs: [
+        { id: 'bull-ach',       nom: 'Bull ACH',          desc: "Bulletin d'achat signé",       statut: 'avertissement' },
+        { id: 'contrat-travail',nom: 'Contrat travail',   desc: 'Contrat de travail en cours',  statut: 'vide'          },
+      ],
     },
     {
-      id: 'bulletins',
-      nom: 'Bulletins de Paie (x3)',
-      type: 'Bulletin',
-      statutIA: 'a-verifier',
-      qualiteOCR: 79,
-      action: 'remplacer',
-    },
-    {
-      id: 'compromis',
-      nom: 'Compromis de vente',
-      type: 'Compromis',
-      statutIA: 'non-conforme',
-      qualiteOCR: 46,
-      action: 'remplacer',
-    },
-    {
-      id: 'releve',
-      nom: 'Relevé de compte',
-      type: 'Releve',
-      statutIA: 'en-traitement',
-      action: 'analyse',
+      id: 'bien', label: 'Bien immobilier', icon: 'home_work', expanded: false,
+      docs: [
+        { id: 'contrat-bail',    nom: 'Contrat de bail',           desc: 'Contrat de bail notarié',               statut: 'vide' },
+        { id: 'compromis-vente', nom: 'Compromis de vente',        desc: 'Compromis de vente signé',              statut: 'vide' },
+        { id: 'lettre-notaire',  nom: 'Lettre désignation Notaire',desc: 'Lettre de désignation du notaire',      statut: 'vide' },
+      ],
     },
   ];
 
-  // Step 2: Vue split — liste gauche + statut IA droite
-  documentsRequis: DocumentRequis[] = [
-    { id: 'attes-cnss', nom: 'Attes CNSS', description: 'Via si veri inermis in.', obligatoire: true, statut: 'uploade' },
-    { id: 'avis-impo', nom: "Avis d'Imposi", description: 'Via si veri inermis in.', obligatoire: true, statut: 'erreur' },
-    { id: 'bull-ach', nom: 'Bull ACH', description: 'Via si veri inermis in.', obligatoire: true, statut: 'avertissement' },
-    { id: 'contrat-travail', nom: 'Contrat travail', description: 'Via si veri inermis in.', obligatoire: false, statut: 'vide' },
-    { id: 'cin-caution', nom: 'CIN Caution', description: 'Via si veri inermis in.', obligatoire: false, statut: 'vide' },
-    { id: 'contrat-bail', nom: 'Contrat de bail', description: 'Via si veri inermis in.', obligatoire: false, statut: 'vide' },
-    { id: 'compromis-vente', nom: 'Compromis de vente', description: 'Via si veri inermis in.', obligatoire: false, statut: 'vide' },
-    { id: 'lettre-notaire', nom: 'Lettre désignation Notaire', description: 'Via si veri inermis in.', obligatoire: false, statut: 'vide' },
-  ];
-
-  statutsTempsReel: StatutTempsReel[] = [
-    { type: 'CIN', label: 'CIN', description: 'CIN conforme - MRZ OK.', statut: 'ok' },
-    { type: 'Attestation salaire', label: 'Attestation salaire', description: 'Écart salaire : 12 500 = 13 000 MAD', statut: 'erreur' },
-    { type: 'Bulletins', label: 'Bulletins', description: '3 bulletins - OK', statut: 'ok' },
-    { type: 'Relevés', label: 'Relevés', description: '2/3 mois - M-3 manquant', statut: 'avertissement' },
-    { type: 'Compromis', label: 'Compromis', description: 'Compromis conforme - TF + notaire extraits', statut: 'en-cours' },
-    { type: 'LDN', label: 'LDN', description: 'LDN conforme - montant OK', statut: 'ok' },
-  ];
-
-  currentStep = 1;
-  totalSteps = 3;
-  uploadedCount = 3;
-  totalRequired = 14;
-
-  steps = [
-    { label: 'Informations', icon: 'person' },
-    { label: 'Documents', icon: 'description' },
-    { label: 'Validation', icon: 'check_circle' },
+  // ── Statuts temps réel ───────────────────────────────────────────
+  statutsTR: StatutTR[] = [
+    { label: 'CIN',                description: 'CIN conforme - MRZ OK.',                     statut: 'ok'           },
+    { label: 'Attestation salaire',description: 'Écart salaire : 12 500 ≠ 13 000 MAD',        statut: 'erreur'       },
+    { label: 'Bulletins',          description: '3 bulletins - OK',                            statut: 'ok'           },
+    { label: 'Relevés',            description: '2/3 mois - M-3 manquant',                     statut: 'avertissement'},
+    { label: 'Compromis',          description: 'Compromis conforme - TF + notaire extraits',  statut: 'en-cours'     },
+    { label: 'LDN',                description: 'LDN conforme - montant OK',                   statut: 'ok'           },
   ];
 
   ngOnInit(): void {}
 
-  toggleExpand(doc: Document): void {
-    doc.expanded = !doc.expanded;
+  // ── Computed ─────────────────────────────────────────────────────
+  get allDocs(): DocFile[] {
+    return this.docGroups.flatMap(g => g.docs);
+  }
+  get uploadedCount(): number { return this.allDocs.filter(d => d.statut === 'uploade').length; }
+  get totalCount():   number { return this.allDocs.length; }
+  get progressPct():  number { return Math.round((this.uploadedCount / this.totalCount) * 100); }
+
+  // ── Toggle group ─────────────────────────────────────────────────
+  toggleGroup(group: DocGroup): void {
+    group.expanded = !group.expanded;
   }
 
-  getStatutClass(statut: StatutIA): string {
-    const map: Record<StatutIA, string> = {
-      conforme: 'statut--conforme',
-      'a-verifier': 'statut--avertissement',
-      'non-conforme': 'statut--erreur',
-      'en-traitement': 'statut--traitement',
-      'en-attente': 'statut--attente',
-    };
-    return map[statut];
+  // ── Group statut summary ─────────────────────────────────────────
+  getGroupStatut(group: DocGroup): 'ok' | 'erreur' | 'avertissement' | 'neutre' {
+    const docs = group.docs;
+    if (docs.some(d => d.statut === 'erreur'))        return 'erreur';
+    if (docs.some(d => d.statut === 'avertissement')) return 'avertissement';
+    if (docs.every(d => d.statut === 'uploade'))      return 'ok';
+    return 'neutre';
   }
 
-  getStatutLabel(statut: StatutIA): string {
-    const map: Record<StatutIA, string> = {
-      conforme: 'Conforme',
-      'a-verifier': 'À vérifier',
-      'non-conforme': 'Non conforme',
-      'en-traitement': 'En traitement',
-      'en-attente': 'En attente',
-    };
-    return map[statut];
+  getGroupUploadCount(group: DocGroup): number {
+    return group.docs.filter(d => d.statut === 'uploade').length;
   }
 
-  getStatutIcon(statut: StatutIA): string {
-    const map: Record<StatutIA, string> = {
-      conforme: 'check_circle',
-      'a-verifier': 'warning',
-      'non-conforme': 'cancel',
-      'en-traitement': 'hourglass_empty',
-      'en-attente': 'radio_button_unchecked',
-    };
-    return map[statut];
-  }
-
-  getDocStatutIcon(statut: DocumentRequis['statut']): string {
-    const map = {
-      uploade: 'check_circle',
-      erreur: 'cancel',
-      avertissement: 'warning',
-      vide: 'insert_drive_file',
-    };
-    return map[statut];
-  }
-
-  getStatutTRIcon(statut: StatutTempsReel['statut']): string {
-    const map = {
-      ok: 'check_circle',
-      erreur: 'cancel',
-      avertissement: 'warning',
-      'en-cours': 'radio_button_unchecked',
-    };
-    return map[statut];
-  }
-
-  onFileSelected(event: Event, docId: string): void {
+  // ── File select (click) ──────────────────────────────────────────
+  onFileClick(event: Event, doc: DocFile): void {
     const input = event.target as HTMLInputElement;
     if (input.files?.length) {
-      const doc = this.documentsRequis.find(d => d.id === docId);
-      if (doc) {
-        doc.fichier = input.files[0];
-        doc.statut = 'uploade';
-      }
+      this.attachFile(doc, input.files[0]);
     }
   }
 
-  retournerDossier(): void {
-    if (this.currentStep > 1) this.currentStep--;
+  // ── Drag & Drop ──────────────────────────────────────────────────
+  onDragOver(event: DragEvent, doc: DocFile): void {
+    event.preventDefault();
+    event.stopPropagation();
+    doc.isDragOver = true;
   }
 
-  suivant(): void {
-    if (this.currentStep < this.totalSteps) this.currentStep++;
+  onDragLeave(event: DragEvent, doc: DocFile): void {
+    event.preventDefault();
+    doc.isDragOver = false;
   }
 
-  valider(): void {
-    console.log('Dossier validé !');
-    // Emit event ou navigation
+  onDrop(event: DragEvent, doc: DocFile): void {
+    event.preventDefault();
+    event.stopPropagation();
+    doc.isDragOver = false;
+    const files = event.dataTransfer?.files;
+    if (files?.length) {
+      this.attachFile(doc, files[0]);
+    }
   }
 
-  get uploadProgress(): number {
-    return Math.round((this.uploadedCount / this.totalRequired) * 100);
+  private attachFile(doc: DocFile, file: File): void {
+    doc.fichier = file;
+    doc.statut  = 'uploade';
   }
+
+  // ── Remove file ──────────────────────────────────────────────────
+  removeFile(doc: DocFile): void {
+    doc.fichier = undefined;
+    doc.statut  = 'vide';
+  }
+
+  // ── Icons ────────────────────────────────────────────────────────
+  getDocIcon(statut: DocStatut): string {
+    return { uploade: 'check_circle', erreur: 'cancel', avertissement: 'warning', vide: 'insert_drive_file' }[statut];
+  }
+
+  getTRIcon(statut: TRStatut): string {
+    return { ok: 'check_circle', erreur: 'cancel', avertissement: 'warning', 'en-cours': 'radio_button_unchecked' }[statut];
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────
+  onPrevious(): void { this.stepBack.emit(); }
+  onNext():     void { this.stepValidated.emit(); }
 }
