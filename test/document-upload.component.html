@@ -1,0 +1,260 @@
+<div class="stepper-wrapper">
+
+  <!-- ===== STEPPER HEADER ===== -->
+  <div class="stepper-header">
+    <div class="stepper-steps">
+      <div
+        class="step-item"
+        *ngFor="let step of steps; let i = index"
+        [class.active]="currentStep === i + 1"
+        [class.completed]="currentStep > i + 1"
+      >
+        <div class="step-circle">
+          <span class="material-icons" *ngIf="currentStep > i + 1">check</span>
+          <span *ngIf="currentStep <= i + 1">{{ i + 1 }}</span>
+        </div>
+        <span class="step-label">{{ step.label }}</span>
+        <div class="step-connector" *ngIf="i < steps.length - 1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STEP CONTENT ===== -->
+  <div class="stepper-content">
+
+    <!-- ─── STEP 1: Placeholder ─── -->
+    <div *ngIf="currentStep === 1" class="step-panel" @fadeIn>
+      <div class="step-placeholder">
+        <span class="material-icons placeholder-icon">person_outline</span>
+        <h3>Informations personnelles</h3>
+        <p>Contenu du step 1 (formulaire client, etc.)</p>
+        <button class="btn btn--primary" (click)="suivant()">
+          Suivant <span class="material-icons">arrow_forward</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── STEP 2: Documents (les 2 vues) ─── -->
+    <div *ngIf="currentStep === 2" class="step-panel" @fadeIn>
+
+      <!-- SUB-TAB: vue 1 = liste docs avec OCR -->
+      <div class="documents-section">
+
+        <div class="section-header">
+          <h2 class="section-title">DOCUMENTS REQUIS</h2>
+          <p class="section-subtitle">Importez vos documents — l'IA vérifie la conformité en temps réel</p>
+        </div>
+
+        <!-- TABLE HEADER -->
+        <div class="doc-table">
+          <div class="doc-table__header">
+            <span>Nom document</span>
+            <span>Type</span>
+            <span>Statut IA</span>
+            <span>Qualité OCR</span>
+            <span>Actions</span>
+            <span></span>
+          </div>
+
+          <!-- DOCUMENT ROWS -->
+          <div
+            class="doc-row"
+            *ngFor="let doc of documents"
+            [class.doc-row--expanded]="doc.expanded"
+          >
+            <!-- Main row -->
+            <div class="doc-row__main">
+              <div class="doc-row__name">
+                <strong>{{ doc.nom }}</strong>
+              </div>
+              <div class="doc-row__type">
+                <span class="type-badge">{{ doc.type }}</span>
+              </div>
+              <div class="doc-row__statut">
+                <span class="statut-badge" [ngClass]="getStatutClass(doc.statutIA)">
+                  <span class="material-icons statut-icon">{{ getStatutIcon(doc.statutIA) }}</span>
+                  {{ getStatutLabel(doc.statutIA) }}
+                </span>
+              </div>
+              <div class="doc-row__ocr">
+                <ng-container *ngIf="doc.qualiteOCR !== undefined; else noOcr">
+                  <div class="ocr-bar">
+                    <div
+                      class="ocr-bar__fill"
+                      [ngClass]="doc.qualiteOCR >= 85 ? 'ocr--high' : doc.qualiteOCR >= 65 ? 'ocr--med' : 'ocr--low'"
+                      [style.width.%]="doc.qualiteOCR"
+                    ></div>
+                  </div>
+                  <span class="ocr-value">{{ doc.qualiteOCR }}%</span>
+                </ng-container>
+                <ng-template #noOcr>
+                  <span class="ocr-pending">—</span>
+                </ng-template>
+              </div>
+              <div class="doc-row__actions">
+                <ng-container [ngSwitch]="doc.action">
+                  <span *ngSwitchCase="'ok'" class="action-ok">
+                    <span class="material-icons">check_circle_outline</span> OK
+                  </span>
+                  <button *ngSwitchCase="'remplacer'" class="btn-remplacer">
+                    Remplacer <span class="material-icons">chevron_right</span>
+                  </button>
+                  <span *ngSwitchCase="'analyse'" class="action-analyse">Analyse en cours</span>
+                </ng-container>
+              </div>
+              <div class="doc-row__toggle" *ngIf="doc.champsOCR?.length">
+                <button class="toggle-btn" (click)="toggleExpand(doc)">
+                  <span class="material-icons">{{ doc.expanded ? 'expand_less' : 'expand_more' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- OCR Detail (expandable) -->
+            <div
+              class="doc-row__detail"
+              [@expandCollapse]="doc.expanded ? 'expanded' : 'collapsed'"
+              *ngIf="doc.champsOCR?.length"
+            >
+              <div class="ocr-detail">
+                <div class="ocr-detail__header">
+                  <span>Champs extrait</span>
+                  <span>Valeur OCR</span>
+                  <span>Fiche client</span>
+                  <span>Statut</span>
+                  <span>Confiance</span>
+                </div>
+                <div class="ocr-detail__row" *ngFor="let champ of doc.champsOCR">
+                  <span class="champ-name">{{ champ.champ }}</span>
+                  <span class="champ-ocr">{{ champ.valeurOCR }}</span>
+                  <span class="champ-client">{{ champ.ficheClient || '—' }}</span>
+                  <span class="champ-statut">
+                    <span class="material-icons statut-small" [ngClass]="'statut-small--' + champ.statut">
+                      {{ champ.statut === 'ok' ? 'check_circle' : 'warning' }}
+                    </span>
+                  </span>
+                  <span class="champ-confiance" [ngClass]="'confiance--' + (champ.confiance >= 95 ? 'high' : champ.confiance >= 80 ? 'med' : 'low')">
+                    {{ champ.confiance }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FOOTER ACTIONS -->
+        <div class="section-footer">
+          <div class="footer-left">
+            <button class="btn btn--outline" (click)="retournerDossier()">
+              Retourner dossier
+            </button>
+            <button class="btn btn--ghost">
+              Pièces complémentaire
+            </button>
+          </div>
+          <button class="btn btn--primary" (click)="suivant()">
+            Valider
+          </button>
+        </div>
+      </div>
+
+      <!-- SUB-SECTION: vue 2 = split layout -->
+      <div class="documents-split-section">
+
+        <div class="section-header">
+          <h2 class="section-title">DOCUMENTS</h2>
+          <p class="section-subtitle">Importez vos documents — l'IA vérifie la conformité en temps réel</p>
+        </div>
+
+        <div class="split-layout">
+
+          <!-- LEFT: liste documents requis -->
+          <div class="split-left">
+            <div class="split-left__header">
+              <span class="docs-counter">DOCUMENTS REQUIS ({{ uploadedCount }}/{{ totalRequired }})</span>
+            </div>
+
+            <div class="doc-list">
+              <div
+                class="doc-list__item"
+                *ngFor="let doc of documentsRequis"
+                [ngClass]="'doc-item--' + doc.statut"
+              >
+                <div class="doc-item__icon">
+                  <span class="material-icons">{{ getDocStatutIcon(doc.statut) }}</span>
+                </div>
+                <div class="doc-item__info">
+                  <span class="doc-item__name">{{ doc.nom }}</span>
+                  <span class="doc-item__desc">{{ doc.description }}</span>
+                </div>
+                <div class="doc-item__action">
+                  <ng-container [ngSwitch]="doc.statut">
+                    <button *ngSwitchCase="'vide'" class="btn-ajouter" (click)="fileInput.click()">
+                      <span class="material-icons">add</span> Ajouter
+                    </button>
+                    <button *ngSwitchDefault class="btn-delete">
+                      <span class="material-icons">delete_outline</span>
+                    </button>
+                  </ng-container>
+                  <input
+                    #fileInput
+                    type="file"
+                    hidden
+                    (change)="onFileSelected($event, doc.id)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: statut IA temps réel -->
+          <div class="split-right">
+            <div class="split-right__header">
+              <span class="statut-title">STATUT IA TEMPS RÉEL</span>
+              <span class="statut-count">({{ statutsTempsReel.length }}) résultats</span>
+            </div>
+
+            <div class="statut-list">
+              <div
+                class="statut-item"
+                *ngFor="let statut of statutsTempsReel"
+                [ngClass]="'statut-item--' + statut.statut"
+                @fadeIn
+              >
+                <div class="statut-item__header">
+                  <span class="material-icons statut-item__icon">{{ getStatutTRIcon(statut.statut) }}</span>
+                  <span class="statut-item__label">{{ statut.label }}</span>
+                </div>
+                <p class="statut-item__desc">{{ statut.description }}</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div class="section-footer">
+          <button class="btn btn--outline" (click)="retournerDossier()">
+            <span class="material-icons">arrow_back</span> Précédent
+          </button>
+          <button class="btn btn--primary" (click)="suivant()">
+            Suivant <span class="material-icons">arrow_forward</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── STEP 3: Validation ─── -->
+    <div *ngIf="currentStep === 3" class="step-panel" @fadeIn>
+      <div class="step-placeholder step-placeholder--success">
+        <span class="material-icons placeholder-icon success-icon">check_circle</span>
+        <h3>Dossier prêt pour validation</h3>
+        <p>Tous les documents ont été analysés par l'IA.</p>
+        <button class="btn btn--primary btn--large" (click)="valider()">
+          <span class="material-icons">send</span> Soumettre le dossier
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
