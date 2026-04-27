@@ -1,3 +1,53 @@
+<app-accordion-item *ngFor="let dat of (dossierAttachmentType$ | async)">
+  <ng-template appLabel>
+    <div class="doc-row status-ok">
+      
+      <!-- Icône : spinner si upload en cours, sinon icône statut -->
+      <div class="doc-icon">
+        <ng-container *ngIf="isUploading(dat.codeRefAttachmentType); else statusIcon">
+          <!-- Spinner SVG ou ta classe spinner -->
+          <span class="spinner"></span>
+        </ng-container>
+        <ng-template #statusIcon>
+          <svg xmlns="http://www.w3.org/2000/svg" width="21.113" height="21.113">
+            <path fill="#6ea587" d="M16.023 8a.88.88 0 0 1-.012 1.244l-3.894 3.826a3.5 3.5 0 0 1-4.905.019l-1.671-1.642a.88.88 0 1 1 1.233-1.254L8.44 11.83a1.75 1.75 0 0 0 2.447-.016l3.893-3.822A.88.88 0 0 1 16.023 8m5.09 2.553A10.557 10.557 0 1 1 10.557 0a10.57 10.57 0 0 1 10.556 10.557Zm-1.759 0a8.8 8.8 0 1 0-8.8 8.8 8.807 8.807 0 0 0 8.8-8.796Z"/>
+          </svg>
+        </ng-template>
+      </div>
+
+      <div class="doc-copy">
+        <h3>{{ dat.refAttachmentTypeDesignation }}</h3>
+        <!-- Count dynamique depuis attachmentStates -->
+        <p>
+          <ng-container *ngIf="isUploading(dat.codeRefAttachmentType); else countTpl">
+            Upload en cours...
+          </ng-container>
+          <ng-template #countTpl>
+            {{ getUploadedCount(dat.codeRefAttachmentType) }} fichier(s) téléchargé(s)
+          </ng-template>
+        </p>
+      </div>
+
+      <button class="add-btn" [disabled]="isUploading(dat.codeRefAttachmentType)">
+        + Ajouter
+      </button>
+    </div>
+  </ng-template>
+
+  <div class="details">
+    <app-drop-zone
+      [attachmentsStates]="attachmentStates[dat?.codeRefAttachmentType!]"
+      [codeRefAttachmentType]="dat?.codeRefAttachmentType"
+      (attachmentsStatesChange)="onAddAttachmentsWithProgress(dat.codeRefAttachmentType, $event)"
+      (showFileClicked)="onPreviewAttachment($event)"
+      (deleteFileClicked)="onDeleteAttachment($event)"
+    ></app-drop-zone>
+  </div>
+</app-accordion-item>
+
+.........
+
+
 <div class="initiation-form">
   <app-stepper #principalStepper linear="false" [showIndicator]="false" [showNavigationButtons]="false" [showNavigationList]="false">
     <ng-template #additionalActions>
