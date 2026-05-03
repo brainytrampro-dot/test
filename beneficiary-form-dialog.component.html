@@ -1,0 +1,400 @@
+<div class="modal_body-wrapper">
+    <div class="modal-dialog-title">
+        <h3 matDialogTitle>{{ "beneficiary.dialog.title" | translate }}</h3>
+    </div>
+
+    <mat-dialog-content class="modal-dialog-body">
+        <p class="step-description">
+            {{"beneficiary.dialog.propertyowners.text" | translate}}
+        </p>
+
+        <div class="beneficiary-form-wrapper">
+
+            <!-- ─── Radio type ──────────────────────────────────────────────── -->
+            <div class="row">
+                <div class="col-md-auto">
+                    <label class="check-control">
+                        <input type="radio" value="1" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <div class="form-control-wrapper">
+                            <span class="fake-check"></span>
+                            <span class="fake-label">{{"beneficiary.label" | translate}}</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="col-md-auto">
+                    <label class="check-control">
+                        <input type="radio" value="2" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <div class="form-control-wrapper">
+                            <span class="fake-check"></span>
+                            <span class="fake-label">Emprunteur</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="col-md-auto">
+                    <label class="check-control">
+                        <input type="radio" value="3" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <div class="form-control-wrapper">
+                            <span class="fake-check"></span>
+                            <span class="fake-label">Cautions solidaires</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- ─── Tabs 1 & 2 ─────────────────────────────────────────────── -->
+            <ng-container [formGroup]="beneficiaryFormGroup" *ngIf="beneficiaryTypeFormControl.value !== '3'">
+
+                <!-- Nom / Prénom -->
+                <div class="row">
+                    <div class="col">
+                        <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('lastname')?.disabled}">
+                            <label class="form-control-label">{{ "beneficiary.lastname" | translate }}</label>
+                            <div class="form-control-container">
+                                <input class="form-control-input" appAlphaInput type="text" formControlName="lastname" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('firstname')?.disabled}">
+                            <label class="form-control-label">{{ "beneficiary.firstname" | translate }}</label>
+                            <div class="form-control-container">
+                                <input class="form-control-input" appAlphaInput type="text" formControlName="firstname" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <ng-container *ngIf="beneficiaryTypeFormControl.value !== '2'">
+
+                    <!-- Date naissance -->
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('birthDate')?.disabled}">
+                                <label class="form-control-label">{{ "beneficiary.birthDate" | translate }}</label>
+                                <div class="form-control-container">
+                                    <input class="form-control-input" [matDatepicker]="pickerBirthDate"
+                                        formControlName="birthDate"
+                                        placeholder="{{'date.format.placeholder' | translate}}"
+                                        (dateChange)="changeDatePicker(birthDateFormControl)"
+                                        (focus)="pickerBirthDate.open()" />
+                                    <mat-datepicker-toggle matSuffix [for]="pickerBirthDate">
+                                        <mat-icon matDatepickerToggleIcon>
+                                            <img src="/assets/svg/calendar.svg" alt="sgma">
+                                        </mat-icon>
+                                    </mat-datepicker-toggle>
+                                    <mat-datepicker #pickerBirthDate></mat-datepicker>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lieu naissance -->
+                    <div class="row">
+                        <div class="col">
+                            <mat-form-field class="matselectsearch-dialog matselectsearch"
+                                [ngClass]="{'disabled': beneficiaryFormGroup?.get('codeBirthPlace')?.disabled}">
+                                <mat-label class="form-control-label custom-label">{{ 'beneficiary.birthPlace' | translate }}</mat-label>
+                                <div class="form-control-container">
+                                    <mat-select [compareWith]="compareObjects" formControlName="codeBirthPlace" disableOptionCentering>
+                                        <mat-option>
+                                            <ngx-mat-select-search [formControl]="cityFilterControl"
+                                                [placeholderLabel]="'Recherche ici'"
+                                                [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
+                                            </ngx-mat-select-search>
+                                            <span class="icon-search-select"></span>
+                                        </mat-option>
+                                        <mat-option *ngFor="let city of (filteredCities$ | async)" [value]="city.designation">
+                                            {{ city?.designation }}
+                                        </mat-option>
+                                    </mat-select>
+                                </div>
+                            </mat-form-field>
+                        </div>
+                    </div>
+
+                    <!-- Biens à acquérir -->
+                    <div class="row">
+                        <div class="col">
+                            <mat-form-field class="matselectsearch-dialog matselectsearch">
+                                <mat-label class="form-control-label custom-label">Biens à acquérir</mat-label>
+                                <div class="form-control-container">
+                                    <mat-select [compareWith]="compareObjects" formControlName="properties" multiple
+                                        (selectionChange)="onPropertiesChange()">
+                                        <mat-option>
+                                            <ngx-mat-select-search [formControl]="propertyFilterControl"
+                                                [placeholderLabel]="'Recherche ici'"
+                                                [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
+                                            </ngx-mat-select-search>
+                                            <span class="icon-search-select"></span>
+                                        </mat-option>
+                                        <mat-option *ngFor="let property of (filteredProperty$ | async)" [value]="property">
+                                            {{ property.landCertificateNumber }} - {{ property.codePropertyCity }}
+                                        </mat-option>
+                                    </mat-select>
+                                </div>
+                            </mat-form-field>
+                        </div>
+                    </div>
+
+                    <!-- Rangs inline par property sélectionnée -->
+                    <ng-container *ngIf="selectedProperties.length > 0">
+                        <div class="rangs-section" *ngFor="let property of selectedProperties">
+                            <div class="rangs-property-header">
+                                <span class="rangs-property-title">
+                                    {{ property.landCertificateNumber }} — Rangs
+                                </span>
+                                <button type="button" class="default-btn default-btn--sm" (click)="addRang(property)">
+                                    + Ajouter rang
+                                </button>
+                            </div>
+
+                            <div class="rangs-list" *ngIf="getRangsForProperty(property).length > 0">
+                                <div class="rang-row" *ngFor="let rang of getRangsForProperty(property); let i = index">
+                                    <div class="form-control-wrapper">
+                                        <label class="form-control-label">Rang</label>
+                                        <div class="form-control-container">
+                                            <input class="form-control-input" type="number" min="1"
+                                                [(ngModel)]="rang.rang" [ngModelOptions]="{standalone: true}"
+                                                placeholder="N° rang" />
+                                        </div>
+                                    </div>
+                                    <div class="form-control-wrapper">
+                                        <label class="form-control-label">Montant garantie</label>
+                                        <div class="form-control-container">
+                                            <input class="form-control-input" type="number" min="0"
+                                                [(ngModel)]="rang.warrantyAmount" [ngModelOptions]="{standalone: true}"
+                                                placeholder="Montant" />
+                                        </div>
+                                    </div>
+                                    <button type="button" class="remove-btn" (click)="removeRang(property, i)">✕</button>
+                                </div>
+                            </div>
+
+                            <p class="rangs-empty" *ngIf="getRangsForProperty(property).length === 0">
+                                Aucun rang — cliquez sur "Ajouter rang"
+                            </p>
+                        </div>
+                    </ng-container>
+
+                </ng-container>
+
+                <!-- Adresse -->
+                <div class="row">
+                    <div class="col">
+                        <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('address')?.disabled}">
+                            <label class="form-control-label">{{ "beneficiary.address" | translate }}</label>
+                            <div class="form-control-container">
+                                <textarea class="form-control-textarea" formControlName="address" [rows]="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Adult / Mineur -->
+                <div class="row">
+                    <div class="col-md-auto">
+                        <label class="check-control">
+                            <input type="radio" [value]="true" name="adult" formControlName="adult">
+                            <div class="form-control-wrapper">
+                                <span class="fake-check"></span>
+                                <span class="fake-label">{{ "beneficiary.adult" | translate }}</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="col-md-auto">
+                        <label class="check-control">
+                            <input type="radio" [value]="false" name="adult" formControlName="adult">
+                            <div class="form-control-wrapper">
+                                <span class="fake-check"></span>
+                                <span class="fake-label">{{ "beneficiary.juveniles" | translate }}</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- CIN + Date émission (adulte) -->
+                <div class="row" *ngIf="adultFormControl.value">
+                    <div class="col">
+                        <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('idCardNumber')?.disabled}">
+                            <label class="form-control-label">{{ "beneficiary.idCardNumber" | translate }}</label>
+                            <div class="form-control-container">
+                                <input class="form-control-input" appAlphanumericInput type="text" formControlName="idCardNumber" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('issuedAt')?.disabled}">
+                            <label class="form-control-label">{{ "beneficiary.issuedAt" | translate }}</label>
+                            <div class="form-control-container">
+                                <input class="form-control-input" [matDatepicker]="pickerIssuedAt"
+                                    formControlName="issuedAt"
+                                    placeholder="{{'date.format.placeholder' | translate}}"
+                                    (dateChange)="changeDatePicker(issuedAtFormControl)"
+                                    (focus)="pickerIssuedAt.open()" />
+                                <mat-datepicker-toggle matSuffix [for]="pickerIssuedAt">
+                                    <mat-icon matDatepickerToggleIcon>
+                                        <img src="/assets/svg/calendar.svg" alt="sgma">
+                                    </mat-icon>
+                                </mat-datepicker-toggle>
+                                <mat-datepicker #pickerIssuedAt></mat-datepicker>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Représentant légal (mineur) -->
+                <ng-container *ngIf="!adultFormControl.value">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('representativeLastname')?.disabled}">
+                                <label class="form-control-label">{{ "beneficiary.representative.lastname" | translate }}</label>
+                                <div class="form-control-container">
+                                    <input class="form-control-input" appAlphaInput type="text" formControlName="representativeLastname" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('representativeFirstname')?.disabled}">
+                                <label class="form-control-label">{{ "beneficiary.representative.firstname" | translate }}</label>
+                                <div class="form-control-container">
+                                    <input class="form-control-input" appAlphaInput type="text" formControlName="representativeFirstname" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-control-wrapper" [ngClass]="{'disabled': beneficiaryFormGroup?.get('judgeAuthorizationDate')?.disabled}">
+                                <label class="form-control-label">{{ "beneficiary.representative.judgeAuthorizationDate" | translate }}</label>
+                                <div class="form-control-container">
+                                    <input class="form-control-input" [matDatepicker]="pickerJudgeAuthorizationDate"
+                                        formControlName="judgeAuthorizationDate"
+                                        placeholder="{{'date.format.placeholder' | translate}}"
+                                        (dateChange)="changeDatePicker(judgeAuthorizationDateFormControl)"
+                                        (focus)="pickerJudgeAuthorizationDate.open()" />
+                                    <mat-datepicker-toggle matSuffix [for]="pickerJudgeAuthorizationDate">
+                                        <mat-icon matDatepickerToggleIcon>
+                                            <img src="/assets/svg/calendar.svg" alt="sgma">
+                                        </mat-icon>
+                                    </mat-datepicker-toggle>
+                                    <mat-datepicker #pickerJudgeAuthorizationDate></mat-datepicker>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </ng-container>
+
+            </ng-container>
+
+            <!-- ─── Tab 3 — Cautions solidaires ───────────────────────────── -->
+            <ng-container *ngIf="beneficiaryTypeFormControl.value === '3'">
+
+                <!-- Sélection des guarantors -->
+                <mat-form-field class="matselectsearch-dialog matselectsearch" *ngIf="guarantors && guarantors.length > 0">
+                    <mat-label class="form-control-label">
+                        {{"beneficiary.guarantors" | translate}}
+                    </mat-label>
+                    <div class="form-control-container">
+                        <mat-select class="form-control-input" multiple [(ngModel)]="selectedGuarantors" disableOptionCentering>
+                            <mat-option *ngFor="let g of guarantors" [value]="g"
+                                [disabled]="isGuarantorSelected(g.idCardNumber)">
+                                {{ g.lastName + " " + g.firstName }}
+                            </mat-option>
+                        </mat-select>
+                    </div>
+                </mat-form-field>
+
+                <!-- Properties + Rangs par guarantor sélectionné -->
+                <ng-container *ngIf="selectedGuarantors && selectedGuarantors.length > 0">
+                    <div class="guarantor-rangs-section" *ngFor="let guarantor of selectedGuarantors">
+
+                        <div class="guarantor-rangs-header">
+                            <span class="guarantor-rangs-title">
+                                {{ guarantor.lastName }} {{ guarantor.firstName }} — Biens &amp; Rangs
+                            </span>
+                        </div>
+
+                        <!-- Biens du guarantor -->
+                        <div class="row">
+                            <div class="col">
+                                <mat-form-field class="matselectsearch-dialog matselectsearch">
+                                    <mat-label class="form-control-label custom-label">Biens à acquérir</mat-label>
+                                    <div class="form-control-container">
+                                        <mat-select [compareWith]="compareObjects"
+                                            [(ngModel)]="guarantor.properties" multiple
+                                            (selectionChange)="onGuarantorPropertiesChange(guarantor)">
+                                            <mat-option *ngFor="let property of acquisitionProperties" [value]="property">
+                                                {{ property.landCertificateNumber }} - {{ property.codePropertyCity }}
+                                            </mat-option>
+                                        </mat-select>
+                                    </div>
+                                </mat-form-field>
+                            </div>
+                        </div>
+
+                        <!-- Rangs inline par property du guarantor -->
+                        <ng-container *ngIf="getSelectedPropertiesForGuarantor(guarantor).length > 0">
+                            <div class="rangs-section"
+                                *ngFor="let property of getSelectedPropertiesForGuarantor(guarantor)">
+                                <div class="rangs-property-header">
+                                    <span class="rangs-property-title">
+                                        {{ property.landCertificateNumber }} — Rangs
+                                    </span>
+                                    <button type="button" class="default-btn default-btn--sm"
+                                        (click)="addRangForGuarantor(guarantor, property)">
+                                        + Ajouter rang
+                                    </button>
+                                </div>
+
+                                <div class="rangs-list"
+                                    *ngIf="getRangsForGuarantorProperty(guarantor, property).length > 0">
+                                    <div class="rang-row"
+                                        *ngFor="let rang of getRangsForGuarantorProperty(guarantor, property); let i = index">
+                                        <div class="form-control-wrapper">
+                                            <label class="form-control-label">Rang</label>
+                                            <div class="form-control-container">
+                                                <input class="form-control-input" type="number" min="1"
+                                                    [(ngModel)]="rang.rang" [ngModelOptions]="{standalone: true}"
+                                                    placeholder="N° rang" />
+                                            </div>
+                                        </div>
+                                        <div class="form-control-wrapper">
+                                            <label class="form-control-label">Montant garantie</label>
+                                            <div class="form-control-container">
+                                                <input class="form-control-input" type="number" min="0"
+                                                    [(ngModel)]="rang.warrantyAmount" [ngModelOptions]="{standalone: true}"
+                                                    placeholder="Montant" />
+                                            </div>
+                                        </div>
+                                        <button type="button" class="remove-btn"
+                                            (click)="removeRangForGuarantor(guarantor, property, i)">✕</button>
+                                    </div>
+                                </div>
+
+                                <p class="rangs-empty"
+                                    *ngIf="getRangsForGuarantorProperty(guarantor, property).length === 0">
+                                    Aucun rang — cliquez sur "Ajouter rang"
+                                </p>
+                            </div>
+                        </ng-container>
+
+                    </div>
+                </ng-container>
+
+            </ng-container>
+
+        </div>
+    </mat-dialog-content>
+
+    <mat-dialog-actions class="modal-dialog-actions">
+        <button (click)="onCancel()" type="button" class="default-btn" [disabled]="false" matDialogClose cdkFocusInitial>
+            {{ "button.cancel.label" | translate }}
+        </button>
+        <button (click)="onSaveBeneficiary()" type="button" class="action-btn" color="primary"
+            [disabled]="!isAddButtonActif()">
+            {{ "button.save.label" | translate }}
+        </button>
+    </mat-dialog-actions>
+</div>
