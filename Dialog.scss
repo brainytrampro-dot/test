@@ -1,0 +1,77 @@
+// ─── Rangs section ────────────────────────────────────────────────────────────
+
+.rangs-section {
+  margin: 8px 0 16px 0;
+  border-left: 3px solid #e0e0e0;
+  padding-left: 12px;
+}
+
+.rangs-property-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rangs-property-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+}
+
+.rangs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rang-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+
+  .form-control-wrapper {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #e53935;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  margin-bottom: 4px;
+
+  &:hover { background: #fdecea; }
+}
+
+.rangs-empty {
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
+  margin: 4px 0 8px 0;
+}
+
+// ─── Guarantor block ──────────────────────────────────────────────────────────
+
+.guarantor-block {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.guarantor-block-header {
+  margin-bottom: 12px;
+}
+
+.guarantor-block-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1a237e;
+}
