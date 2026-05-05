@@ -1,3 +1,25 @@
+private restoreExistingRangs(index: number, benef: any): void {
+  console.log('=== restoreExistingRangs ===');
+  console.log('properties:', benef.properties);
+  console.log('rangs:', benef.rangs);
+  
+  if (!benef.rangs || !benef.properties) return;
+  
+  for (const property of benef.properties) {
+    const propKey = this.getPropertyKey(property);
+    console.log(`property key: ${propKey}, id: ${property.id}, uuid: ${property.uuid}`);
+    
+    const rangsForProp = (benef.rangs as RangDto[]).filter(r => {
+      console.log(`  rang - propertyId: ${r.propertyId}, propertyUuid: ${r.propertyUuid}`);
+      return r.propertyId === property.id || r.propertyUuid === property.uuid;
+    });
+    
+    console.log(`rangs trouvés pour ${propKey}:`, rangsForProp);
+  }
+}
+
+
+
 import {
   ChangeDetectionStrategy,
   Component,
