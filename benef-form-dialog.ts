@@ -1,20 +1,25 @@
 private restoreExistingRangs(index: number, benef: any): void {
-  console.log('=== restoreExistingRangs ===');
-  console.log('properties:', benef.properties);
-  console.log('rangs:', benef.rangs);
-  
   if (!benef.rangs || !benef.properties) return;
-  
+
   for (const property of benef.properties) {
     const propKey = this.getPropertyKey(property);
-    console.log(`property key: ${propKey}, id: ${property.id}, uuid: ${property.uuid}`);
-    
+
     const rangsForProp = (benef.rangs as RangDto[]).filter(r => {
-      console.log(`  rang - propertyId: ${r.propertyId}, propertyUuid: ${r.propertyUuid}`);
-      return r.propertyId === property.id || r.propertyUuid === property.uuid;
+      // Comparer par id uniquement si les deux sont définis
+      if (property.id != null && r.propertyId != null) {
+        return r.propertyId === property.id;
+      }
+      // Sinon fallback uuid — uniquement si les deux sont définis
+      if (property.uuid != null && r.propertyUuid != null) {
+        return r.propertyUuid === property.uuid;
+      }
+      return false; // ← pas de match si tout est undefined
     });
-    
-    console.log(`rangs trouvés pour ${propKey}:`, rangsForProp);
+
+    if (rangsForProp.length > 0) {
+      if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
+      this.rangsMap.get(index)!.set(propKey, [...rangsForProp]);
+    }
   }
 }
 
