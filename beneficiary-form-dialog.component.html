@@ -10,11 +10,12 @@
 
         <div class="beneficiary-form-wrapper">
 
-            <!-- ─── Radio type ────────────────────────────────────────────── -->
+            <!-- ─── Radio type ─────────────────────────────────────────────── -->
             <div class="row">
                 <div class="col-md-auto">
                     <label class="check-control">
-                        <input type="radio" value="1" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <input type="radio" [value]="BeneficiaryType.Free"
+                            [formControl]="beneficiaryTypeControl" name="beneficiaryType" />
                         <div class="form-control-wrapper">
                             <span class="fake-check"></span>
                             <span class="fake-label">{{"beneficiary.label" | translate}}</span>
@@ -23,7 +24,8 @@
                 </div>
                 <div class="col-md-auto">
                     <label class="check-control">
-                        <input type="radio" value="2" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <input type="radio" [value]="BeneficiaryType.Borrower"
+                            [formControl]="beneficiaryTypeControl" name="beneficiaryType" />
                         <div class="form-control-wrapper">
                             <span class="fake-check"></span>
                             <span class="fake-label">Emprunteur</span>
@@ -32,7 +34,8 @@
                 </div>
                 <div class="col-md-auto">
                     <label class="check-control">
-                        <input type="radio" value="3" [formControl]="beneficiaryTypeFormControl" name="beneficiaryType" />
+                        <input type="radio" [value]="BeneficiaryType.Guarantor"
+                            [formControl]="beneficiaryTypeControl" name="beneficiaryType" />
                         <div class="form-control-wrapper">
                             <span class="fake-check"></span>
                             <span class="fake-label">Cautions solidaires</span>
@@ -41,24 +44,21 @@
                 </div>
             </div>
 
-            <!-- ─── Tabs 1 & 2 — 1 seul FormGroup (index 0) ─────────────── -->
-            <ng-container *ngIf="beneficiaryTypeFormControl.value !== '3'">
-                <ng-container
-                    *ngTemplateOutlet="benefFormTemplate; context: {
-                        group: getBenefGroup(0),
-                        index: 0,
-                        showIdentity: true,
-                        isEmprunteur: beneficiaryTypeFormControl.value === '2'
-                    }">
-                </ng-container>
+            <!-- ─── Tabs 1 & 2 — index 0 ──────────────────────────────────── -->
+            <ng-container *ngIf="beneficiaryTypeControl.value !== BeneficiaryType.Guarantor">
+                <ng-container *ngTemplateOutlet="benefFormTemplate; context: {
+                    group: getBenefGroup(0),
+                    index: 0,
+                    showIdentity: true,
+                    isEmprunteur: beneficiaryTypeControl.value === BeneficiaryType.Borrower
+                }"></ng-container>
             </ng-container>
 
-            <!-- ─── Tab 3 — Guarantors → N FormGroups ────────────────────── -->
-            <ng-container *ngIf="beneficiaryTypeFormControl.value === '3'">
+            <!-- ─── Tab 3 — Guarantors ─────────────────────────────────────── -->
+            <ng-container *ngIf="beneficiaryTypeControl.value === BeneficiaryType.Guarantor">
 
-                <!-- Sélection des guarantors -->
                 <mat-form-field class="matselectsearch-dialog matselectsearch"
-                    *ngIf="guarantors && guarantors.length > 0">
+                    *ngIf="availableGuarantors.length > 0">
                     <mat-label class="form-control-label">
                         {{"beneficiary.guarantors" | translate}}
                     </mat-label>
@@ -67,15 +67,14 @@
                             [(ngModel)]="selectedGuarantors"
                             (ngModelChange)="onGuarantorsChange()"
                             disableOptionCentering>
-                            <mat-option *ngFor="let g of guarantors" [value]="g"
-                                [disabled]="isGuarantorSelected(g.idCardNumber)">
+                            <mat-option *ngFor="let g of availableGuarantors" [value]="g"
+                                [disabled]="isGuarantorPreSelected(g.idCardNumber)">
                                 {{ g.lastName + " " + g.firstName }}
                             </mat-option>
                         </mat-select>
                     </div>
                 </mat-form-field>
 
-                <!-- 1 FormGroup par guarantor sélectionné -->
                 <ng-container *ngFor="let group of benefGroups; let i = index">
                     <div class="guarantor-block">
                         <div class="guarantor-block-header">
@@ -83,14 +82,12 @@
                                 {{ selectedGuarantors[i]?.lastName }} {{ selectedGuarantors[i]?.firstName }}
                             </span>
                         </div>
-                        <ng-container
-                            *ngTemplateOutlet="benefFormTemplate; context: {
-                                group: group,
-                                index: i,
-                                showIdentity: false,
-                                isEmprunteur: false
-                            }">
-                        </ng-container>
+                        <ng-container *ngTemplateOutlet="benefFormTemplate; context: {
+                            group: group,
+                            index: i,
+                            showIdentity: false,
+                            isEmprunteur: false
+                        }"></ng-container>
                     </div>
                 </ng-container>
 
@@ -101,25 +98,20 @@
 
     <mat-dialog-actions class="modal-dialog-actions">
         <button (click)="onCancel()" type="button" class="default-btn"
-            [disabled]="false" matDialogClose cdkFocusInitial>
+            matDialogClose cdkFocusInitial>
             {{ "button.cancel.label" | translate }}
         </button>
-        <button (click)="onSaveBeneficiary()" type="button" class="action-btn"
-            color="primary" [disabled]="!isAddButtonActif()">
+        <button (click)="saveBeneficiary()" type="button" class="action-btn"
+            color="primary" [disabled]="isSaveDisabled()">
             {{ "button.save.label" | translate }}
         </button>
     </mat-dialog-actions>
 </div>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     ng-template générique — formulaire d'un bénéficiaire
-     Contexte :
-       group        : FormGroup du bénéficiaire
-       index        : position dans le FormArray (utilisé pour rangsMap)
-       showIdentity : true pour tabs 1/2, false pour tab 3 (identité déjà connue)
-       isEmprunteur : true pour tab 2 (fields disabled)
-     ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Template bénéficiaire
+     ═══════════════════════════════════════════════════════════════════════ -->
 <ng-template #benefFormTemplate
     let-group="group"
     let-index="index"
@@ -127,15 +119,18 @@
     let-isEmprunteur="isEmprunteur">
 
     <div [formGroup]="group">
-        <!-- ── Identité (tabs 1/2 seulement) ──────────────────────────────── -->
+
+        <!-- ── Identité ───────────────────────────────────────────────────── -->
         <ng-container *ngIf="showIdentity">
+
             <div class="row mb-3">
                 <div class="col">
                     <div class="form-control-wrapper"
                         [ngClass]="{'disabled': group.get('lastname')?.disabled}">
                         <label class="form-control-label">{{ "beneficiary.lastname" | translate }}</label>
                         <div class="form-control-container">
-                            <input class="form-control-input" appAlphaInput type="text" formControlName="lastname" />
+                            <input class="form-control-input" appAlphaInput type="text"
+                                formControlName="lastname" />
                         </div>
                     </div>
                 </div>
@@ -144,14 +139,14 @@
                         [ngClass]="{'disabled': group.get('firstname')?.disabled}">
                         <label class="form-control-label">{{ "beneficiary.firstname" | translate }}</label>
                         <div class="form-control-container">
-                            <input class="form-control-input" appAlphaInput type="text" formControlName="firstname" />
+                            <input class="form-control-input" appAlphaInput type="text"
+                                formControlName="firstname" />
                         </div>
                     </div>
                 </div>
             </div>
-            <ng-container *ngIf="!isEmprunteur">
 
-                <!-- Date naissance -->
+            <ng-container *ngIf="!isEmprunteur">
                 <div class="row mb-3">
                     <div class="col">
                         <div class="form-control-wrapper"
@@ -175,7 +170,6 @@
                     </div>
                 </div>
 
-                <!-- Lieu naissance -->
                 <div class="row mb-3">
                     <div class="col">
                         <mat-form-field class="matselectsearch-dialog matselectsearch"
@@ -184,8 +178,8 @@
                                 {{ 'beneficiary.birthPlace' | translate }}
                             </mat-label>
                             <div class="form-control-container">
-                                <mat-select [compareWith]="compareObjects" formControlName="codeBirthPlace"
-                                    disableOptionCentering>
+                                <mat-select [compareWith]="compareByCode"
+                                    formControlName="codeBirthPlace" disableOptionCentering>
                                     <mat-option>
                                         <ngx-mat-select-search [formControl]="cityFilterControl"
                                             [placeholderLabel]="'Recherche ici'"
@@ -203,25 +197,25 @@
                         </mat-form-field>
                     </div>
                 </div>
-
             </ng-container>
-        </ng-container>
 
-        <!-- ── Adresse (tabs 1/2 seulement) ───────────────────────────────── -->
-        <ng-container *ngIf="showIdentity">
+            <!-- ── Adresse ─────────────────────────────────────────────────── -->
             <div class="row mb-3">
                 <div class="col">
                     <div class="form-control-wrapper"
                         [ngClass]="{'disabled': group.get('address')?.disabled}">
                         <label class="form-control-label">{{ "beneficiary.address" | translate }}</label>
                         <div class="form-control-container">
-                            <textarea class="form-control-textarea" formControlName="address" [rows]="3"></textarea>
+                            <textarea class="form-control-textarea"
+                                formControlName="address" [rows]="3"></textarea>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="divider"></div>
-            <!-- Adult / Mineur -->
+
+            <!-- ── Adult / Mineur ──────────────────────────────────────────── -->
             <div class="row mb-3">
                 <div class="col-md-auto">
                     <label class="check-control">
@@ -242,6 +236,7 @@
                     </label>
                 </div>
             </div>
+
             <!-- CIN + issuedAt (adulte) -->
             <div class="row mb-3" *ngIf="group.get('adult')?.value">
                 <div class="col">
@@ -259,7 +254,8 @@
                         [ngClass]="{'disabled': group.get('issuedAt')?.disabled}">
                         <label class="form-control-label">{{ "beneficiary.issuedAt" | translate }}</label>
                         <div class="form-control-container">
-                            <input class="form-control-input" [matDatepicker]="pickerIssuedAt"
+                            <input class="form-control-input"
+                                [matDatepicker]="pickerIssuedAt"
                                 formControlName="issuedAt"
                                 placeholder="{{'date.format.placeholder' | translate}}"
                                 (dateChange)="changeDatePicker(getFormControl(index, 'issuedAt'))"
@@ -274,12 +270,12 @@
                     </div>
                 </div>
             </div>
+
             <!-- Représentant légal (mineur) -->
             <ng-container *ngIf="!group.get('adult')?.value">
                 <div class="row mb-3">
                     <div class="col">
-                        <div class="form-control-wrapper"
-                            [ngClass]="{'disabled': group.get('representativeLastname')?.disabled}">
+                        <div class="form-control-wrapper">
                             <label class="form-control-label">
                                 {{ "beneficiary.representative.lastname" | translate }}
                             </label>
@@ -290,8 +286,7 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="form-control-wrapper"
-                            [ngClass]="{'disabled': group.get('representativeFirstname')?.disabled}">
+                        <div class="form-control-wrapper">
                             <label class="form-control-label">
                                 {{ "beneficiary.representative.firstname" | translate }}
                             </label>
@@ -304,109 +299,136 @@
                 </div>
                 <div class="row mb-3">
                     <div class="col">
-                        <div class="form-control-wrapper"
-                            [ngClass]="{'disabled': group.get('judgeAuthorizationDate')?.disabled}">
+                        <div class="form-control-wrapper">
                             <label class="form-control-label">
                                 {{"beneficiary.representative.judgeAuthorizationDate" | translate}}
                             </label>
                             <div class="form-control-container">
                                 <input class="form-control-input"
-                                    [matDatepicker]="pickerJudgeAuthorizationDate"
+                                    [matDatepicker]="pickerJudgeDate"
                                     formControlName="judgeAuthorizationDate"
-                                    (dateChange)="changeDatePicker(getFormControl(index, 'judgeAuthorizationDate'))"
                                     placeholder="{{'date.format.placeholder' | translate}}"
-                                    (focus)="pickerJudgeAuthorizationDate.open()" />
-                                <mat-datepicker-toggle matSuffix [for]="pickerJudgeAuthorizationDate">
+                                    (dateChange)="changeDatePicker(getFormControl(index, 'judgeAuthorizationDate'))"
+                                    (focus)="pickerJudgeDate.open()" />
+                                <mat-datepicker-toggle matSuffix [for]="pickerJudgeDate">
                                     <mat-icon matDatepickerToggleIcon>
                                         <img src="/assets/svg/calendar.svg" alt="sgma">
                                     </mat-icon>
                                 </mat-datepicker-toggle>
-                                <mat-datepicker #pickerJudgeAuthorizationDate></mat-datepicker>
+                                <mat-datepicker #pickerJudgeDate></mat-datepicker>
                             </div>
                         </div>
                     </div>
                 </div>
             </ng-container>
-        </ng-container>
-        
-        <ng-container>
-            <!-- ── Biens à acquérir ────────────────────────────────────────────── -->
-            <div class="row mb-3">
-                <div class="col">
-                    <mat-form-field class="matselectsearch-dialog matselectsearch">
-                        <mat-label class="form-control-label custom-label">Biens à acquérir</mat-label>
-                        <div class="form-control-container">
-                            <mat-select [compareWith]="compareObjects" formControlName="properties" multiple
-                                (selectionChange)="onPropertiesChange(index)">
-                                <mat-option>
-                                    <ngx-mat-select-search [formControl]="propertyFilterControl"
-                                        [placeholderLabel]="'Recherche ici'"
-                                        [noEntriesFoundLabel]="'Aucun element correspondant trouvé'"
-                                        ngDefaultControl>
-                                    </ngx-mat-select-search>
-                                    <span class="icon-search-select"></span>
-                                </mat-option>
-                                <mat-option *ngFor="let property of (filteredProperty$ | async)" [value]="property">
-                                    {{ property.landCertificateNumber }} - {{ property.codePropertyCity }}
-                                </mat-option>
-                            </mat-select>
-                        </div>
-                    </mat-form-field>
-                </div>
-            </div>
 
-            <!-- ── Rangs inline par property sélectionnée ─────────────────────── -->
-            <ng-container *ngIf="getSelectedProperties(index).length > 0">
-                <ng-container *ngFor="let property of getSelectedProperties(index)">
-                    <ng-container
-                        *ngTemplateOutlet="rangsTemplate; context: { index: index, property: property }">
-                    </ng-container>
-                </ng-container>
-            </ng-container>
         </ng-container>
+
+        <!-- ── Properties multi-select ────────────────────────────────────── -->
+        <div class="row mb-3">
+            <div class="col">
+                <mat-form-field class="matselectsearch-dialog matselectsearch">
+                    <mat-label class="form-control-label custom-label">Biens à acquérir</mat-label>
+                    <div class="form-control-container">
+                        <mat-select multiple disableOptionCentering
+                            [compareWith]="compareByCode"
+                            [value]="getSelectedPropertiesValue(index)"
+                            (selectionChange)="onPropertiesSelected(index, $event.value)">
+                            <mat-option>
+                                <ngx-mat-select-search [formControl]="propertyFilterControl"
+                                    [placeholderLabel]="'Recherche ici'"
+                                    [noEntriesFoundLabel]="'Aucun element correspondant trouvé'"
+                                    ngDefaultControl>
+                                </ngx-mat-select-search>
+                                <span class="icon-search-select"></span>
+                            </mat-option>
+                            <mat-option *ngFor="let property of (filteredProperties$ | async)"
+                                [value]="property">
+                                {{ property.landCertificateNumber }} - {{ property.codePropertyCity }}
+                            </mat-option>
+                        </mat-select>
+                    </div>
+                </mat-form-field>
+            </div>
+        </div>
+
+        <!-- Erreur rang duplicate global -->
+        <div class="error-message" *ngIf="hasRangDuplicate(index)">
+            ⚠️ Deux rangs ont le même numéro — veuillez corriger avant de sauvegarder.
+        </div>
+
+        <!-- ── Rangs par property ──────────────────────────────────────────── -->
+        <ng-container *ngFor="let propGroup of getPropertyGroups(index); let pi = index">
+            <ng-container *ngTemplateOutlet="rangsTemplate; context: {
+                benefIndex: index,
+                propIndex:  pi,
+                propGroup:  propGroup
+            }"></ng-container>
+        </ng-container>
+
     </div>
 </ng-template>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     ng-template rangs — réutilisé pour chaque property de chaque bénéficiaire
-     Contexte :
-       index    : position dans FormArray (clé rangsMap)
-       property : PropertyItem concernée
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<ng-template #rangsTemplate let-index="index" let-property="property">
-    <div class="rangs-section">
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Template rangs — 1 bloc par property
+     Contexte : benefIndex, propIndex, propGroup
+     ═══════════════════════════════════════════════════════════════════════ -->
+<ng-template #rangsTemplate
+    let-benefIndex="benefIndex"
+    let-propIndex="propIndex"
+    let-propGroup="propGroup">
+
+    <div class="rangs-section" [formGroup]="propGroup">
         <div class="rangs-property-header">
-            <span class="rangs-property-title"> {{ property.landCertificateNumber }} — Rangs </span>
-            <button type="button" class="default-btn default-btn--sm" (click)="addRang(index, property)"> + Ajouter rang </button>
+            <span class="rangs-property-title">
+                {{ propGroup.get('propertyId')?.value ?? propGroup.get('propertyUuid')?.value }} — Rangs
+            </span>
+            <button type="button" class="default-btn default-btn--sm"
+                (click)="addRang(benefIndex, propIndex)">
+                + Ajouter rang
+            </button>
         </div>
 
-        <div class="rangs-list" *ngIf="getRangs(index, property).length > 0">
-            <div class="rang-row" *ngFor="let rang of getRangs(index, property); let ri = index">
-                <div class="form-control-wrapper">
-                    <label class="form-control-label">Rang</label>
-                    <div class="form-control-container">
-                        <input class="form-control-input" type="number" min="1"
-                            [(ngModel)]="rang.rang"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="N° rang" />
+        <ng-container formArrayName="rangsArray">
+            <div class="rangs-list" *ngIf="getRangGroups(benefIndex, propIndex).length > 0">
+                <div class="rang-row"
+                    *ngFor="let rangGroup of getRangGroups(benefIndex, propIndex); let ri = index"
+                    [formGroup]="rangGroup">
+
+                    <div class="form-control-wrapper">
+                        <label class="form-control-label">Rang</label>
+                        <div class="form-control-container">
+                            <input class="form-control-input" type="number" min="1"
+                                formControlName="rang"
+                                placeholder="N° rang" />
+                        </div>
                     </div>
-                </div>
-                <div class="form-control-wrapper">
-                    <label class="form-control-label">Montant garantie</label>
-                    <div class="form-control-container">
-                        <input class="form-control-input" type="number" min="0"
-                            [(ngModel)]="rang.warrantyAmount"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="Montant" />
+
+                    <div class="form-control-wrapper">
+                        <label class="form-control-label">Montant garantie</label>
+                        <div class="form-control-container">
+                            <input class="form-control-input" type="number" min="0"
+                                formControlName="warrantyAmount"
+                                placeholder="Montant" />
+                        </div>
                     </div>
+
+                    <button type="button" class="remove-btn"
+                        (click)="removeRang(benefIndex, propIndex, ri)">✕</button>
                 </div>
-                <button type="button" class="remove-btn" (click)="removeRang(index, property, ri)">✕</button>
             </div>
-        </div>
 
-        <p class="rangs-empty" *ngIf="getRangs(index, property).length === 0">
-            Aucun rang — cliquez sur "Ajouter rang"
-        </p>
+            <p class="rangs-empty" *ngIf="getRangGroups(benefIndex, propIndex).length === 0">
+                Aucun rang — cliquez sur "Ajouter rang"
+            </p>
+        </ng-container>
     </div>
 </ng-template>
+
+getSelectedPropertiesValue(benefIndex: number): PropertyItem[] {
+  return this.getPropertyGroups(benefIndex).map(g => ({
+    id:   g.get('propertyId')?.value,
+    uuid: g.get('propertyUuid')?.value
+  } as PropertyItem));
+}
