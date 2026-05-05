@@ -1,12 +1,20 @@
-import { Component, OnInit, Inject, Injector, ChangeDetectionStrategy } from "@angular/core";
-import { FormGroup, Validators, FormControl } from "@angular/forms";
-import { MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
-import { CodeLabel, PropertyItem, RefCity } from "@core/models";
-import { Guarantor } from "@core/models/guarantor";
-import { ReferentialService } from "@core/services";
-import { SelectSearchService } from "@loan-dossier/services/select.service";
-import { BaseComponent } from "@shared/components";
-import { Observable } from "rxjs";
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Inject,
+  Injector,
+  OnInit
+} from '@angular/core';
+import { AbstractControl, FormArray, FormControl, FormGroup, Validators } from '@angular/forms';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { CodeLabel, PropertyItem, RefCity } from '@core/models';
+import { Guarantor } from '@core/models/guarantor';
+import { Rang as RangDto } from '@core/models/rang';
+import { ReferentialService } from '@core/services';
+import { SelectSearchService } from '@loan-dossier/services/select.service';
+import { BaseComponent } from '@shared/components';
+import { Observable } from 'rxjs';
+
 @Component({
   selector: 'app-beneficiary-form-dialog',
   templateUrl: 'beneficiary-form-dialog.component.html',
@@ -14,180 +22,290 @@ import { Observable } from "rxjs";
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BeneficiaryFormDialogComponent extends BaseComponent implements OnInit {
-  beneficiaryFormGroup!: FormGroup;
-  guarantors: (Guarantor[] | undefined);
-  selectedGuarantors: (Guarantor[] | undefined);
-  initialSelectedGuarantors: (Guarantor[] | undefined);
   beneficiaryTypeFormControl = new FormControl('1');
+  beneficiariesFormArray!: FormArray;
+  rangsMap: Map<number, Map<string, RangDto[]>> = new Map();
+
   cities$!: Observable<RefCity[]>;
   acquisitionProperties: PropertyItem[] = [];
-  cityFilterControl=new FormControl();
-  filteredCities$!: Observable< CodeLabel[]>;
-  propertyFilterControl=new FormControl();
-  filteredProperty$!: Observable< PropertyItem[]>;
+  cityFilterControl = new FormControl();
+  filteredCities$!: Observable<CodeLabel[]>;
+  propertyFilterControl = new FormControl();
+  filteredProperty$!: Observable<PropertyItem[]>;
 
-  constructor(public refService: ReferentialService,private selectService: SelectSearchService,
+  guarantors: Guarantor[] | undefined;
+  selectedGuarantors: Guarantor[] = [];
+  initialSelectedGuarantors: Guarantor[] | undefined;
+
+  constructor(
+    public refService: ReferentialService,
+    private selectService: SelectSearchService,
     public dialogRef: MatDialogRef<BeneficiaryFormDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any, injector: Injector
+    @Inject(MAT_DIALOG_DATA) public data: any,
+    injector: Injector
   ) {
     super(injector);
-    this.initBeneficiaryForm();
+    this.beneficiariesFormArray = this.formBuilder.array([]);
     this.cities$ = this.refService.getCities();
   }
 
   ngOnInit(): void {
-    this.initAdultFormControl();
     this.initProperties();
-    console.log({benef: this.data.selectedBeneficiary});
-    
-    if (this.data.selectedBeneficiary && this.data.selectedBeneficiary != null) {
-      this.beneficiaryFormGroup.patchValue(this.data.selectedBeneficiary);
+    this.addBenefFormGroup();
+    this.initAdultFormControl(0);
+
+    if (this.data.selectedBeneficiary) {
+      this.getBenefGroup(0).patchValue(this.data.selectedBeneficiary);
+      this.restoreExistingRangs(0, this.data.selectedBeneficiary);
     }
+
     this.beneficiaryTypeFormControl.valueChanges.subscribe(v => this.onSelectBeneficiaryType(v));
-    this.guarantors = this.data.guarantors.filter((g:Guarantor) => !this.data.idcards.includes(g.idCardNumber));
+    this.guarantors = this.data.guarantors.filter((g: Guarantor) => !this.data.idcards.includes(g.idCardNumber));
     this.initialSelectedGuarantors = this.data.selectedGuarantors;
-    this.filteredCities$= this.selectService.filterOptions(this.cities$ || [],this.cityFilterControl,'designation');
+    this.filteredCities$ = this.selectService.filterOptions(this.cities$ || [], this.cityFilterControl, 'designation');
     this.filteredProperty$ = this.selectService.filterOptions(this.acquisitionProperties || [], this.propertyFilterControl, 'landCertificateNumber');
   }
 
-  private initProperties(): void {
-    if (this.data.propertyData?.properties) {
-      this.acquisitionProperties = this.data.propertyData.properties.filter( (p: PropertyItem) => p.forAcquisition ); 
+
+  get benefGroups(): FormGroup[] {
+    return this.beneficiariesFormArray.controls as FormGroup[];
+  }
+
+  getBenefGroup(index: number): FormGroup {
+    return this.beneficiariesFormArray.at(index) as FormGroup;
+  }
+
+  getSelectedProperties(index: number): PropertyItem[] {
+    return this.getBenefGroup(index).get('properties')?.value || [];
+  }
+
+  private buildBenefFormGroup(data?: Partial<any>): FormGroup {
+    return this.formBuilder.group({
+      lastname:                [data?.lastname   ?? null, [Validators.required]],
+      firstname:               [data?.firstname  ?? null, [Validators.required]],
+      address:                 [data?.address    ?? null, [Validators.required]],
+      adult:                   [data?.adult      ?? true],
+      idCardNumber:            [data?.idCardNumber   ?? null, [Validators.required]],
+      issuedAt:                [data?.issuedAt       ?? null, [Validators.required]],
+      representativeLastname:  [data?.representativeLastname  ?? null],
+      representativeFirstname: [data?.representativeFirstname ?? null],
+      judgeAuthorizationDate:  [data?.judgeAuthorizationDate  ?? null],
+      birthDate:               [data?.birthDate      ?? null, [Validators.required]],
+      codeBirthPlace:          [data?.codeBirthPlace ?? null, [Validators.required]],
+      properties:              [data?.properties ?? [], Validators.required]
+    });
+  }
+
+  private addBenefFormGroup(data?: Partial<any>): void {
+    this.beneficiariesFormArray.push(this.buildBenefFormGroup(data));
+  }
+
+  onPropertiesChange(index: number): void {
+    const selectedKeys = new Set(
+      this.getSelectedProperties(index).map(p => this.getPropertyKey(p))
+    );
+    const indexRangs = this.rangsMap.get(index);
+    if (indexRangs) {
+      indexRangs.forEach((_, key) => {
+        if (!selectedKeys.has(key)) indexRangs.delete(key);
+      });
     }
-    if (!this.acquisitionProperties || this.acquisitionProperties.length === 0) {
-      return; 
+    this.changeDetectorRef.markForCheck();
+  }
+
+  getPropertyKey(property: PropertyItem): string {
+    return property.id?.toString() ?? property.uuid ?? '';
+  }
+
+  getRangs(index: number, property: PropertyItem): RangDto[] {
+    const propKey = this.getPropertyKey(property);
+    if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
+    const indexRangs = this.rangsMap.get(index)!;
+    if (!indexRangs.has(propKey)) indexRangs.set(propKey, []);
+    return indexRangs.get(propKey)!;
+  }
+
+  addRang(index: number, property: PropertyItem): void {
+    const rangs = this.getRangs(index, property);
+    rangs.push({ propertyId: property.id, propertyUuid: property.uuid } as RangDto);
+    this.changeDetectorRef.markForCheck();
+  }
+
+  removeRang(index: number, property: PropertyItem, rangIndex: number): void {
+    const rangs = this.getRangs(index, property);
+    rangs.splice(rangIndex, 1);
+    this.changeDetectorRef.markForCheck();
+  }
+
+  onGuarantorsChange(): void {
+    this.beneficiariesFormArray.clear();
+    this.rangsMap.clear();
+
+    for (const guarantor of this.selectedGuarantors) {
+      this.addBenefFormGroup({
+        lastname:  guarantor.lastName,
+        firstname: guarantor.firstName,
+        idCardNumber: guarantor.idCardNumber
+      });
     }
-    if (this.acquisitionProperties.length === 1) { 
-      this.beneficiaryFormGroup.patchValue({ properties: [this.acquisitionProperties[0]] }); 
-    } 
+    this.changeDetectorRef.markForCheck();
+  }
+
+  isGuarantorSelected(idCardNumber: string): boolean {
+    return this.initialSelectedGuarantors
+      ? this.initialSelectedGuarantors.some(sg => sg?.idCardNumber === idCardNumber)
+      : false;
+  }
+
+  onSaveBeneficiary(): void {
+    const beneficiaryType = this.beneficiaryTypeFormControl.value;
+
+    if (beneficiaryType === '3') {
+      const result = this.benefGroups.map((group, index) => ({
+        ...group.value,
+        isGuarantor: true,
+        isBorrower: false,
+        rangs: this.buildFlatRangsList(index, group.value.properties || [])
+      }));
+      this.dialogRef.close(result);
+    } else {
+      const beneficiary = this.getBenefGroup(0).value;
+      beneficiary.isBorrower = beneficiaryType === '2';
+      beneficiary.isGuarantor = false;
+      beneficiary.rangs = this.buildFlatRangsList(0, this.getSelectedProperties(0));
+      this.dialogRef.close(beneficiary);
+    }
+  }
+
+  isAddButtonActif(): boolean {
+    const beneficiaryType = this.beneficiaryTypeFormControl.value;
+    if (beneficiaryType === '3') {
+      return this.selectedGuarantors.length > 0
+        && this.benefGroups.every(g => !g.invalid);
+    }
+    return !this.getBenefGroup(0).invalid;
   }
 
   onCancel(): void {
     this.dialogRef.close();
   }
 
-  isAddButtonActif() {
-    const beneficiaryType = this.beneficiaryTypeFormControl.value;
-    if (beneficiaryType == '3') {
-      return this.selectedGuarantors && this.selectedGuarantors.length > 0;
-    } else {
-      return !this.beneficiaryFormGroup.invalid;
-    }
-  }
-
-  onSaveBeneficiary() {
-    const beneficiaryType = this.beneficiaryTypeFormControl.value;
-    if (beneficiaryType == '3') {
-      this.dialogRef.close(this.selectedGuarantors);
-    } else {
-      const beneficiary = this.beneficiaryFormGroup.value;
-      beneficiary.isBorrower = beneficiaryType == '2';
-      beneficiary.isGuarantor = false;
-
-      this.dialogRef.close(beneficiary);
-    }
-  }
-   
   compareObjects(o1: any, o2: any): boolean {
-    const code1 = typeof o1  === 'object' ? o1?.code : o1;
-    const code2 = typeof o2  === 'object' ? o2?.code : o2;
-    return  code1 === code2;
+    const code1 = typeof o1 === 'object' ? o1?.code : o1;
+    const code2 = typeof o2 === 'object' ? o2?.code : o2;
+    return code1 === code2;
   }
 
-  private initBeneficiaryForm() {
-    this.beneficiaryFormGroup = this.formBuilder.group({
-      lastname: [null, [Validators.required]],
-      firstname: [null, [Validators.required]],
-      address: [null, [Validators.required]],
-      adult: [true],
-      idCardNumber: [null, [Validators.required]],
-      issuedAt: [null, [Validators.required]],
-      representativeLastname: [null],
-      representativeFirstname: [null],
-      judgeAuthorizationDate: [null],
-      birthDate: [null, [Validators.required]],
-      codeBirthPlace: [null, [Validators.required]],
-      properties: [[], Validators.required]
-    });
+  private buildFlatRangsList(index: number, properties: PropertyItem[]): RangDto[] {
+    const result: RangDto[] = [];
+    const indexRangs = this.rangsMap.get(index);
+    if (!indexRangs) return result;
+
+    for (const property of properties) {
+      const propKey = this.getPropertyKey(property);
+      const rangs = indexRangs.get(propKey) || [];
+      for (const r of rangs) {
+        result.push({
+          id: r.id,
+          rang: r.rang,
+          warrantyAmount: r.warrantyAmount,
+          propertyId: property.id,
+          propertyUuid: property.uuid
+        });
+      }
+    }
+    return result;
   }
 
-  onSelectBeneficiaryType(event: any) {
-    this.beneficiaryFormGroup.reset();
-    this.beneficiaryFormGroup.get('adult')?.setValue(true);
+  private restoreExistingRangs(index: number, benef: any): void {
+    if (!benef.rangs || !benef.properties) return;
+    for (const property of benef.properties) {
+      const propKey = this.getPropertyKey(property);
+      const rangsForProp = (benef.rangs as RangDto[]).filter(
+        r => r.propertyId === property.id || r.propertyUuid === property.uuid
+      );
+      if (rangsForProp.length > 0) {
+        if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
+        this.rangsMap.get(index)!.set(propKey, [...rangsForProp]);
+      }
+    }
+  }
+
+  private initProperties(): void {
+    if (this.data.propertyData?.properties) {
+      this.acquisitionProperties = this.data.propertyData.properties;
+    }
+  }
+
+  onSelectBeneficiaryType(event: any): void {
+    this.beneficiariesFormArray.clear();
+    this.rangsMap.clear();
+    this.addBenefFormGroup();
+    this.initAdultFormControl(0);
+
     switch (event) {
       case '1':
-        this.beneficiaryFormGroup.enable();
+        this.getBenefGroup(0).enable();
         break;
       case '2':
-        this.beneficiaryFormGroup.disable();
-        let personalInfo = this.data.personalInfo;
-        let beneficiary = {
+        this.getBenefGroup(0).disable();
+        const personalInfo = this.data.personalInfo;
+        this.getBenefGroup(0).patchValue({
           idCardNumber: personalInfo?.cardID,
-          address: personalInfo?.address1 + "," + personalInfo?.address2 + "," + personalInfo?.address3,
-          lastname: personalInfo?.lastName,
+          address: [personalInfo?.address1, personalInfo?.address2, personalInfo?.address3].join(','),
+          lastname:  personalInfo?.lastName,
           firstname: personalInfo?.firstName,
-          issuedAt: personalInfo?.cardIDEmissionDate,
+          issuedAt:  personalInfo?.cardIDEmissionDate,
           birthDate: personalInfo?.birthDate,
           codeBirthPlace: personalInfo?.birthCountry
-        }
-        this.beneficiaryFormGroup.patchValue(beneficiary);
+        });
         break;
-      default: break
+      case '3':
+        this.beneficiariesFormArray.clear();
+        this.selectedGuarantors = [];
+        break;
+      default: break;
     }
+    this.changeDetectorRef.markForCheck();
   }
 
-  isGuarantorSelected(idCardNumber: any): boolean {
-    return this.initialSelectedGuarantors ? this.initialSelectedGuarantors.findIndex(sg => sg?.idCardNumber === idCardNumber) > -1 : false;
-  }
+  private initAdultFormControl(index: number): void {
+    const group = this.getBenefGroup(index);
+    const adultCtrl = group.get('adult') as FormControl;
 
-  private initAdultFormControl() {
-    this.getControlValueChanges(this.adultFormControl).subscribe((value) => {
+    this.getControlValueChanges(adultCtrl).subscribe((value) => {
+      const repLastname  = group.get('representativeLastname')  as FormControl;
+      const repFirstname = group.get('representativeFirstname') as FormControl;
+      const judgeDate    = group.get('judgeAuthorizationDate')  as FormControl;
+      const idCard       = group.get('idCardNumber')            as FormControl;
+      const issuedAt     = group.get('issuedAt')                as FormControl;
+
       if (value === true) {
-        this.representativeLastnameFormControl.removeValidators([Validators.required]);
-        this.representativeLastnameFormControl.reset();
-        this.representativeFirstnameFormControl.removeValidators([Validators.required]);
-        this.representativeFirstnameFormControl.reset();
-        this.judgeAuthorizationDateFormControl.removeValidators([Validators.required]);
-        this.judgeAuthorizationDateFormControl.reset();
-        this.idCardNumberFormControl.addValidators([Validators.required]);
-        this.issuedAtFormControl.addValidators([Validators.required]);
+        repLastname.removeValidators([Validators.required]);   repLastname.reset();
+        repFirstname.removeValidators([Validators.required]);  repFirstname.reset();
+        judgeDate.removeValidators([Validators.required]);     judgeDate.reset();
+        idCard.addValidators([Validators.required]);
+        issuedAt.addValidators([Validators.required]);
       } else {
-        this.representativeLastnameFormControl.addValidators([Validators.required]);
-        this.representativeFirstnameFormControl.addValidators([Validators.required]);
-        this.judgeAuthorizationDateFormControl.addValidators([Validators.required]);
-        this.idCardNumberFormControl.removeValidators([Validators.required]);
-        this.idCardNumberFormControl.reset();
-        this.issuedAtFormControl.removeValidators([Validators.required]);
-        this.issuedAtFormControl.reset();
+        repLastname.addValidators([Validators.required]);
+        repFirstname.addValidators([Validators.required]);
+        judgeDate.addValidators([Validators.required]);
+        idCard.removeValidators([Validators.required]);  idCard.reset();
+        issuedAt.removeValidators([Validators.required]); issuedAt.reset();
       }
     });
   }
 
-
-  get adultFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['adult'] as FormControl;
+  getFormControl(index: number, name: string): FormControl {
+    return this.getBenefGroup(index).get(name) as FormControl;
   }
 
-  get representativeLastnameFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['representativeLastname'] as FormControl;
-  }
-
-  get representativeFirstnameFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['representativeFirstname'] as FormControl;
-  }
-
-  get judgeAuthorizationDateFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['judgeAuthorizationDate'] as FormControl;
-  }
-
-  get idCardNumberFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['idCardNumber'] as FormControl;
-  }
-
-  get issuedAtFormControl(): FormControl {
-    return this.beneficiaryFormGroup.controls['issuedAt'] as FormControl;
-  }
-  get birthDateFormControl(): FormControl { return this.beneficiaryFormGroup.controls['birthDate'] as FormControl; }
-
-  get codeBirthPlaceFormControl(): FormControl { return this.beneficiaryFormGroup.controls['codeBirthPlace'] as FormControl; }
+  get adultFormControl(): FormControl        { return this.getFormControl(0, 'adult'); }
+  get idCardNumberFormControl(): FormControl  { return this.getFormControl(0, 'idCardNumber'); }
+  get issuedAtFormControl(): FormControl      { return this.getFormControl(0, 'issuedAt'); }
+  get birthDateFormControl(): FormControl     { return this.getFormControl(0, 'birthDate'); }
+  get codeBirthPlaceFormControl(): FormControl { return this.getFormControl(0, 'codeBirthPlace'); }
+  get representativeLastnameFormControl(): FormControl  { return this.getFormControl(0, 'representativeLastname'); }
+  get representativeFirstnameFormControl(): FormControl { return this.getFormControl(0, 'representativeFirstname'); }
+  get judgeAuthorizationDateFormControl(): FormControl  { return this.getFormControl(0, 'judgeAuthorizationDate'); }
 }
