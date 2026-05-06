@@ -1,30 +1,3 @@
-private restoreExistingRangs(index: number, benef: any): void {
-  if (!benef.rangs || !benef.properties) return;
-
-  for (const property of benef.properties) {
-    const propKey = this.getPropertyKey(property);
-
-    const rangsForProp = (benef.rangs as RangDto[]).filter(r => {
-      // Comparer par id uniquement si les deux sont définis
-      if (property.id != null && r.propertyId != null) {
-        return r.propertyId === property.id;
-      }
-      // Sinon fallback uuid — uniquement si les deux sont définis
-      if (property.uuid != null && r.propertyUuid != null) {
-        return r.propertyUuid === property.uuid;
-      }
-      return false; // ← pas de match si tout est undefined
-    });
-
-    if (rangsForProp.length > 0) {
-      if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
-      this.rangsMap.get(index)!.set(propKey, [...rangsForProp]);
-    }
-  }
-}
-
-
-
 import {
   ChangeDetectionStrategy,
   Component,
@@ -85,8 +58,6 @@ export class BeneficiaryFormDialogComponent extends BaseComponent implements OnI
     if (this.data.selectedBeneficiary) {
       this.getBenefGroup(0).patchValue(this.data.selectedBeneficiary);
       this.restoreExistingRangs(0, this.data.selectedBeneficiary);
-    console.log({benef: this.data.selectedBeneficiary, exist: this.rangsMap});
-
     }
 
     this.beneficiaryTypeFormControl.valueChanges.subscribe(v => this.onSelectBeneficiaryType(v));
@@ -175,7 +146,11 @@ export class BeneficiaryFormDialogComponent extends BaseComponent implements OnI
       this.addBenefFormGroup({
         lastname:  guarantor.lastName,
         firstname: guarantor.firstName,
-        idCardNumber: guarantor.idCardNumber
+        idCardNumber: guarantor.idCardNumber,
+        address: guarantor?.address,
+        issuedAt:  guarantor?.issuedAt,
+        birthDate: guarantor?.birthDate,
+        codeBirthPlace: guarantor?.codeBirthPlace
       });
     }
     this.changeDetectorRef.markForCheck();
@@ -187,7 +162,7 @@ export class BeneficiaryFormDialogComponent extends BaseComponent implements OnI
       : false;
   }
 
-  onSaveBeneficiary(): void {
+  onSaveBeneficiary(): void {    
     const beneficiaryType = this.beneficiaryTypeFormControl.value;
 
     if (beneficiaryType === '3') {
@@ -210,8 +185,7 @@ export class BeneficiaryFormDialogComponent extends BaseComponent implements OnI
   isAddButtonActif(): boolean {
     const beneficiaryType = this.beneficiaryTypeFormControl.value;
     if (beneficiaryType === '3') {
-      return this.selectedGuarantors.length > 0
-        && this.benefGroups.every(g => !g.invalid);
+      return this.selectedGuarantors.length > 0 && this.benefGroups.every(g => !g.invalid);
     }
     return !this.getBenefGroup(0).invalid;
   }
@@ -249,17 +223,27 @@ export class BeneficiaryFormDialogComponent extends BaseComponent implements OnI
 
   private restoreExistingRangs(index: number, benef: any): void {
     if (!benef.rangs || !benef.properties) return;
+
     for (const property of benef.properties) {
       const propKey = this.getPropertyKey(property);
-      const rangsForProp = (benef.rangs as RangDto[]).filter(
-        r => r.propertyId === property.id || r.propertyUuid === property.uuid
-      );
+
+      const rangsForProp = (benef.rangs as RangDto[]).filter(r => {
+        if (property.id != null && r.propertyId != null) {
+          return r.propertyId === property.id;
+        }
+        if (property.uuid != null && r.propertyUuid != null) {
+          return r.propertyUuid === property.uuid;
+        }
+        return false;
+      });
+
       if (rangsForProp.length > 0) {
         if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
         this.rangsMap.get(index)!.set(propKey, [...rangsForProp]);
       }
     }
   }
+
 
   private initProperties(): void {
     if (this.data.propertyData?.properties) {
