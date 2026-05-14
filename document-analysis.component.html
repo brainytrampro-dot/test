@@ -1,0 +1,262 @@
+<div class="da-shell">
+
+  <!-- ===== LEFT SIDEBAR: Doc Types ===== -->
+  <aside class="da-sidebar">
+    <header class="da-sidebar__header">
+      <span class="da-sidebar__icon da-sidebar__icon--active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </span>
+      <span class="da-sidebar__title">Documents</span>
+    </header>
+
+    <nav class="da-sidebar__nav" [@listStagger]="documentTypes().length">
+      <button
+        *ngFor="let docType of documentTypes(); trackBy: trackById"
+        class="da-doctype-item"
+        [class.da-doctype-item--active]="selectedDocTypeId() === docType.id"
+        (click)="selectDocType(docType.id)"
+      >
+        <div class="da-doctype-item__body">
+          <div class="da-doctype-item__info">
+            <span class="da-doctype-item__label">{{ docType.label }}</span>
+            <span class="da-doctype-item__sublabel">{{ docType.shortLabel }}</span>
+          </div>
+          <div class="da-doctype-item__meta">
+            <span class="da-doctype-item__count">{{ docType.count }}</span>
+          </div>
+        </div>
+        <span class="da-badge" [class]="'da-badge--' + docType.status">
+          {{ getStatusLabel(docType.status) }}
+        </span>
+      </button>
+    </nav>
+
+    <footer class="da-sidebar__footer">
+      <button class="da-btn da-btn--outline" (click)="onBack()">
+        Retourner dossier
+      </button>
+    </footer>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="da-main" [@fadeSlideIn]="selectedDocTypeId()">
+
+    <!-- Top bar -->
+    <div class="da-main__topbar">
+      <div class="da-main__topbar-left">
+        <h1 class="da-main__title">{{ selectedDocType().label }}</h1>
+        <span class="da-main__attachcount">{{ selectedDocType().count }} attachement{{ selectedDocType().count > 1 ? 's' : '' }}</span>
+      </div>
+      <div class="da-main__topbar-right">
+        <div class="da-metric">
+          <span class="da-metric__label">Qualité OCR moyenne</span>
+          <div class="da-metric__bar">
+            <div class="da-metric__bar-fill"
+              [style.width.%]="avgOcrQuality()"
+              [style.background]="getOcrBarColor(avgOcrQuality())">
+            </div>
+          </div>
+          <span class="da-metric__value">{{ avgOcrQuality() }}%</span>
+        </div>
+        <div class="da-metric">
+          <span class="da-metric__label">Statut IA global</span>
+          <span class="da-badge da-badge--lg" [class]="'da-badge--' + globalStatus()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {{ getStatusLabel(globalStatus()) }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attachments table -->
+    <div class="da-attachments">
+      <div class="da-attachments__header">
+        <span>Nom du document</span>
+        <span>Statut IA</span>
+        <span>Qualité OCR</span>
+        <span>Confiance</span>
+        <span>Actions</span>
+        <span></span>
+      </div>
+
+      <div class="da-attachments__list" [@listStagger]="selectedDocType().attachments.length">
+        <div
+          *ngFor="let att of selectedDocType().attachments; trackBy: trackById"
+          class="da-attachment-row"
+          [class.da-attachment-row--expanded]="isExpanded(att.id)"
+        >
+          <!-- Row header -->
+          <div class="da-attachment-row__header" (click)="toggleAttachment(att.id)">
+            <div class="da-attachment-row__name">
+              <div class="da-attachment-row__icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+              </div>
+              <div>
+                <div class="da-attachment-row__title">{{ att.name }}</div>
+                <div class="da-attachment-row__filename">{{ att.filename }}</div>
+              </div>
+            </div>
+
+            <span class="da-badge" [class]="'da-badge--' + att.status">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {{ getStatusLabel(att.status) }}
+            </span>
+
+            <div class="da-ocr-bar-cell">
+              <div class="da-ocr-bar">
+                <div class="da-ocr-bar__fill"
+                  [style.width.%]="att.ocrQuality"
+                  [style.background]="getOcrBarColor(att.ocrQuality)">
+                </div>
+              </div>
+              <span>{{ att.ocrQuality }}%</span>
+            </div>
+
+            <span class="da-confidence">{{ att.confidence }}%</span>
+
+            <button class="da-btn da-btn--dark da-btn--sm" (click)="$event.stopPropagation()">
+              Voir détails
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+
+            <button class="da-toggle-btn" [class.da-toggle-btn--open]="isExpanded(att.id)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Expanded panel -->
+          <div class="da-attachment-row__panel"
+            [@expandCollapse]="isExpanded(att.id) ? 'expanded' : 'collapsed'"
+            *ngIf="att.extractedFields">
+
+            <div class="da-panel-split">
+              <!-- Extracted fields table -->
+              <div class="da-extracted">
+                <div class="da-extracted__titlebar">
+                  <span class="da-extracted__title">Résultat IA (données extraites)</span>
+                  <button class="da-btn da-btn--ghost da-btn--xs">JSON</button>
+                </div>
+                <table class="da-extracted__table">
+                  <thead>
+                    <tr>
+                      <th>Clé</th>
+                      <th>Valeur OCR</th>
+                      <th>Fiche client</th>
+                      <th>Statut</th>
+                      <th>Confiance</th>
+                    </tr>
+                  </thead>
+                  <tbody [@listStagger]="att.extractedFields!.length">
+                    <tr *ngFor="let field of att.extractedFields; trackBy: trackByKey"
+                        [class.da-extracted__row--mismatch]="field.status === 'mismatch'">
+                      <td class="da-extracted__key">{{ field.key }}</td>
+                      <td>{{ field.ocrValue }}</td>
+                      <td>{{ field.clientValue }}</td>
+                      <td>
+                        <span class="da-field-status" [class]="'da-field-status--' + field.status">
+                          <svg *ngIf="field.status === 'match'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                          </svg>
+                          <svg *ngIf="field.status === 'mismatch'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                          </svg>
+                        </span>
+                      </td>
+                      <td>
+                        <span class="da-conf-pill" [class.da-conf-pill--low]="field.confidence < 70">
+                          {{ field.confidence }}%
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- Observations -->
+                <div class="da-observations" *ngIf="mismatchFields().length > 0" [@pulse]>
+                  <div class="da-observations__header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <span>Observations IA</span>
+                  </div>
+                  <p class="da-observations__msg">Des différences ont été détectées entre les données extraites et la fiche client.</p>
+                  <ul class="da-observations__list">
+                    <li *ngFor="let f of mismatchFields()">
+                      <strong>{{ f.key }}</strong> : valeur différente
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Document preview -->
+              <div class="da-preview">
+                <div class="da-preview__title">Aperçu du document</div>
+                <div class="da-preview__frame">
+                  <div class="da-preview__mock">
+                    <div class="da-preview__mock-header">
+                      <div class="da-preview__mock-title">Bulletin de Paie</div>
+                    </div>
+                    <div *ngFor="let i of [1,2,3,4,5,6,7,8]" class="da-preview__mock-line"
+                      [style.width.%]="60 + (i * 7) % 35">
+                    </div>
+                    <div class="da-preview__mock-divider"></div>
+                    <div *ngFor="let i of [1,2,3,4,5]" class="da-preview__mock-row">
+                      <div class="da-preview__mock-cell" [style.width.%]="40"></div>
+                      <div class="da-preview__mock-cell" [style.width.%]="25"></div>
+                      <div class="da-preview__mock-cell" [style.width.%]="25"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="da-preview__controls">
+                  <button class="da-icon-btn">−</button>
+                  <span>100%</span>
+                  <button class="da-icon-btn">+</button>
+                  <button class="da-icon-btn da-icon-btn--expand">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="15 3 21 3 21 9"/>
+                      <polyline points="9 21 3 21 3 15"/>
+                      <line x1="21" y1="3" x2="14" y2="10"/>
+                      <line x1="3" y1="21" x2="10" y2="14"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===== VALIDATE FOOTER ===== -->
+  <div class="da-validate-bar">
+    <button class="da-btn da-btn--primary da-btn--lg" (click)="onValidate()">
+      Valider
+    </button>
+  </div>
+
+</div>
