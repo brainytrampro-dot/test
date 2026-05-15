@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Analyse Documents</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green:       #16a34a;
+  --green-light: #dcfce7;
+  --green-dark:  #14532d;
+  --green-mid:   #22c55e;
+  --amber:       #d97706;
+  --amber-light: #fef3c7;
+  --red:         #dc2626;
+  --red-light:   #fee2e2;
+  --gray-50:     #f8fafc;
+  --gray-100:    #f1f5f9;
+  --gray-200:    #e2e8f0;
+  --gray-300:    #cbd5e1;
+  --gray-400:    #94a3b8;
+  --gray-500:    #64748b;
+  --gray-600:    #475569;
+  --gray-700:    #334155;
+  --gray-800:    #1e293b;
+  --gray-900:    #0f172a;
+  --white:       #ffffff;
+  --sidebar-w:   268px;
+  --font:        'Sora', sans-serif;
+  --mono:        'JetBrains Mono', monospace;
+  --radius:      10px;
+  --radius-lg:   14px;
+  --shadow:      0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:   0 4px 16px rgba(0,0,0,.09);
+}
+
+body {
+  font-family: var(--font);
+  background: var(--gray-100);
+  color: var(--gray-800);
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ─── SHELL ─────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: 1fr auto;
+  grid-template-areas: "side main" "side foot";
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ─── SIDEBAR ────────────────────────────────── */
+.sidebar {
+  grid-area: side;
+  background: var(--white);
+  border-right: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.sidebar-header-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--green-light);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--green);
+}
+
+.sidebar-header-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--green-dark);
+  letter-spacing: -.01em;
+}
+
+.sidebar-nav { flex: 1; padding: 8px; }
+
+.doc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background .15s, border-color .15s;
+  margin-bottom: 2px;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.doc-item:hover { background: var(--gray-50); }
+.doc-item.active {
+  background: var(--green-light);
+  border-left: 3px solid var(--green);
+}
+
+.doc-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.doc-item-info { display: flex; flex-direction: column; gap: 2px; }
+.doc-item-label { font-size: 12.5px; font-weight: 600; color: var(--gray-800); line-height: 1.3; }
+.doc-item-code  { font-size: 11px; color: var(--gray-400); font-family: var(--mono); }
+
+.doc-item-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  border-radius: 99px;
+  min-width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 16px 18px;
+  border-top: 1px solid var(--gray-100);
+}
+
+/* ─── BADGES ─────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  width: fit-content;
+  letter-spacing: .01em;
+}
+.badge-conforme      { background: var(--green-light); color: var(--green-dark);  border: 1px solid #86efac; }
+.badge-non-conforme  { background: var(--red-light);   color: var(--red);         border: 1px solid #fca5a5; }
+.badge-a-verifier    { background: var(--amber-light); color: var(--amber);       border: 1px solid #fcd34d; }
+.badge-en-traitement { background: var(--gray-100);    color: var(--gray-600);    border: 1px solid var(--gray-200); }
+.badge-lg { padding: 5px 13px; font-size: 12px; }
+
+/* ─── BUTTONS ────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: var(--font); font-weight: 600; border: none;
+  cursor: pointer; border-radius: var(--radius); transition: all .18s ease;
+}
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--red);
+  color: var(--red);
+  padding: 9px 16px;
+  font-size: 13px;
+  width: 100%;
+}
+.btn-outline:hover { background: var(--red-light); }
+
+.btn-dark {
+  background: var(--gray-800);
+  color: var(--white);
+  padding: 6px 13px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.btn-dark:hover { background: var(--gray-700); }
+
+.btn-primary {
+  background: var(--green);
+  color: var(--white);
+  padding: 12px 40px;
+  font-size: 14px;
+  border-radius: var(--radius);
+}
+.btn-primary:hover {
+  background: var(--green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(22,163,74,.3);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* ─── MAIN ───────────────────────────────────── */
+.main {
+  grid-area: main;
+  padding: 28px 32px 90px;
+  overflow-y: auto;
+}
+
+/* topbar */
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.topbar-left { display: flex; flex-direction: column; gap: 4px; }
+.topbar-title { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--gray-900); }
+.topbar-sub { font-size: 12px; color: var(--gray-400); }
+
+.topbar-right { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+
+.metric { display: flex; align-items: center; gap: 9px; }
+.metric-label { font-size: 11.5px; color: var(--gray-500); white-space: nowrap; }
+.metric-bar {
+  width: 78px; height: 6px;
+  background: var(--gray-200);
+  border-radius: 99px; overflow: hidden;
+}
+.metric-bar-fill {
+  height: 100%; border-radius: 99px;
+  transition: width .5s ease;
+}
+.metric-value { font-size: 14px; font-weight: 700; color: var(--gray-800); min-width: 34px; }
+
+/* message */
+.dossier-msg {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--amber-light);
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--amber);
+  margin-bottom: 20px;
+}
+
+/* ─── ATTACHMENTS TABLE ──────────────────────── */
+.att-table {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.att-thead {
+  display: grid;
+  grid-template-columns: 1fr 140px 90px 130px 110px 42px;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--gray-50);
+}
+.att-thead span {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--gray-400);
+}
+
+/* row */
+.att-row { border-bottom: 1px solid var(--gray-100); }
+.att-row:last-child { border-bottom: none; }
+.att-row.expanded { background: #fafbfc; }
+
+.att-row-header {
+  display: grid;
+  grid-template-columns: 1fr 140px 90px 130px 110px 42px;
+  align-items: center;
+  padding: 13px 20px;
+  cursor: pointer;
+  transition: background .14s;
+}
+.att-row-header:hover { background: var(--gray-50); }
+
+.att-name { display: flex; align-items: center; gap: 12px; }
+.att-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  background: var(--gray-100);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+.att-title { font-size: 13px; font-weight: 600; color: var(--gray-800); margin-bottom: 4px; }
+.att-sub {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--gray-400);
+}
+
+.ocr-bar {
+  width: 52px; height: 5px;
+  background: var(--gray-200);
+  border-radius: 99px; overflow: hidden;
+}
+.ocr-bar-fill { height: 100%; border-radius: 99px; }
+.ocr-bar-wide { width: 84px; }
+
+.cell-txt { font-size: 13px; color: var(--gray-500); }
+.cell-muted { font-size: 12px; color: var(--gray-400); }
+
+/* toggle */
+.toggle-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--gray-400);
+  transition: all .2s;
+}
+.toggle-btn:hover { background: var(--gray-100); }
+.toggle-btn svg { transition: transform .25s ease; }
+.toggle-btn.open svg { transform: rotate(180deg); }
+
+/* ─── EXPANDED PANEL ─────────────────────────── */
+.att-panel {
+  border-top: 1px solid var(--gray-100);
+  display: none;
+}
+.att-panel.visible { display: block; }
+
+.panel-split {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* extracted */
+.extracted-titlebar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.extracted-title { font-size: 13px; font-weight: 700; color: var(--gray-800); }
+
+.extracted-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.extracted-table thead { background: var(--gray-50); }
+.extracted-table th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--gray-400);
+  border-bottom: 1px solid var(--gray-200);
+}
+.extracted-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.extracted-table tbody tr:last-child td { border-bottom: none; }
+.extracted-table tbody tr:hover { background: var(--gray-50); }
+
+.td-key { font-weight: 600; color: var(--gray-500); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.td-value { color: var(--gray-800); }
+.td-empty { color: var(--gray-300); font-style: italic; }
+
+/* observations */
+.observations {
+  margin-top: 14px;
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.obs-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700;
+  color: var(--red); margin-bottom: 6px;
+}
+.obs-msg { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+.obs-list { padding-left: 18px; }
+.obs-list li { font-size: 11.5px; color: var(--gray-500); margin-bottom: 2px; }
+.obs-list li strong { color: var(--gray-700); }
+
+/* upload info card */
+.info-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 14px;
+  height: fit-content;
+}
+.info-card-title {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .09em;
+  color: var(--gray-400);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gray-200);
+}
+.info-row { display: flex; flex-direction: column; gap: 4px; }
+.info-label { font-size: 10.5px; color: var(--gray-400); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.info-value { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+.info-bar-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--gray-800); }
+
+/* ─── FOOTER ─────────────────────────────────── */
+.footer {
+  grid-area: foot;
+  background: var(--white);
+  border-top: 1px solid var(--gray-200);
+  padding: 16px 32px;
+  display: flex;
+  justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-header-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <span class="sidebar-header-title">Documents</span>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <button class="doc-item" onclick="selectDoc(this,'cin')">
+        <div class="doc-item-top">
+          <div class="doc-item-info">
+            <span class="doc-item-label">Carte d'identité Nationale</span>
+            <span class="doc-item-code">CIN</span>
+          </div>
+          <span class="doc-item-count">1</span>
+        </div>
+        <span class="badge badge-conforme">Conforme</span>
+      </button>
+
+      <button class="doc-item" onclick="selectDoc(this,'attest')">
+        <div class="doc-item-top">
+          <div class="doc-item-info">
+            <span class="doc-item-label">Attestation de salaire</span>
+            <span class="doc-item-code">Attest_sal</span>
+          </div>
+          <span class="doc-item-count">1</span>
+        </div>
+        <span class="badge badge-conforme">Conforme</span>
+      </button>
+
+      <button class="doc-item active" onclick="selectDoc(this,'bulletins')">
+        <div class="doc-item-top">
+          <div class="doc-item-info">
+            <span class="doc-item-label">Bulletins de Paie</span>
+            <span class="doc-item-code">BULLETIN</span>
+          </div>
+          <span class="doc-item-count">3</span>
+        </div>
+        <span class="badge badge-a-verifier">À vérifier</span>
+      </button>
+
+      <button class="doc-item" onclick="selectDoc(this,'compromis')">
+        <div class="doc-item-top">
+          <div class="doc-item-info">
+            <span class="doc-item-label">Compromis de vente</span>
+            <span class="doc-item-code">COMPROVIS</span>
+          </div>
+          <span class="doc-item-count">1</span>
+        </div>
+        <span class="badge badge-non-conforme">Non conforme</span>
+      </button>
+
+      <button class="doc-item" onclick="selectDoc(this,'releve')">
+        <div class="doc-item-top">
+          <div class="doc-item-info">
+            <span class="doc-item-label">Relevé de compte</span>
+            <span class="doc-item-code">RELEVE</span>
+          </div>
+          <span class="doc-item-count">1</span>
+        </div>
+        <span class="badge badge-en-traitement">En traitement</span>
+      </button>
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-outline">Retourner dossier</button>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ══════════════════════════════════ -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1 class="topbar-title">Bulletins de Paie</h1>
+        <span class="topbar-sub">3 attachements</span>
+      </div>
+      <div class="topbar-right">
+        <div class="metric">
+          <span class="metric-label">Qualité OCR moyenne</span>
+          <div class="metric-bar">
+            <div class="metric-bar-fill" style="width:73%; background:#f59e0b;"></div>
+          </div>
+          <span class="metric-value">73%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Statut IA global</span>
+          <span class="badge badge-a-verifier badge-lg">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            À vérifier
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attachments -->
+    <div class="att-table">
+      <div class="att-thead">
+        <span>Document</span>
+        <span>Statut IA</span>
+        <span>OCR</span>
+        <span>Uploadé par</span>
+        <span>Date</span>
+        <span></span>
+      </div>
+
+      <!-- ── Row 1 ── -->
+      <div class="att-row" id="row-0">
+        <div class="att-row-header" onclick="toggleRow(0)">
+          <div class="att-name">
+            <div class="att-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div>
+              <div class="att-title">Bulletin de paie — Mai 2024</div>
+              <div class="att-sub">
+                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:82%;background:#f59e0b;"></div></div>
+                <span>82%</span>
+              </div>
+            </div>
+          </div>
+          <span class="badge badge-a-verifier">À vérifier</span>
+          <span class="cell-txt">82%</span>
+          <span class="cell-txt">Ahmed Benali</span>
+          <span class="cell-muted">12/05/2024</span>
+          <button class="toggle-btn" id="toggle-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
+        <div class="att-panel" id="panel-0">
+          <div class="panel-split">
+            <div>
+              <div class="extracted-titlebar">
+                <span class="extracted-title">Résultat IA (données extraites)</span>
+              </div>
+              <table class="extracted-table">
+                <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-key">Nom</td><td class="td-value">BENALI</td></tr>
+                  <tr><td class="td-key">Prénom</td><td class="td-value">Ahmed</td></tr>
+                  <tr><td class="td-key">Matricule</td><td class="td-value">EMP-4587</td></tr>
+                  <tr><td class="td-key">Période</td><td class="td-value">Mai 2024</td></tr>
+                  <tr><td class="td-key">Salaire brut</td><td class="td-value">12 500,00 MAD</td></tr>
+                  <tr><td class="td-key">Salaire net</td><td class="td-value">10 200,00 MAD</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="info-card">
+              <div class="info-card-title">Informations</div>
+              <div class="info-row">
+                <span class="info-label">Uploadé par</span>
+                <span class="info-value">Ahmed Benali</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Date d'upload</span>
+                <span class="info-value">12/05/2024 09:14</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Statut IA</span>
+                <span class="badge badge-a-verifier">À vérifier</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Qualité OCR</span>
+                <div class="info-bar-wrap">
+                  <div class="ocr-bar ocr-bar-wide"><div class="ocr-bar-fill" style="width:82%;background:#f59e0b;"></div></div>
+                  <span>82%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Row 2 ── -->
+      <div class="att-row" id="row-1">
+        <div class="att-row-header" onclick="toggleRow(1)">
+          <div class="att-name">
+            <div class="att-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div>
+              <div class="att-title">Bulletin de paie — Juin 2024</div>
+              <div class="att-sub">
+                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:78%;background:#f59e0b;"></div></div>
+                <span>78%</span>
+              </div>
+            </div>
+          </div>
+          <span class="badge badge-a-verifier">À vérifier</span>
+          <span class="cell-txt">78%</span>
+          <span class="cell-txt">Ahmed Benali</span>
+          <span class="cell-muted">14/06/2024</span>
+          <button class="toggle-btn" id="toggle-1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
+        <div class="att-panel" id="panel-1">
+          <div class="panel-split">
+            <div>
+              <div class="extracted-titlebar">
+                <span class="extracted-title">Résultat IA (données extraites)</span>
+              </div>
+              <table class="extracted-table">
+                <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-key">Nom</td><td class="td-value">BENALI</td></tr>
+                  <tr><td class="td-key">Prénom</td><td class="td-value">Ahmed</td></tr>
+                  <tr><td class="td-key">Matricule</td><td class="td-value">EMP-4587</td></tr>
+                  <tr><td class="td-key">Période</td><td class="td-value">Juin 2024</td></tr>
+                  <tr><td class="td-key">Salaire brut</td><td class="td-value">12 500,00 MAD</td></tr>
+                  <tr><td class="td-key">Salaire net</td><td class="td-value">10 200,00 MAD</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="info-card">
+              <div class="info-card-title">Informations</div>
+              <div class="info-row">
+                <span class="info-label">Uploadé par</span>
+                <span class="info-value">Ahmed Benali</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Date d'upload</span>
+                <span class="info-value">14/06/2024 11:02</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Statut IA</span>
+                <span class="badge badge-a-verifier">À vérifier</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Qualité OCR</span>
+                <div class="info-bar-wrap">
+                  <div class="ocr-bar ocr-bar-wide"><div class="ocr-bar-fill" style="width:78%;background:#f59e0b;"></div></div>
+                  <span>78%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Row 3 — expanded by default ── -->
+      <div class="att-row expanded" id="row-2">
+        <div class="att-row-header" onclick="toggleRow(2)">
+          <div class="att-name">
+            <div class="att-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div>
+              <div class="att-title">Bulletin de paie — Juillet 2024</div>
+              <div class="att-sub">
+                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:58%;background:#dc2626;"></div></div>
+                <span>58%</span>
+              </div>
+            </div>
+          </div>
+          <span class="badge badge-non-conforme">Non conforme</span>
+          <span class="cell-txt">58%</span>
+          <span class="cell-txt">Ahmed Benali</span>
+          <span class="cell-muted">16/07/2024</span>
+          <button class="toggle-btn open" id="toggle-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
+        <div class="att-panel visible" id="panel-2">
+          <div class="panel-split">
+            <div>
+              <div class="extracted-titlebar">
+                <span class="extracted-title">Résultat IA (données extraites)</span>
+              </div>
+              <table class="extracted-table">
+                <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-key">Nom</td><td class="td-value">BENALI</td></tr>
+                  <tr><td class="td-key">Prénom</td><td class="td-value">Ahmed</td></tr>
+                  <tr><td class="td-key">N°CIN</td><td class="td-value">341092</td></tr>
+                  <tr><td class="td-key">Date naissance</td><td class="td-value">15/03/1982</td></tr>
+                  <tr><td class="td-key">Date de paie</td><td class="td-value">31/07/2024</td></tr>
+                  <tr><td class="td-key">Salaire brut</td><td class="td-value">12 500,00 MAD</td></tr>
+                  <tr><td class="td-key">Salaire net</td><td class="td-value">10 200,00 MAD</td></tr>
+                  <tr><td class="td-key">Matricule</td><td class="td-value">EMP-4587</td></tr>
+                </tbody>
+              </table>
+
+              <div class="observations">
+                <div class="obs-header">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  Observations IA
+                </div>
+                <p class="obs-msg">Des différences ont été détectées entre les données extraites et la fiche client.</p>
+                <ul class="obs-list">
+                  <li><strong>Salaire brut</strong> : valeur différente</li>
+                  <li><strong>Salaire net</strong> : valeur différente</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <div class="info-card-title">Informations</div>
+              <div class="info-row">
+                <span class="info-label">Uploadé par</span>
+                <span class="info-value">Ahmed Benali</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Date d'upload</span>
+                <span class="info-value">16/07/2024 14:37</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Statut IA</span>
+                <span class="badge badge-non-conforme">Non conforme</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Qualité OCR</span>
+                <div class="info-bar-wrap">
+                  <div class="ocr-bar ocr-bar-wide"><div class="ocr-bar-fill" style="width:58%;background:#dc2626;"></div></div>
+                  <span>58%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ═══ FOOTER ════════════════════════════════ -->
+  <footer class="footer">
+    <button class="btn btn-primary">Valider</button>
+  </footer>
+
+</div>
+
+<script>
+  function toggleRow(index) {
+    const panel  = document.getElementById('panel-'  + index);
+    const toggle = document.getElementById('toggle-' + index);
+    const row    = document.getElementById('row-'    + index);
+
+    const isOpen = panel.classList.contains('visible');
+    panel.classList.toggle('visible', !isOpen);
+    toggle.classList.toggle('open',   !isOpen);
+    row.classList.toggle('expanded',  !isOpen);
+  }
+
+  function selectDoc(btn) {
+    document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
