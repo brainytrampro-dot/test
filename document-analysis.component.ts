@@ -1,142 +1,189 @@
-import {
-  Component,
-  OnInit,
-  OnDestroy,
-  ChangeDetectionStrategy,
-} from '@angular/core';
-import { BehaviorSubject, combineLatest, Observable, Subject } from 'rxjs';
-import { map, takeUntil } from 'rxjs/operators';
-import { DossierAttachmentType, DossierAttachment, DocumentStatus } from './document-analysis.model';
-import { AttachmentService } from './attachment.service';
+import { Component } from '@angular/core';
 
-export interface AttachmentViewModel {
-  docTypes: DossierAttachmentType[];
-  selected: DossierAttachmentType | null;
-  expandedAttachment: DossierAttachment | null;
-  avgPercent: number;
-  globalStatus: DocumentStatus;
-  mismatchKeys: string[];
+interface IAResult {
+  key: string;
+  ocrValue: string;
+  clientValue: string;
+  confidence: number;
+  status: 'CONFORME' | 'NON_CONFORME';
+}
+
+interface Attachment {
+  id: number;
+  fileName: string;
+  uploadDate: string;
+  statusIA: 'CONFORME' | 'A_VERIFIER' | 'NON_CONFORME' | 'EN_COURS';
+  ocrQuality: number;
+  confidence: number;
+  expanded?: boolean;
+  results: IAResult[];
+}
+
+interface AttachmentType {
+  id: number;
+  label: string;
+  code: string;
+  globalStatus: 'CONFORME' | 'A_VERIFIER' | 'NON_CONFORME' | 'EN_COURS';
+  attachments: Attachment[];
 }
 
 @Component({
-  selector: 'app-document-analysis',
-  templateUrl: './document-analysis.component.html',
-  styleUrls: ['./document-analysis.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-attachment-ai-review',
+  templateUrl: './attachment-ai-review.component.html',
+  styleUrls: ['./attachment-ai-review.component.scss']
 })
-export class DocumentAnalysisComponent implements OnInit, OnDestroy {
+export class AttachmentAiReviewComponent {
 
-  private destroy$ = new Subject<void>();
+  selectedTypeIndex = 0;
 
-  private selectedCodeType$ = new BehaviorSubject<string | null>(null);
-  private expandedAttachmentIndex$ = new BehaviorSubject<number | null>(null);
+  attachmentTypes: AttachmentType[] = [
+    {
+      id: 1,
+      label: 'Carte d’identité Nationale',
+      code: 'CIN',
+      globalStatus: 'CONFORME',
+      attachments: [
+        {
+          id: 1,
+          fileName: 'cin_recto_verso.pdf',
+          uploadDate: '13/05/2026',
+          statusIA: 'CONFORME',
+          ocrQuality: 91,
+          confidence: 98,
+          expanded: true,
+          results: [
+            {
+              key: 'Nom',
+              ocrValue: 'DOGCNOIYIX',
+              clientValue: 'DOGCNOIYIX',
+              confidence: 98,
+              status: 'CONFORME'
+            },
+            {
+              key: 'Prénom',
+              ocrValue: 'DOGCNOIYIX',
+              clientValue: 'DOGCNOIYIX',
+              confidence: 97,
+              status: 'CONFORME'
+            },
+            {
+              key: 'N°CIN',
+              ocrValue: 'J341092',
+              clientValue: 'J341092',
+              confidence: 99,
+              status: 'CONFORME'
+            },
+            {
+              key: 'Date naissance',
+              ocrValue: '15/03/1982',
+              clientValue: '15/03/1982',
+              confidence: 96,
+              status: 'CONFORME'
+            }
+          ]
+        }
+      ]
+    },
+    {
+      id: 2,
+      label: 'Bulletins de Paie',
+      code: 'BULLETIN',
+      globalStatus: 'A_VERIFIER',
+      attachments: [
+        {
+          id: 2,
+          fileName: 'bulletin_mai_2026.pdf',
+          uploadDate: '11/05/2026',
+          statusIA: 'A_VERIFIER',
+          ocrQuality: 82,
+          confidence: 96,
+          expanded: false,
+          results: [
+            {
+              key: 'Salaire brut',
+              ocrValue: '12 500 MAD',
+              clientValue: '12 500 MAD',
+              confidence: 98,
+              status: 'CONFORME'
+            },
+            {
+              key: 'Salaire net',
+              ocrValue: '10 100 MAD',
+              clientValue: '10 300 MAD',
+              confidence: 61,
+              status: 'NON_CONFORME'
+            }
+          ]
+        },
+        {
+          id: 3,
+          fileName: 'bulletin_juin_2026.pdf',
+          uploadDate: '10/05/2026',
+          statusIA: 'NON_CONFORME',
+          ocrQuality: 58,
+          confidence: 71,
+          expanded: false,
+          results: [
+            {
+              key: 'Salaire brut',
+              ocrValue: '9 000 MAD',
+              clientValue: '12 000 MAD',
+              confidence: 45,
+              status: 'NON_CONFORME'
+            },
+            {
+              key: 'Employeur',
+              ocrValue: 'DEV CORP',
+              clientValue: 'DEV CORP',
+              confidence: 97,
+              status: 'CONFORME'
+            }
+          ]
+        }
+      ]
+    },
+    {
+      id: 3,
+      label: 'Relevé de compte',
+      code: 'RELEVE',
+      globalStatus: 'EN_COURS',
+      attachments: [
+        {
+          id: 4,
+          fileName: 'releve_bancaire.pdf',
+          uploadDate: '09/05/2026',
+          statusIA: 'EN_COURS',
+          ocrQuality: 0,
+          confidence: 0,
+          expanded: false,
+          results: []
+        }
+      ]
+    }
+  ];
 
-  vm$!: Observable<AttachmentViewModel>;
-
-  constructor(private attachmentService: AttachmentService) {}
-
-  ngOnInit(): void {
-    this.vm$ = combineLatest([
-      this.attachmentService.dossierAttachmentTypes$,
-      this.selectedCodeType$,
-      this.expandedAttachmentIndex$,
-    ]).pipe(
-      map(([docTypes, selectedCode, expandedIndex]) => {
-        // Auto-select first on load
-        const code = selectedCode ?? (docTypes[0]?.codeType ?? null);
-        const selected = docTypes.find(d => d.codeType === code) ?? null;
-
-        const expandedAttachment =
-          expandedIndex !== null
-            ? selected?.attachments[expandedIndex] ?? null
-            : null;
-
-        const avgPercent = selected?.attachments.length
-          ? Math.round(
-              selected.attachments.reduce((sum, a) => sum + a.percent, 0) /
-              selected.attachments.length
-            )
-          : 0;
-
-        const globalStatus = this.resolveGlobalStatus(selected?.attachments ?? []);
-
-        // Keys where value differs — ici on flag les keys dont la value est null/undefined/vide
-        const mismatchKeys = expandedAttachment
-          ? Object.entries(expandedAttachment.responseIA)
-              .filter(([, v]) => v === null || v === undefined || v === '')
-              .map(([k]) => k)
-          : [];
-
-        return { docTypes, selected, expandedAttachment, avgPercent, globalStatus, mismatchKeys };
-      }),
-      takeUntil(this.destroy$)
-    );
+  get selectedType(): AttachmentType {
+    return this.attachmentTypes[this.selectedTypeIndex];
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  selectType(index: number): void {
+    this.selectedTypeIndex = index;
   }
 
-  // ===== UI ACTIONS =====
-
-  selectDocType(codeType: string): void {
-    this.selectedCodeType$.next(codeType);
-    this.expandedAttachmentIndex$.next(null);
+  toggleAttachment(attachment: Attachment): void {
+    attachment.expanded = !attachment.expanded;
   }
 
-  toggleAttachment(index: number): void {
-    this.expandedAttachmentIndex$.update(curr => curr === index ? null : index);
-  }
-
-  isExpanded(index: number): boolean {
-    return this.expandedAttachmentIndex$.getValue() === index;
-  }
-
-  onValidate(): void {
-    const selected = this.selectedCodeType$.getValue();
-    console.log('Validated doc type:', selected);
-  }
-
-  onBack(): void {
-    console.log('Back to dossier');
-  }
-
-  // ===== HELPERS =====
-
-  getStatusLabel(status: DocumentStatus): string {
-    const labels: Record<DocumentStatus, string> = {
-      'conforme': 'Conforme',
-      'non-conforme': 'Non conforme',
-      'a-verifier': 'À vérifier',
-      'en-traitement': 'En traitement',
-    };
-    return labels[status] ?? status;
-  }
-
-  getOcrBarColor(percent: number): string {
-    if (percent >= 80) return 'var(--color-success)';
-    if (percent >= 60) return 'var(--color-warning)';
-    return 'var(--color-danger)';
-  }
-
-  trackByCode(_: number, item: DossierAttachmentType): string {
-    return item.codeType;
-  }
-
-  trackByIndex(index: number): number {
-    return index;
-  }
-
-  toEntries(responseIA: Record<string, unknown>): { key: string; value: unknown }[] {
-    return Object.entries(responseIA).map(([key, value]) => ({ key, value }));
-  }
-
-  private resolveGlobalStatus(attachments: DossierAttachment[]): DocumentStatus {
-    const statuses = attachments.map(a => a.statusIa);
-    if (statuses.includes('non-conforme')) return 'non-conforme';
-    if (statuses.includes('a-verifier')) return 'a-verifier';
-    if (statuses.includes('en-traitement')) return 'en-traitement';
-    return 'conforme';
+  getStatusLabel(status: string): string {
+    switch (status) {
+      case 'CONFORME':
+        return 'Conforme';
+      case 'A_VERIFIER':
+        return 'À vérifier';
+      case 'NON_CONFORME':
+        return 'Non conforme';
+      default:
+        return 'En cours';
+    }
   }
 }
