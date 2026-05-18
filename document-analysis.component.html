@@ -1,143 +1,394 @@
-<div class="page-container">
+<div class="analysis-page">
 
-  <div class="sidebar">
-    <h2>Types d’attachements</h2>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
 
+    <div class="sidebar-header">
+      <h2>Types d’attachements</h2>
+    </div>
+
+    <!-- TYPES -->
     <div
       class="type-card"
-      *ngFor="let type of attachmentTypes; let i = index"
-      [class.active]="selectedTypeIndex === i"
-      (click)="selectType(i)">
+      *ngFor="let type of attachmentTypes"
+      [class.active]="selectedType?.id === type.id"
+      (click)="selectType(type)">
 
-      <div>
+      <div class="type-left">
+
         <h3>{{ type.label }}</h3>
-        <span class="code">{{ type.code }}</span>
 
-        <div class="status-chip" [ngClass]="type.globalStatus">
-          {{ getStatusLabel(type.globalStatus) }}
+        <span>{{ type.code }}</span>
+
+        <div
+          class="status"
+          [ngClass]="statusConfig[type.globalStatus].class">
+
+          {{ statusConfig[type.globalStatus].label }}
+
         </div>
+
       </div>
 
-      <div class="count-badge">
+      <div class="count">
         {{ type.attachments.length }}
       </div>
+
     </div>
-  </div>
 
-  <div class="content">
+  </aside>
 
+  <!-- CONTENT -->
+  <section class="content">
+
+    <!-- HEADER -->
     <div class="content-header">
+
       <div>
-        <h1>{{ selectedType.label }}</h1>
-        <p>{{ selectedType.attachments.length }} attachments</p>
+
+        <h1>{{ selectedType?.label }}</h1>
+
+        <p>
+          {{ selectedType?.attachments?.length }}
+          attachements
+        </p>
+
       </div>
 
-      <div class="global-status">
-        <span>Statut IA global</span>
+      <div class="header-right">
 
-        <div class="status-chip" [ngClass]="selectedType.globalStatus">
-          {{ getStatusLabel(selectedType.globalStatus) }}
-        </div>
-      </div>
-    </div>
+        <!-- OCR -->
+        <div>
 
-    <div class="attachment-card"
-         *ngFor="let attachment of selectedType.attachments">
+          <span class="small-label">
+            Qualité OCR moyenne
+          </span>
 
-      <div class="attachment-header">
+          <div class="progress-row">
 
-        <div class="left">
-          <div class="file-icon">
-            📄
-          </div>
+            <div class="progress">
 
-          <div>
-            <h3>{{ attachment.fileName }}</h3>
-            <p>Ajouté le {{ attachment.uploadDate }}</p>
-          </div>
-        </div>
-
-        <div class="metrics">
-
-          <div>
-            <span class="label">Statut IA</span>
-            <div class="status-chip" [ngClass]="attachment.statusIA">
-              {{ getStatusLabel(attachment.statusIA) }}
-            </div>
-          </div>
-
-          <div>
-            <span class="label">Qualité OCR</span>
-            <div class="progress-row">
-              <div class="progress-bar">
-                <div class="progress-fill"
-                     [style.width.%]="attachment.ocrQuality">
-                </div>
+              <div
+                class="fill green-fill"
+                [style.width.%]="selectedType?.ocrAverage">
               </div>
 
-              <span>{{ attachment.ocrQuality }}%</span>
             </div>
+
+            <strong>
+              {{ selectedType?.ocrAverage }}%
+            </strong>
+
+          </div>
+
+        </div>
+
+        <!-- GLOBAL STATUS -->
+        <div>
+
+          <span class="small-label">
+            Statut IA global
+          </span>
+
+          <div
+            class="status"
+            [ngClass]="statusConfig[selectedType?.globalStatus]?.class">
+
+            {{ statusConfig[selectedType?.globalStatus]?.label }}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ATTACHMENTS -->
+    <div class="attachments">
+
+      <div
+        class="attachment-card"
+        *ngFor="let attachment of selectedType?.attachments"
+        [class.expanded]="selectedAttachment?.id === attachment.id">
+
+        <!-- LEFT -->
+        <div class="left-section">
+
+          <div class="file-icon">
+
+            <span *ngIf="attachment.fileType === 'PDF'">
+              📄
+            </span>
+
+            <span *ngIf="attachment.fileType === 'IMAGE'">
+              🖼️
+            </span>
+
           </div>
 
           <div>
-            <span class="label">Confidence</span>
-            <strong>{{ attachment.confidence }}%</strong>
+
+            <h3>{{ attachment.fileName }}</h3>
+
+            <p>
+              Ajouté le {{ attachment.uploadDate }}
+            </p>
+
           </div>
 
-          <button class="details-btn"
-                  (click)="toggleAttachment(attachment)">
-            {{ attachment.expanded ? 'Masquer' : 'Voir détails' }}
+        </div>
+
+        <!-- RIGHT -->
+        <div class="metrics">
+
+          <!-- STATUS -->
+          <div>
+
+            <span class="small-label">
+              Statut IA
+            </span>
+
+            <div
+              class="status"
+              [ngClass]="statusConfig[attachment.statusIA].class">
+
+              {{ statusConfig[attachment.statusIA].label }}
+
+            </div>
+
+          </div>
+
+          <!-- OCR -->
+          <div>
+
+            <span class="small-label">
+              Qualité OCR
+            </span>
+
+            <div class="progress-row">
+
+              <div class="progress small">
+
+                <div
+                  class="fill"
+                  [ngClass]="getProgressClass(attachment.ocrQuality)"
+                  [style.width.%]="attachment.ocrQuality">
+                </div>
+
+              </div>
+
+              <strong>
+                {{ attachment.ocrQuality }}%
+              </strong>
+
+            </div>
+
+          </div>
+
+          <!-- CONFIDENCE -->
+          <div>
+
+            <span class="small-label">
+              Confidence
+            </span>
+
+            <strong>
+              {{ attachment.confidence }}%
+            </strong>
+
+          </div>
+
+          <!-- ACTION -->
+          <button
+            class="details-btn"
+            (click)="openAttachment(attachment)">
+
+            Voir détails
+
           </button>
+
         </div>
+
       </div>
 
-      <div class="details-section" *ngIf="attachment.expanded">
+    </div>
 
-        <div class="results-table">
+    <!-- DETAILS -->
+    <div
+      class="details-layout"
+      *ngIf="selectedAttachment">
 
-          <div class="table-header">
-            <h3>Résultat IA</h3>
-            <button>JSON</button>
+      <!-- IA TABLE -->
+      <div class="table-card">
+
+        <div class="table-header">
+
+          <h3>
+            Résultat IA (données extraites)
+          </h3>
+
+          <button class="json-btn">
+            JSON
+          </button>
+
+        </div>
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>Clé</th>
+              <th>Valeur OCR</th>
+              <th>Fiche client</th>
+              <th>Statut</th>
+              <th>Confiance</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            <tr
+              *ngFor="let field of selectedAttachment.extractedData">
+
+              <td>{{ field.key }}</td>
+
+              <td>{{ field.ocrValue }}</td>
+
+              <td>{{ field.clientValue }}</td>
+
+              <td>
+
+                <div
+                  class="dot"
+                  [ngClass]="field.valid ? 'success-bg' : 'danger-bg'">
+                </div>
+
+              </td>
+
+              <td>
+                {{ field.confidence }}%
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+        <!-- OBS -->
+        <div
+          class="observation-box"
+          *ngIf="selectedAttachment.observations?.length">
+
+          <div class="obs-title">
+            ⚠ Observations IA
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Clé</th>
-                <th>Valeur OCR</th>
-                <th>Fiche Client</th>
-                <th>Status</th>
-                <th>Confidence</th>
-              </tr>
-            </thead>
+          <ul>
 
-            <tbody>
-              <tr *ngFor="let result of attachment.results">
-                <td>{{ result.key }}</td>
-                <td>{{ result.ocrValue }}</td>
-                <td>{{ result.clientValue }}</td>
+            <li
+              *ngFor="let obs of selectedAttachment.observations">
 
-                <td>
-                  <div class="mini-status"
-                       [ngClass]="result.status">
-                  </div>
-                </td>
+              {{ obs }}
 
-                <td>{{ result.confidence }}%</td>
-              </tr>
-            </tbody>
-          </table>
+            </li>
+
+          </ul>
+
+        </div>
+
+      </div>
+
+      <!-- VIEWER -->
+      <div class="viewer-card">
+
+        <div class="viewer-header">
+
+          <div>
+
+            <h3>Aperçu du document</h3>
+
+            <p>
+              {{ selectedAttachment.fileName }}
+            </p>
+
+          </div>
+
+          <button
+            class="download-btn"
+            (click)="download(selectedAttachment)">
+
+            Télécharger
+
+          </button>
+
+        </div>
+
+        <!-- TOOLBAR -->
+        <div class="viewer-toolbar">
+
+          <button (click)="zoomOut()">
+            −
+          </button>
+
+          <span>{{ zoom }}%</span>
+
+          <button (click)="zoomIn()">
+            +
+          </button>
+
+        </div>
+
+        <!-- LOADER -->
+        <div
+          class="viewer-loading"
+          *ngIf="viewerLoading">
+
+          Chargement document...
+
+        </div>
+
+        <!-- PDF -->
+        <div
+          class="pdf-preview"
+          *ngIf="!viewerLoading">
+
+          <!-- IMAGE -->
+          <img
+            *ngIf="selectedAttachment.fileType === 'IMAGE'"
+            [src]="viewerUrl"
+            [style.transform]="'scale(' + zoom / 100 + ')'"
+            class="preview-image">
+
+          <!-- PDF -->
+          <iframe
+            *ngIf="selectedAttachment.fileType === 'PDF'"
+            [src]="viewerUrl"
+            class="pdf-frame">
+          </iframe>
+
         </div>
 
       </div>
 
     </div>
 
+    <!-- FOOTER -->
     <div class="footer-actions">
-      <button class="secondary-btn">Retourner dossier</button>
-      <button class="primary-btn">Valider</button>
+
+      <button class="secondary-btn">
+        Retourner dossier
+      </button>
+
+      <button class="primary-btn">
+        Valider
+      </button>
+
     </div>
 
-  </div>
+  </section>
 
 </div>
