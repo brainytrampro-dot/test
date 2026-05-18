@@ -1,282 +1,143 @@
-<div class="shell">
+<div class="page-container">
 
-  <!-- ═══ SIDEBAR ═══════════════════════════════ -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-header-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-        </svg>
+  <div class="sidebar">
+    <h2>Types d’attachements</h2>
+
+    <div
+      class="type-card"
+      *ngFor="let type of attachmentTypes; let i = index"
+      [class.active]="selectedTypeIndex === i"
+      (click)="selectType(i)">
+
+      <div>
+        <h3>{{ type.label }}</h3>
+        <span class="code">{{ type.code }}</span>
+
+        <div class="status-chip" [ngClass]="type.globalStatus">
+          {{ getStatusLabel(type.globalStatus) }}
+        </div>
       </div>
-      <span class="sidebar-header-title">Documents</span>
+
+      <div class="count-badge">
+        {{ type.attachments.length }}
+      </div>
     </div>
+  </div>
 
-    <nav class="sidebar-nav">
+  <div class="content">
 
-      <div class="doc-item">
-        <div class="doc-item-top">
-          <div class="doc-item-info">
-            <span class="doc-item-label">Carte d'identité Nationale</span>
-            <span class="doc-item-code">CIN</span>
-          </div>
-          <span class="doc-item-count">1</span>
-        </div>
-        <span class="badge badge-conforme">Conforme</span>
+    <div class="content-header">
+      <div>
+        <h1>{{ selectedType.label }}</h1>
+        <p>{{ selectedType.attachments.length }} attachments</p>
       </div>
 
-      <div class="doc-item">
-        <div class="doc-item-top">
-          <div class="doc-item-info">
-            <span class="doc-item-label">Attestation de salaire</span>
-            <span class="doc-item-code">Attest_sal</span>
-          </div>
-          <span class="doc-item-count">1</span>
-        </div>
-        <span class="badge badge-conforme">Conforme</span>
-      </div>
+      <div class="global-status">
+        <span>Statut IA global</span>
 
-      <div class="doc-item active">
-        <div class="doc-item-top">
-          <div class="doc-item-info">
-            <span class="doc-item-label">Bulletins de Paie</span>
-            <span class="doc-item-code">BULLETIN</span>
-          </div>
-          <span class="doc-item-count">3</span>
-        </div>
-        <span class="badge badge-a-verifier">À vérifier</span>
-      </div>
-
-      <div class="doc-item">
-        <div class="doc-item-top">
-          <div class="doc-item-info">
-            <span class="doc-item-label">Compromis de vente</span>
-            <span class="doc-item-code">COMPROVIS</span>
-          </div>
-          <span class="doc-item-count">1</span>
-        </div>
-        <span class="badge badge-non-conforme">Non conforme</span>
-      </div>
-
-      <div class="doc-item">
-        <div class="doc-item-top">
-          <div class="doc-item-info">
-            <span class="doc-item-label">Relevé de compte</span>
-            <span class="doc-item-code">RELEVE</span>
-          </div>
-          <span class="doc-item-count">1</span>
-        </div>
-        <span class="badge badge-en-traitement">En traitement</span>
-      </div>
-
-    </nav>
-
-    <div class="sidebar-footer">
-      <button class="btn btn-outline">Retourner dossier</button>
-    </div>
-  </aside>
-
-  <!-- ═══ MAIN ══════════════════════════════════ -->
-  <main class="main">
-
-    <div class="topbar">
-      <div class="topbar-left">
-        <h1 class="topbar-title">Bulletins de Paie</h1>
-        <span class="topbar-sub">3 attachements</span>
-      </div>
-      <div class="topbar-right">
-        <div class="metric">
-          <span class="metric-label">Qualité OCR moyenne</span>
-          <div class="metric-bar">
-            <div class="metric-bar-fill" style="width:73%; background:#f59e0b;"></div>
-          </div>
-          <span class="metric-value">73%</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">Statut IA global</span>
-          <span class="badge badge-a-verifier badge-lg">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            À vérifier
-          </span>
+        <div class="status-chip" [ngClass]="selectedType.globalStatus">
+          {{ getStatusLabel(selectedType.globalStatus) }}
         </div>
       </div>
     </div>
 
-    <div class="att-table">
-      <div class="att-thead">
-        <span>Document</span>
-        <span>Statut IA</span>
-        <span>OCR</span>
-        <span>Uploadé par</span>
-        <span>Date</span>
-        <span></span>
-      </div>
+    <div class="attachment-card"
+         *ngFor="let attachment of selectedType.attachments">
 
-      <!-- Row 0 : Mai 2024 -->
-      <div class="att-row">
-        <div class="att-row-header">
-          <div class="att-name">
-            <div class="att-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-            </div>
-            <div>
-              <div class="att-title">Bulletin de paie — Mai 2024</div>
-              <div class="att-sub">
-                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:82%;background:#f59e0b;"></div></div>
-                <span>82%</span>
-              </div>
-            </div>
-          </div>
-          <span class="badge badge-a-verifier">À vérifier</span>
-          <span class="cell-txt">82%</span>
-          <span class="cell-txt">Ahmed Benali</span>
-          <span class="cell-muted">12/05/2024</span>
-          <div class="toggle-btn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
-      </div>
+      <div class="attachment-header">
 
-      <!-- Row 1 : Juin 2024 -->
-      <div class="att-row">
-        <div class="att-row-header">
-          <div class="att-name">
-            <div class="att-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-            </div>
-            <div>
-              <div class="att-title">Bulletin de paie — Juin 2024</div>
-              <div class="att-sub">
-                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:78%;background:#f59e0b;"></div></div>
-                <span>78%</span>
-              </div>
-            </div>
+        <div class="left">
+          <div class="file-icon">
+            📄
           </div>
-          <span class="badge badge-a-verifier">À vérifier</span>
-          <span class="cell-txt">78%</span>
-          <span class="cell-txt">Ahmed Benali</span>
-          <span class="cell-muted">14/06/2024</span>
-          <div class="toggle-btn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
-      </div>
 
-      <!-- Row 2 : Juillet 2024 — panel ouvert -->
-      <div class="att-row expanded">
-        <div class="att-row-header">
-          <div class="att-name">
-            <div class="att-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-            </div>
-            <div>
-              <div class="att-title">Bulletin de paie — Juillet 2024</div>
-              <div class="att-sub">
-                <div class="ocr-bar"><div class="ocr-bar-fill" style="width:58%;background:#dc2626;"></div></div>
-                <span>58%</span>
-              </div>
-            </div>
-          </div>
-          <span class="badge badge-non-conforme">Non conforme</span>
-          <span class="cell-txt">58%</span>
-          <span class="cell-txt">Ahmed Benali</span>
-          <span class="cell-muted">16/07/2024</span>
-          <div class="toggle-btn open">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
+          <div>
+            <h3>{{ attachment.fileName }}</h3>
+            <p>Ajouté le {{ attachment.uploadDate }}</p>
           </div>
         </div>
 
-        <div class="att-panel">
-          <div class="panel-split">
-            <div>
-              <div class="extracted-titlebar">
-                <span class="extracted-title">Résultat IA (données extraites)</span>
-              </div>
-              <table class="extracted-table">
-                <thead>
-                  <tr><th>Clé</th><th>Valeur</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td class="td-key">Nom</td><td class="td-value">BENALI</td></tr>
-                  <tr><td class="td-key">Prénom</td><td class="td-value">Ahmed</td></tr>
-                  <tr><td class="td-key">N°CIN</td><td class="td-value">341092</td></tr>
-                  <tr><td class="td-key">Date naissance</td><td class="td-value">15/03/1982</td></tr>
-                  <tr><td class="td-key">Date de paie</td><td class="td-value">31/07/2024</td></tr>
-                  <tr><td class="td-key">Salaire brut</td><td class="td-value">12 500,00 MAD</td></tr>
-                  <tr><td class="td-key">Salaire net</td><td class="td-value">10 200,00 MAD</td></tr>
-                  <tr><td class="td-key">Matricule</td><td class="td-value">EMP-4587</td></tr>
-                </tbody>
-              </table>
-              <div class="observations">
-                <div class="obs-header">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                  Observations IA
+        <div class="metrics">
+
+          <div>
+            <span class="label">Statut IA</span>
+            <div class="status-chip" [ngClass]="attachment.statusIA">
+              {{ getStatusLabel(attachment.statusIA) }}
+            </div>
+          </div>
+
+          <div>
+            <span class="label">Qualité OCR</span>
+            <div class="progress-row">
+              <div class="progress-bar">
+                <div class="progress-fill"
+                     [style.width.%]="attachment.ocrQuality">
                 </div>
-                <p class="obs-msg">Des différences ont été détectées entre les données extraites et la fiche client.</p>
-                <ul class="obs-list">
-                  <li><strong>Salaire brut</strong> : valeur différente</li>
-                  <li><strong>Salaire net</strong> : valeur différente</li>
-                </ul>
               </div>
-            </div>
 
-            <div class="info-card">
-              <div class="info-card-title">Informations</div>
-              <div class="info-row">
-                <span class="info-label">Uploadé par</span>
-                <span class="info-value">Ahmed Benali</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Date d'upload</span>
-                <span class="info-value">16/07/2024 14:37</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Statut IA</span>
-                <span class="badge badge-non-conforme">Non conforme</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Qualité OCR</span>
-                <div class="info-bar-wrap">
-                  <div class="ocr-bar ocr-bar-wide">
-                    <div class="ocr-bar-fill" style="width:58%;background:#dc2626;"></div>
+              <span>{{ attachment.ocrQuality }}%</span>
+            </div>
+          </div>
+
+          <div>
+            <span class="label">Confidence</span>
+            <strong>{{ attachment.confidence }}%</strong>
+          </div>
+
+          <button class="details-btn"
+                  (click)="toggleAttachment(attachment)">
+            {{ attachment.expanded ? 'Masquer' : 'Voir détails' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="details-section" *ngIf="attachment.expanded">
+
+        <div class="results-table">
+
+          <div class="table-header">
+            <h3>Résultat IA</h3>
+            <button>JSON</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Clé</th>
+                <th>Valeur OCR</th>
+                <th>Fiche Client</th>
+                <th>Status</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr *ngFor="let result of attachment.results">
+                <td>{{ result.key }}</td>
+                <td>{{ result.ocrValue }}</td>
+                <td>{{ result.clientValue }}</td>
+
+                <td>
+                  <div class="mini-status"
+                       [ngClass]="result.status">
                   </div>
-                  <span>58%</span>
-                </div>
-              </div>
-            </div>
-          </div>
+                </td>
+
+                <td>{{ result.confidence }}%</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+
       </div>
 
     </div>
-  </main>
 
-  <!-- ═══ FOOTER ════════════════════════════════ -->
-  <footer class="footer">
-    <button class="btn btn-primary">Valider</button>
-  </footer>
+    <div class="footer-actions">
+      <button class="secondary-btn">Retourner dossier</button>
+      <button class="primary-btn">Valider</button>
+    </div>
+
+  </div>
 
 </div>
