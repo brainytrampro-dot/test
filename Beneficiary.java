@@ -1,3 +1,11 @@
+
+dossier.getBeneficiaries().stream()
+            .filter(b -> b.getId() != null && !dtoMap.containsKey(b.getId()))
+            .forEach(b -> b.getRangs().clear());
+
+
+
+
 package ma.sg.its.octroicreditcore.service;
 
 import lombok.AllArgsConstructor;
