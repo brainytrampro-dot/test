@@ -1,42 +1,186 @@
-package ma.sg.its.octroicreditcore.service;
 
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import ma.sg.its.octroicreditcore.Specification.DossierKpiSpecification;
-import ma.sg.its.octroicreditcore.dto.*;
-import ma.sg.its.octroicreditcore.dto.kpi.KpiDossierData;
-import ma.sg.its.octroicreditcore.enumeration.DossierStatus;
-import ma.sg.its.octroicreditcore.enumeration.RequestStatus;
-import ma.sg.its.octroicreditcore.enumeration.AccordType;
-import ma.sg.its.octroicreditcore.exception.TechnicalException;
-import ma.sg.its.octroicreditcore.mapper.*;
-import ma.sg.its.octroicreditcore.mapper.kpi.KpiDataMapper;
-import ma.sg.its.octroicreditcore.model.*;
-import ma.sg.its.octroicreditcore.model.comments.Comment;
-import ma.sg.its.octroicreditcore.repository.*;
-import ma.sg.its.octroicreditcore.strategy.DossierCreation;
-import ma.sg.its.octroicreditcore.strategy.DossierCreationContext;
-import ma.sg.its.octroicreditcore.util.Assert;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang.ObjectUtils;
-import org.apache.commons.lang.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+@Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(callSuper = false)
+public class Property {
 
-import java.time.LocalDate;
-import java.util.*;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-import static ma.sg.its.octroicreditcore.constant.ErrorsConstants.CANNOT_PERFORM_THIS_ACTION;
-import static ma.sg.its.octroicreditcore.constant.ErrorsConstants.DOSSIER_NOT_EXIST;
+    @Column(name = "land_certificate_number")
+    private String landCertificateNumber;
+    @Column(name = "code_property_city")
+    private String codePropertyCity;
+
+    private String descriptionBien;
+    private String propertyArea;
+    private String denomination;
+    private String propertyType;
+    private LocalDate date;
+    private String purchaseProof;
+    private String reference;
+    private Boolean inVsbProgram;
+    private String companyName;
+    private String capital;
+    private String companyAddress;
+    private String registerNumber;
+    private String areaDelimitation;
+    private String deposit;
+    private LocalDate cpvDate;
+    private String page;
+    private String exactAdress;
+    private String immoProgramName;
+    @Column(name = "for_acquisition")
+    private Boolean forAcquisition;
+    @ManyToOne
+    @JoinColumn(name = "dossierId", referencedColumnName = "id")
+    private DossierData dossier;
+    @OneToMany(mappedBy = "property", cascade = {}, fetch = FetchType.LAZY, orphanRemoval = false)
+    private List<Rang> rangs =  new ArrayList<>();
+
+}
+
+
+
+@Entity
+@Table(name = "beneficiary")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Beneficiary extends BaseEntity {
+    @ManyToMany(cascade = CascadeType.ALL)
+    @JoinTable( name = "beneficiary_property", joinColumns = @JoinColumn(name = "beneficiary_id"), inverseJoinColumns = @JoinColumn(name = "property_id") )
+    private List<Property> properties;
+
+    private String firstname;
+    private String lastname;
+    @Column(columnDefinition = "text")
+    private String address;
+    private String idCardNumber;
+    @Column(columnDefinition = "DATE")
+    private LocalDate issuedAt;
+    private boolean adult;
+    private Boolean isGuarantor;
+    private Boolean isBorrower;
+    private String representativeLastname;
+    private String representativeFirstname;
+    private LocalDate judgeAuthorizationDate;
+    private String codeBirthPlace;
+    @Column(columnDefinition = "DATE")
+    private LocalDate birthDate;
+    @ManyToOne
+    @JoinColumn(name = "dossierId", referencedColumnName = "id")
+    private DossierData dossier;
+
+    @OneToMany(mappedBy = "beneficiary", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<Rang> rangs =  new ArrayList<>();
+
+    @OneToMany(mappedBy = "beneficiary", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<RepresentativeBeneficiary> beneficiaryAssociations = new ArrayList<>();
+    /**
+     * Synchronise la table de jointure ManyToMany avec les instances du pool
+     */
+    public void syncProperties(List<PropertyDto> propertyDtos, Map<String, Property> pool) {
+        if (this.properties == null) this.properties = new ArrayList<>();
+        this.properties.clear();
+
+        if (propertyDtos != null) {
+            for (PropertyDto pd : propertyDtos) {
+                String key = pd.getId() != null ? pd.getId().toString() :(pd.getUuid() != null ? pd.getUuid() : null);
+
+                Property pFromPool = pool.get(key);
+                if (pFromPool != null) {
+                    this.properties.add(pFromPool);
+                }
+            }
+        }
+    }
+    public void syncRangs(List<RangDto> updatedRangs, Map<String, Property> pool) {
+        if(updatedRangs == null) return;
+
+        Map<Long, RangDto> modified = updatedRangs.stream()
+                .filter(r -> r.getId() != null)
+                .collect(Collectors.toMap(RangDto::getId, r -> r));
+
+        this.getRangs().removeIf(r -> r.getId() != null && !modified.containsKey(r.getId()));
+
+        for (Rang r : this.getRangs()) {
+            RangDto updatedR = modified.get(r.getId());
+            if (updatedR != null) {
+                r.setRang(updatedR.getRang());
+                r.setWarrantyAmount(updatedR.getWarrantyAmount());
+                r.setBeneficiary(this);
+                if (updatedR.getPropertyId() != null || updatedR.getPropertyUuid() != null) {
+                    String key = updatedR.getPropertyId() != null
+                            ? updatedR.getPropertyId().toString()
+                            : updatedR.getPropertyUuid();
+                    Property property = pool.get(key);
+                    if (property != null) {
+                        r.setProperty(property);
+                    }
+                }
+            }
+        }
+
+        updatedRangs.stream()
+                .filter(r -> r.getId() == null)
+                .forEach(r -> {
+                    String key = r.getPropertyId() != null
+                            ? r.getPropertyId().toString()
+                            : r.getPropertyUuid();
+
+                    if (key == null) return;
+
+                    Property property = pool.get(key);
+                    if (property == null) return;
+
+                    Rang newR = new Rang();
+                    newR.setBeneficiary(this);
+                    newR.setProperty(property);
+                    newR.setRang(r.getRang());
+                    newR.setWarrantyAmount(r.getWarrantyAmount());
+                    this.getRangs().add(newR);
+                });
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Beneficiary other = (Beneficiary) o;
+
+        if (this.getId() != null && other.getId() != null) {
+            return this.getId().equals(other.getId());
+        }
+        if (this.getUuid() != null && other.getUuid() != null) {
+            return this.getUuid().equalsIgnoreCase(other.getUuid());
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        if (getId() != null) {
+            return getId().hashCode();
+        }
+
+        if (getUuid() != null) {
+            return getUuid().hashCode();
+        }
+
+        return 0;
+    }
+
+
+}
+
+
+
+
 
 @Service
 @Transactional
@@ -535,7 +679,9 @@ public class DossierDataService {
 				.collect(Collectors.toMap(PropertyDto::getId, p -> p));
 
 		dossier.getProperties().removeIf(p -> p.getId() != null && !dtoMap.containsKey(p.getId()));
-
+		dossier.getBeneficiaries().stream()
+            .filter(b -> b.getId() != null && !dtoMap.containsKey(b.getId()))
+            .forEach(b -> b.getRangs().clear());
 		for (PropertyDto pDto : propDtos) {
 			Property property;
 			if (pDto.getId() != null) {
@@ -562,6 +708,7 @@ public class DossierDataService {
 		dossier.getBeneficiaries().stream()
             .filter(b -> b.getId() != null && !dtoMap.containsKey(b.getId()))
             .forEach(b -> b.getRangs().clear());
+
 			
 		dossier.getBeneficiaries().removeIf(p -> p.getId() != null && !dtoMap.containsKey(p.getId()));
 
