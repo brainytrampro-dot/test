@@ -1,4 +1,13 @@
-
+dossier.getProperties().stream()
+            .filter(p -> p.getId() != null && !dtoMap.containsKey(p.getId()))
+            .forEach(removedProp -> {
+                // Détacher les rangs de cette property depuis les beneficiaries
+                dossier.getBeneficiaries().forEach(benef ->
+                    benef.getRangs().removeIf(r ->
+                        r.getProperty() != null && removedProp.getId().equals(r.getProperty().getId())
+                    )
+                );
+            });
 @Entity
 @Data
 @NoArgsConstructor
