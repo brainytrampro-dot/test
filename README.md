@@ -1,308 +1,352 @@
-package ma.sg.its.octroicreditcore.service;
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Inject,
+  Injector,
+  OnInit
+} from '@angular/core';
+import { AbstractControl, FormArray, FormControl, FormGroup, Validators } from '@angular/forms';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { CodeLabel, PropertyItem, RefCity } from '@core/models';
+import { Guarantor } from '@core/models/guarantor';
+import { Rang as RangDto } from '@core/models/rang';
+import { ReferentialService } from '@core/services';
+import { SelectSearchService } from '@loan-dossier/services/select.service';
+import { BaseComponent } from '@shared/components';
+import { Observable } from 'rxjs';
 
-import jakarta.persistence.EntityNotFoundException;
-import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import ma.sg.its.octroicreditcore.dto.*;
-import ma.sg.its.octroicreditcore.enumeration.RequestStatus;
-import ma.sg.its.octroicreditcore.exception.TechnicalException;
-import ma.sg.its.octroicreditcore.mapper.*;
-import ma.sg.its.octroicreditcore.model.*;
-import ma.sg.its.octroicreditcore.repository.DossierDataRepository;
-import ma.sg.its.octroicreditcore.repository.DossierRequestRepository;
-import ma.sg.its.octroicreditcore.repository.DossierReturnDecisionRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
+@Component({
+  selector: 'app-beneficiary-form-dialog',
+  templateUrl: 'beneficiary-form-dialog.component.html',
+  styleUrls: ['./beneficiary-form-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class BeneficiaryFormDialogComponent extends BaseComponent implements OnInit {
+  beneficiaryTypeFormControl = new FormControl('1');
+  beneficiariesFormArray!: FormArray;
+  rangsMap: Map<number, Map<string, RangDto[]>> = new Map();
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.*;
+  cities$!: Observable<RefCity[]>;
+  acquisitionProperties: PropertyItem[] = [];
+  cityFilterControl = new FormControl();
+  filteredCities$!: Observable<CodeLabel[]>;
+  propertyFilterControl = new FormControl();
+  filteredProperty$!: Observable<PropertyItem[]>;
 
-@Service
-@Transactional
-@Slf4j
-@AllArgsConstructor
-public class DossierRequestService {
+  guarantors: Guarantor[] | undefined;
+  selectedGuarantors: Guarantor[] = [];
+  initialSelectedGuarantors: Guarantor[] | undefined;
 
-    private final DossierRequestRepository dossierRequestRepository;
-    private final DossierRequestMapper dossierRequestMapper;
-    private final RequestWarrantyMapper requestWarrantyMapper;
-    private final DossierReturnDecisionRepository dossierReturnDecisionRepository;
-    private final DossierDataRepository dossierDataRepository;
-    private final UserMapper userMapper;
-    private final BeneficiaryMapper beneficiaryMapper;
-    private final PropertyMapper propertyMapper;
-    private final RequestRepresentativeMapper representativeMapper;
+  constructor(
+    public refService: ReferentialService,
+    private selectService: SelectSearchService,
+    public dialogRef: MatDialogRef<BeneficiaryFormDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any,
+    injector: Injector
+  ) {
+    super(injector);
+    this.beneficiariesFormArray = this.formBuilder.array([]);
+    this.cities$ = this.refService.getCities();
+  }
 
-    public static final String INVALID_OR_NULL_DOSSIER_REQUEST_DTO = "Invalid or null dossier request DTO";
-    private static final List<String> FINAL_STATUSES = List.of(
-            RequestStatus.REJECTED.toString(),
-            RequestStatus.ACCEPTED.toString(),
-            RequestStatus.CLOSED.toString()
+  ngOnInit(): void {
+    this.initProperties();
+    this.addBenefFormGroup();
+    this.initAdultFormControl(0);
+
+    
+    if (this.data.selectedBeneficiary) {
+      this.getBenefGroup(0).patchValue(this.data.selectedBeneficiary);
+      this.restoreExistingRangs(0, this.data.selectedBeneficiary);
+    }
+
+    this.beneficiaryTypeFormControl.valueChanges.subscribe(v => this.onSelectBeneficiaryType(v));
+    this.guarantors = this.data.guarantors.filter((g: Guarantor) => !this.data.idcards.includes(g.idCardNumber));
+    this.initialSelectedGuarantors = this.data.selectedGuarantors;
+    this.filteredCities$ = this.selectService.filterOptions(this.cities$ || [], this.cityFilterControl, 'designation');
+    this.filteredProperty$ = this.selectService.filterOptions(this.data.properties || [], this.propertyFilterControl, 'landCertificateNumber');
+  }
+
+
+  get benefGroups(): FormGroup[] {
+    return this.beneficiariesFormArray.controls as FormGroup[];
+  }
+
+  getBenefGroup(index: number): FormGroup {
+    return this.beneficiariesFormArray.at(index) as FormGroup;
+  }
+
+  getSelectedProperties(index: number): PropertyItem[] {
+    return this.getBenefGroup(index).get('properties')?.value || [];
+  }
+
+  private buildBenefFormGroup(data?: Partial<any>): FormGroup {
+    return this.formBuilder.group({
+      id:[ data?.id ?? null],
+      lastname:                [data?.lastname   ?? null, [Validators.required]],
+      firstname:               [data?.firstname  ?? null, [Validators.required]],
+      address:                 [data?.address    ?? null, [Validators.required]],
+      adult:                   [data?.adult      ?? true],
+      idCardNumber:            [data?.idCardNumber   ?? null, [Validators.required]],
+      issuedAt:                [data?.issuedAt       ?? null, [Validators.required]],
+      representativeLastname:  [data?.representativeLastname  ?? null],
+      representativeFirstname: [data?.representativeFirstname ?? null],
+      judgeAuthorizationDate:  [data?.judgeAuthorizationDate  ?? null],
+      birthDate:               [data?.birthDate      ?? null, [Validators.required]],
+      codeBirthPlace:          [data?.codeBirthPlace ?? null, [Validators.required]],
+      properties:              [data?.properties ?? [], Validators.required]
+    });
+  }
+
+  private addBenefFormGroup(data?: Partial<any>): void {
+    this.beneficiariesFormArray.push(this.buildBenefFormGroup(data));
+  }
+
+  onPropertiesChange(index: number): void {
+    const selectedKeys = new Set(
+      this.getSelectedProperties(index).map(p => this.getPropertyKey(p))
     );
-
-
-    public List<DossierRequestDto> getDossierRequests(String dossierUuid) {
-        return dossierRequestMapper.mapToListDto(dossierRequestRepository.findAllByDossierUuid(dossierUuid));
+    const indexRangs = this.rangsMap.get(index);
+    if (indexRangs) {
+      indexRangs.forEach((_, key) => {
+        if (!selectedKeys.has(key)) indexRangs.delete(key);
+      });
     }
+    this.changeDetectorRef.detectChanges();
+  }
 
-    public DossierRequestDto getDossierRequestByUuid(String uuid) {
-        return dossierRequestMapper.convertToDTO(dossierRequestRepository.findByUuid(uuid));
+  getPropertyKey(property: PropertyItem): string {
+    return property.id?.toString() ?? property.uuid ?? '';
+  }
+
+  getRangs(index: number, property: PropertyItem): RangDto[] {
+    const propKey = this.getPropertyKey(property);
+    if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
+    const indexRangs = this.rangsMap.get(index)!;
+    if (!indexRangs.has(propKey)) indexRangs.set(propKey, []);
+    return indexRangs.get(propKey)!;
+  }
+
+  addRang(index: number, property: PropertyItem): void {
+    const rangs = this.getRangs(index, property);
+    rangs.push({ propertyId: property.id, propertyUuid: property.uuid } as RangDto);
+    this.changeDetectorRef.detectChanges();
+  }
+
+  removeRang(index: number, property: PropertyItem, rangIndex: number): void {
+    const rangs = this.getRangs(index, property);
+    rangs.splice(rangIndex, 1);
+    this.changeDetectorRef.detectChanges();
+  }
+
+  onGuarantorsChange(): void {
+    this.beneficiariesFormArray.clear();
+    this.rangsMap.clear();
+
+    for (const guarantor of this.selectedGuarantors) {
+      this.addBenefFormGroup({
+        uuid:guarantor?.id,
+        lastname:  guarantor.lastName,
+        firstname: guarantor.firstName,
+        idCardNumber: guarantor.idCardNumber,
+        address: guarantor?.address,
+        issuedAt:  guarantor?.issuedAt,
+        birthDate: guarantor?.birthDate,
+        codeBirthPlace: guarantor?.codeBirthPlace
+      });
     }
-    @Transactional
-    public DossierRequestDto createDossierRequest(DossierRequestDto newRequestDto) {
-        validateRequestDto(newRequestDto);
+    this.changeDetectorRef.markForCheck();
+  }
 
-        DossierData dossierData = loadDossierData(newRequestDto.getDossier().getUuid());
+  isGuarantorSelected(idCardNumber: string): boolean {
+    return this.initialSelectedGuarantors
+      ? this.initialSelectedGuarantors.some(sg => sg?.idCardNumber === idCardNumber)
+      : false;
+  }
 
-        closePreviousRequest(newRequestDto.getDossier().getUuid());
+  onSaveBeneficiary(): void {    
+    const beneficiaryType = this.beneficiaryTypeFormControl.value;
 
-        DossierRequest newRequest = dossierRequestMapper.convertToEntity(newRequestDto);
-        newRequest.setId(null);
-        newRequest.setDossier(dossierData);
-
-        Map<String, RequestBeneficiary> beneficiaryPool = new HashMap<>();
-        Map<String, RequestGuarantor> guarantorPool = new HashMap<>();
-        syncGuarantors(newRequestDto, newRequest, guarantorPool);
-        linkWarrantiesToRequest(newRequestDto, newRequest);
-        linkPropertiesToBeneficiaries(newRequestDto, newRequest, beneficiaryPool);
-        syncRepresentative(newRequestDto, newRequest, beneficiaryPool, guarantorPool);
-
-        DossierRequest saved = dossierRequestRepository.save(newRequest);
-        log.info("DossierRequest créé uuid={}", saved.getUuid());
-
-        return dossierRequestMapper.convertToDTO(saved);
+    if (beneficiaryType === '3') {
+      const result = this.benefGroups.map((group, index) => ({
+        ...group.value,
+        isGuarantor: true,
+        isBorrower: false,
+        rangs: this.buildFlatRangsList(index, group.value.properties || [])
+      }));
+      this.dialogRef.close(result);
+    } else {
+      const beneficiary = this.getBenefGroup(0).value;
+      beneficiary.isBorrower = beneficiaryType === '2';
+      beneficiary.isGuarantor = false;
+      beneficiary.rangs = this.buildFlatRangsList(0, this.getSelectedProperties(0));
+      this.dialogRef.close(beneficiary);
     }
+  }
 
-    private void syncGuarantors(DossierRequestDto newRequestDto, DossierRequest newRequest, Map<String, RequestGuarantor> guarantorPool) {
-        if(newRequest.getGuarantors() != null ) {
-            newRequestDto.getGuarantors().forEach(g-> {
-                RequestGuarantor guarantor = dossierRequestMapper.guarantorDtoToEntity(g);
-                guarantor.setId(null);
-                guarantor.setDossierRequest(newRequest);
-                guarantorPool.put(g.getUuid(), guarantor);
-                newRequest.getGuarantors().add(guarantor);
-            });
-        }
+  isRangsValid(index: number): boolean {
+    const properties = this.getSelectedProperties(index);
+    if (properties.length === 0) return false;
+    
+    const indexRangs = this.rangsMap.get(index);
+    if (!indexRangs) return false;
+    
+    const allValid = properties.every(p => {
+      const key = this.getPropertyKey(p);
+      const rangs = indexRangs.get(key);
+      
+      if (!rangs || rangs.length === 0) return false;
+      
+      return rangs.every(r => 
+        r.rang != null && 
+        r.warrantyAmount != null &&
+        ( r.propertyId != null || r.propertyUuid != null)
+      );
+    });
+    console.log({allValid, properties});
+    
+    return allValid;
+  }
+
+  isAddButtonActif(): boolean {
+    const beneficiaryType = this.beneficiaryTypeFormControl.value;
+    if (beneficiaryType === '3') {
+      return this.selectedGuarantors.length > 0 && 
+            this.benefGroups.every((g, i) => !g.invalid && this.isRangsValid(i));
     }
+    return !this.getBenefGroup(0).invalid && this.isRangsValid(0);
+  }
 
-    private void syncRepresentative(DossierRequestDto newRequestDto, DossierRequest newRequest, Map<String, RequestBeneficiary> beneficiaryPool, Map<String, RequestGuarantor> guarantorPool) {
-        if(newRequest.getRepresentatives() != null) newRequest.getRepresentatives().clear();
-        else { newRequest.setRepresentatives(new ArrayList<>());}
-        if(newRequestDto.getRepresentatives() != null && !newRequestDto.getRepresentatives().isEmpty()) {
-            for (RepresentativeDto repDto : newRequestDto.getRepresentatives()) {
-                RequestRepresentative  rep = representativeMapper.toEntity(repDto);
-                rep.setDossierRequest(newRequest);
-                rep.setId(null);
+  onCancel(): void {
+    this.dialogRef.close();
+  }
 
-                linkCustomerRelationship(repDto, rep, newRequest.getDossier());
-                linkBeneficiaryRelationships(repDto, rep, newRequest, beneficiaryPool);
-                linkGuarantorRelationships(repDto, rep, newRequest, guarantorPool);
+  compareObjects(o1: any, o2: any): boolean {
+    const code1 = typeof o1 === 'object' ? o1?.code : o1;
+    const code2 = typeof o2 === 'object' ? o2?.code : o2;
+    return code1 === code2;
+  }
 
-                newRequest.getRepresentatives().add(rep);
-            }
-        }
-    }
+  private buildFlatRangsList(index: number, properties: PropertyItem[]): RangDto[] {
+    const result: RangDto[] = [];
+    const indexRangs = this.rangsMap.get(index);
+    if (!indexRangs) return result;
 
-
-    private void linkGuarantorRelationships(RepresentativeDto dto, RequestRepresentative entity, DossierRequest request, Map<String, RequestGuarantor> guarantorPool) {
-        if (CollectionUtils.isEmpty(dto.getGuarantors()) || CollectionUtils.isEmpty(request.getGuarantors())) {
-            return;
-        }
-
-        dto.getGuarantors().forEach(guar -> {
-            String key = guar.getUuid() != null ? guar.getUuid() : guar.getId() != null ? guar.getId().toString() : null;
-            if(key != null) {
-                RequestGuarantor requestGuarantor = guarantorPool.get(key);
-                RequestRepresentativeGuarantor association = new RequestRepresentativeGuarantor();
-                association.setRepresentative(entity);
-                association.setGuarantor(requestGuarantor);
-                association.setProxyDate(guar.getProxyDate());
-
-                entity.setGuarantorAssociations(new ArrayList<>());
-                entity.getGuarantorAssociations().add(association);
-            }
+    for (const property of properties) {
+      const propKey = this.getPropertyKey(property);
+      const rangs = indexRangs.get(propKey) || [];
+      for (const r of rangs) {
+        result.push({
+          id: r.id,
+          rang: r.rang,
+          warrantyAmount: r.warrantyAmount,
+          propertyId: property.id,
+          propertyUuid: property.uuid
         });
+      }
     }
+    return result;
+  }
 
+  private restoreExistingRangs(index: number, benef: any): void {
+    if (!benef.rangs || !benef.properties) return;
 
-    private void linkCustomerRelationship(RepresentativeDto dto, RequestRepresentative entity, DossierData dossier) {
-        if (dto.getCustomer() == null || dossier.getCustomerData() == null) {
-            return;
+    for (const property of benef.properties) {
+      const propKey = this.getPropertyKey(property);
+
+      const rangsForProp = (benef.rangs as RangDto[]).filter(r => {
+        if (property.id != null && r.propertyId != null) {
+          return r.propertyId === property.id;
         }
-
-        Customer customer = dossier.getCustomerData().getCustomer();
-        LocalDate proxyDate = dto.getCustomer().getProxyDate();
-
-        if (customer != null && proxyDate != null) {
-            RequestRepresentativeCustomer association = new  RequestRepresentativeCustomer();
-            association.setRepresentative(entity);
-            association.setCustomer(customer);
-            association.setProxyDate(proxyDate);
-
-            entity.setCustomerAssociations(new ArrayList<>());
-            entity.getCustomerAssociations().add(association);
+        if (property.uuid != null && r.propertyUuid != null) {
+          return r.propertyUuid === property.uuid;
         }
+        return false;
+      });
+
+      if (rangsForProp.length > 0) {
+        if (!this.rangsMap.has(index)) this.rangsMap.set(index, new Map());
+        this.rangsMap.get(index)!.set(propKey, [...rangsForProp]);
+      }
     }
+  }
 
-    private void linkBeneficiaryRelationships(RepresentativeDto dto, RequestRepresentative entity, DossierRequest request,
-                                              Map<String, RequestBeneficiary> beneficiaryPool) {
-        if (CollectionUtils.isEmpty(dto.getBeneficiaries()) || CollectionUtils.isEmpty(request.getBeneficiaries())) {
-            return;
-        }
 
-        dto.getBeneficiaries().forEach(ben -> {
-            String key = ben.getUuid() != null ? ben.getUuid() : ben.getId() != null ? ben.getId().toString() : null;
-            if(key != null) {
-                RequestBeneficiary requestBeneficiary = beneficiaryPool.get(key);
-                RequestRepresentativeBeneficiary association = new RequestRepresentativeBeneficiary();
-                association.setRepresentative(entity);
-                association.setBeneficiary(requestBeneficiary);
-                association.setProxyDate(ben.getProxyDate());
+  private initProperties(): void {
+    if (this.data.propertyData?.properties) {
+      this.acquisitionProperties = this.data.propertyData.properties;
+    }
+  }
 
-                entity.setBeneficiaryAssociations(new ArrayList<>());
-                entity.getBeneficiaryAssociations().add(association);
-            }
+  onSelectBeneficiaryType(event: any): void {
+    this.beneficiariesFormArray.clear();
+    this.rangsMap.clear();
+    this.addBenefFormGroup();
+    this.initAdultFormControl(0);
+
+    switch (event) {
+      case '1':
+        this.getBenefGroup(0).enable();
+        break;
+      case '2':
+        this.getBenefGroup(0).disable();
+        const personalInfo = this.data.personalInfo;
+        this.getBenefGroup(0).patchValue({
+          idCardNumber: personalInfo?.cardID,
+          address: [personalInfo?.address1, personalInfo?.address2, personalInfo?.address3].join(','),
+          lastname:  personalInfo?.lastName,
+          firstname: personalInfo?.firstName,
+          issuedAt:  personalInfo?.cardIDEmissionDate,
+          birthDate: personalInfo?.birthDate,
+          codeBirthPlace: personalInfo?.birthCountry
         });
+        break;
+      case '3':
+        this.beneficiariesFormArray.clear();
+        this.selectedGuarantors = [];
+        break;
+      default: break;
     }
+    this.changeDetectorRef.markForCheck();
+  }
 
-    @Transactional
-    public DossierRequestDto updateDossierRequest(DossierRequestDto dossierRequestDto) {
-        validateRequestDto(dossierRequestDto);
+  private initAdultFormControl(index: number): void {
+    const group = this.getBenefGroup(index);
+    const adultCtrl = group.get('adult') as FormControl;
 
-        DossierRequest existingDossierRequest = getLastDossierRequestInProgress(dossierRequestDto.getDossier().getUuid())
-                .orElseThrow(() -> new TechnicalException("Dossier request not found"));
+    this.getControlValueChanges(adultCtrl).subscribe((value) => {
+      const repLastname  = group.get('representativeLastname')  as FormControl;
+      const repFirstname = group.get('representativeFirstname') as FormControl;
+      const judgeDate    = group.get('judgeAuthorizationDate')  as FormControl;
+      const idCard       = group.get('idCardNumber')            as FormControl;
+      const issuedAt     = group.get('issuedAt')                as FormControl;
 
-        existingDossierRequest.setRequestStatus(dossierRequestDto.getRequestStatus());
-        existingDossierRequest.setDecisionDate(LocalDateTime.now());
-        existingDossierRequest.setDecidedBy(userMapper.convertToEntity(dossierRequestDto.getDecidedBy()));
-        if (FINAL_STATUSES.contains(dossierRequestDto.getRequestStatus())) {
-            saveReturnDecision(existingDossierRequest);
-        }
+      if (value === true) {
+        repLastname.removeValidators([Validators.required]);   repLastname.reset();
+        repFirstname.removeValidators([Validators.required]);  repFirstname.reset();
+        judgeDate.removeValidators([Validators.required]);     judgeDate.reset();
+        idCard.addValidators([Validators.required]);
+        issuedAt.addValidators([Validators.required]);
+      } else {
+        repLastname.addValidators([Validators.required]);
+        repFirstname.addValidators([Validators.required]);
+        judgeDate.addValidators([Validators.required]);
+        idCard.removeValidators([Validators.required]);  idCard.reset();
+        issuedAt.removeValidators([Validators.required]); issuedAt.reset();
+      }
+    });
+  }
 
-        DossierRequest updatedEntity = dossierRequestRepository.save(existingDossierRequest);
-        return dossierRequestMapper.convertToDTO(updatedEntity);
-    }
-    private void saveReturnDecision(DossierRequest request) {
-        DossierReturnDecision decision = DossierReturnDecision.builder()
-                .dossier(request.getDossier())
-                .statusDossier(request.getStageDossier())
-                .tries(1)
-                .build();
-        dossierReturnDecisionRepository.save(decision);
-    }
+  getFormControl(index: number, name: string): FormControl {
+    return this.getBenefGroup(index).get(name) as FormControl;
+  }
 
-    private void validateRequestDto(DossierRequestDto dto) {
-        if (dto == null || dto.getDossier() == null || dto.getDossier().getUuid() == null) {
-            throw new TechnicalException(INVALID_OR_NULL_DOSSIER_REQUEST_DTO);
-        }
-    }
-
-    private DossierData loadDossierData(String uuid) {
-        return Optional.ofNullable(dossierDataRepository.findByUuid(uuid))
-                .orElseThrow(() -> new EntityNotFoundException("Dossier introuvable : " + uuid));
-    }
-
-
-
-    private void closePreviousRequest(String dossierUuid) {
-        dossierRequestRepository.findFirstByRequestStatusAndDossierUuidOrderByCreatedAtDesc(
-                RequestStatus.IN_PROGRESS.toString(),
-                dossierUuid
-        ).ifPresent(last -> {
-            last.setRequestStatus(RequestStatus.CLOSED.toString());
-            dossierRequestRepository.save(last);
-        });
-    }
-
-    private void linkWarrantiesToRequest(DossierRequestDto newRequestDto, DossierRequest newRequest) {
-        if (newRequestDto.getRequestWarranties() != null) {
-            List<RequestWarranty> warranties = newRequestDto.getRequestWarranties().stream()
-                    .map(warrantyDto -> {
-                        RequestWarranty warranty = requestWarrantyMapper.toEntity(warrantyDto);
-                        warranty.setDossierRequest(newRequest);
-                        warranty.setId(null);
-                        return warranty;
-                    }).toList();
-
-            newRequest.setRequestWarranties(warranties);
-        }
-    }
-
-    private Optional<DossierRequest> getLastDossierRequestInProgress(String dossierUuid){
-        return dossierRequestRepository.findFirstByRequestStatusAndDossierUuidOrderByCreatedAtDesc(
-                RequestStatus.IN_PROGRESS.toString(),
-                dossierUuid
-        );
-    }
-
-    private void linkPropertiesToBeneficiaries(DossierRequestDto dto, DossierRequest newRequest, Map<String, RequestBeneficiary> beneficiaryPool) {
-        Map<String, RequestProperty> propertyRegistry = buildPropertyRegistry(dto, newRequest);
-
-        if (dto.getBeneficiaries() != null) {
-            List<RequestBeneficiary> beneficiaries = dto.getBeneficiaries().stream()
-                    .map(bDto -> buildBeneficiary(bDto, newRequest, propertyRegistry, beneficiaryPool))
-                    .toList();
-            newRequest.setBeneficiaries(beneficiaries);
-        }
-
-        newRequest.setProperties(new ArrayList<>(propertyRegistry.values()));
-    }
-
-    private Map<String, RequestProperty> buildPropertyRegistry(DossierRequestDto dto, DossierRequest newRequest) {
-        Map<String, RequestProperty> registry = new LinkedHashMap<>();
-
-        if (dto.getPropertyData() == null
-                || dto.getPropertyData().getProperties() == null
-                || dto.getPropertyData().getProperties().isEmpty()) {
-            return registry;
-        }
-
-        dto.getPropertyData().getProperties().forEach(pDto -> {
-            String key = resolvePropertyKey(pDto);
-            registry.computeIfAbsent(key, k -> createFreshProperty(pDto, newRequest));
-        });
-
-        return registry;
-    }
-
-    private String resolvePropertyKey(PropertyDto pDto) {
-        return pDto.getId() != null ? pDto.getId().toString() : pDto.getUuid();
-    }
-
-    private RequestProperty createFreshProperty(PropertyDto pDto, DossierRequest newRequest) {
-        pDto.setId(null);
-
-        RequestProperty prop = propertyMapper.convertToRequestEntity(pDto);
-        prop.setId(null);
-        prop.setDossierRequest(newRequest);
-
-        return prop;
-    }
-
-    private RequestBeneficiary buildBeneficiary(
-            BeneficiaryDto bDto,
-            DossierRequest newRequest,
-            Map<String, RequestProperty> registry,
-            Map<String, RequestBeneficiary> beneficiaryPool) {
-
-        RequestBeneficiary beneficiary = beneficiaryMapper.convertToRequestEntity(bDto);
-        beneficiary.setId(null);
-        beneficiary.setDossierRequest(newRequest);
-
-        if (bDto.getProperties() != null) {
-            List<RequestProperty> linkedProps = bDto.getProperties().stream()
-                .map(pDto -> {
-                    String key = resolvePropertyKey(pDto);
-                    return registry.computeIfAbsent(key, k -> createFreshProperty(pDto, newRequest));
-                })
-                .toList();
-            beneficiary.setProperties(linkedProps);
-            beneficiary.syncRangs(bDto.getRangs(),registry);
-        }
-
-        if(bDto.getUuid() != null) beneficiaryPool.put(bDto.getUuid(), beneficiary);
-        return beneficiary;
-    }
+  get adultFormControl(): FormControl        { return this.getFormControl(0, 'adult'); }
+  get idCardNumberFormControl(): FormControl  { return this.getFormControl(0, 'idCardNumber'); }
+  get issuedAtFormControl(): FormControl      { return this.getFormControl(0, 'issuedAt'); }
+  get birthDateFormControl(): FormControl     { return this.getFormControl(0, 'birthDate'); }
+  get codeBirthPlaceFormControl(): FormControl { return this.getFormControl(0, 'codeBirthPlace'); }
+  get representativeLastnameFormControl(): FormControl  { return this.getFormControl(0, 'representativeLastname'); }
+  get representativeFirstnameFormControl(): FormControl { return this.getFormControl(0, 'representativeFirstname'); }
+  get judgeAuthorizationDateFormControl(): FormControl  { return this.getFormControl(0, 'judgeAuthorizationDate'); }
 }
