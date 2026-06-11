@@ -1,3 +1,28 @@
+for (PropertyDto pDto : propDtos) {
+    Property property;
+    if (pDto.getId() != null) {
+        Optional<Property> existing = dossier.getProperties().stream()
+                .filter(p -> p.getId().equals(pDto.getId()))
+                .findFirst();
+
+        if (existing.isPresent()) {
+            property = existing.get();
+            propertyMapper.updateFromDto(pDto, property); // update existing only
+        } else {
+            // Cas rare — nouvelle property avec ID (vient d'ailleurs)
+            property = propertyMapper.convertToEntity(pDto);
+            property.setDossier(dossier);
+            dossier.getProperties().add(property);
+        }
+    } else {
+        property = propertyMapper.convertToEntity(pDto);
+        property.setDossier(dossier);
+        dossier.getProperties().add(property);
+    }
+    fillPropertyPool(property, pDto, pool);
+}
+
+
 package ma.sg.its.octroicreditcore.service;
 
 import jakarta.persistence.EntityNotFoundException;
