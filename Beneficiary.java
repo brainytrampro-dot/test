@@ -1,4 +1,8 @@
-
+canDeleteProperty(propertyId: number): boolean {
+  return !this.beneficiaries.some(benef =>
+    benef.rangs?.some(rang => rang.propertyId === propertyId)
+  );
+}
 deleteProperty(property: Property): void {
   if (!this.canDeleteProperty(property.id)) {
     // afficher message
