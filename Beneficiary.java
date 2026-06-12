@@ -1,3 +1,21 @@
+
+deleteProperty(property: Property): void {
+  if (!this.canDeleteProperty(property.id)) {
+    // afficher message
+    this.messageService.add({
+      severity: 'warn',
+      summary: 'Attention',
+      detail: 'Cette propriété est liée à un ou plusieurs bénéficiaires. Supprimez les rangs avant de supprimer la propriété.'
+    });
+    return;
+  }
+  // sinon supprimer
+  this.properties = this.properties.filter(p => p.id !== property.id);
+}
+
+
+
+
 package ma.sg.its.octroicreditcore.service;
 
 import jakarta.persistence.EntityManager;
