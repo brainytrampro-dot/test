@@ -1,3 +1,15 @@
+
+this.getRangs().removeIf(r -> {
+    // suprimi ila machi f modified
+    if (r.getId() != null && !modified.containsKey(r.getId())) return true;
+    // ✅ suprimi ila property dyalo matlgach f pool (supprimée)
+    if (r.getProperty() != null && r.getProperty().getId() != null) {
+        return pool.get(r.getProperty().getId().toString()) == null;
+    }
+    return false;
+});
+
+
 public void syncRangs(List<RangDto> updatedRangs, Map<String, Property> pool) {
         if(updatedRangs == null) return;
 
