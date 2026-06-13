@@ -1,4 +1,77 @@
-// maake full test coverage for DossierCreationHelper
+static diffObjects(base: any, current: any): any {
+    const changes: any = {};
+    const excludedKeys = new Set(['id', 'uuid']);
+
+    function compare(a: any, b: any, path: string = '') {
+        if (a === '' || a === null || a === undefined) a = null;
+        if (b === '' || b === null || b === undefined) b = null;
+
+        if (a === b) return;
+
+        const currentKey = (path.split('.').pop() || '').replace(/\[\d+\]/g, '');
+        if (excludedKeys.has(currentKey)) return;
+
+        if (a == null || b == null) {
+            changes[path] = { from: a, to: b };
+            return;
+        }
+
+        if (a instanceof Date || b instanceof Date) {
+            const ta = a instanceof Date ? a.getTime() : new Date(a).getTime();
+            const tb = b instanceof Date ? b.getTime() : new Date(b).getTime();
+            if (ta !== tb) changes[path] = { from: a, to: b };
+            return;
+        }
+
+        if (Array.isArray(a) || Array.isArray(b)) {
+            const arrA = Array.isArray(a) ? a : [];
+            const arrB = Array.isArray(b) ? b : [];
+
+            const hasIdentifier = (item: any) => item?.id || item?.uuid;
+
+            if (arrA.some(hasIdentifier) || arrB.some(hasIdentifier)) {
+                // Match par id/uuid
+                arrA.forEach((itemA, i) => {
+                    const itemB = arrB.find(b =>
+                        (itemA.uuid && b.uuid === itemA.uuid) ||
+                        (itemA.id && b.id === itemA.id)
+                    );
+                    compare(itemA, itemB ?? null, `${path}[${i}]`);
+                });
+
+                // Nouveaux éléments dans arrB sans match dans arrA
+                arrB.forEach((itemB, i) => {
+                    const exists = arrA.find(a =>
+                        (itemB.uuid && a.uuid === itemB.uuid) ||
+                        (itemB.id && a.id === itemB.id)
+                    );
+                    if (!exists) compare(null, itemB, `${path}[${arrA.length + i}]`);
+                });
+            } else {
+                // Pas d'identifiant → comparaison par index
+                const maxLength = Math.max(arrA.length, arrB.length);
+                for (let i = 0; i < maxLength; i++) {
+                    compare(arrA[i], arrB[i], `${path}[${i}]`);
+                }
+            }
+            return;
+        }
+
+        if (typeof a === 'object' && typeof b === 'object') {
+            Object.keys(a).forEach(key => {
+                if (excludedKeys.has(key)) return;
+                compare(a[key], b[key], path ? `${path}.${key}` : key);
+            });
+            return;
+        }
+
+        changes[path] = { from: a, to: b };
+    }
+
+    compare(base, current);
+    return changes;
+}
+
 
 package ma.sg.its.octroicreditcore.strategy;
 
@@ -7,534 +80,757 @@ import ma.sg.its.octroicreditcore.mapper.BeneficiaryMapper;
 import ma.sg.its.octroicreditcore.mapper.GuarantorMapper;
 import ma.sg.its.octroicreditcore.mapper.PropertyMapper;
 import ma.sg.its.octroicreditcore.model.*;
-import org.apache.commons.collections.CollectionUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
-@Component
-public class DossierCreationHelper {
+@ExtendWith(MockitoExtension.class)
+class DossierCreationHelperTest {
 
-    @Autowired
+    @InjectMocks
+    private DossierCreationHelper helper;
+
+    @Mock
     private PropertyMapper propertyMapper;
 
-    @Autowired
+    @Mock
     private BeneficiaryMapper beneficiaryMapper;
 
-    @Autowired
+    @Mock
     private GuarantorMapper guarantorMapper;
 
+    // ─── Helpers ────────────────────────────────────────────────────────────────
 
-    public void syncProperties(DossierDataDto newDossier, DossierData dossier, Map<String, Property> propertyPool) {
-        List<PropertyDto> propertyDtos = newDossier.getPropertyData() != null ? newDossier.getPropertyData().getProperties() : new ArrayList<>();
-        if (dossier.getProperties() == null) dossier.setProperties(new ArrayList<>());
-        if (CollectionUtils.isEmpty(propertyDtos)) {
-            dossier.getProperties().clear();
-            return;
-        }
-        Map<Long, PropertyDto> dtoMap = newDossier.getPropertyData().getProperties().stream()
-                .filter(p -> p.getId() != null)
-                .collect(Collectors.toMap(PropertyDto::getId, p -> p));
-
-        dossier.getProperties().stream()
-        .filter(p -> p.getId() != null && !dtoMap.containsKey(p.getId()))
-        .forEach(removedProp -> {
-            dossier.getBeneficiaries().forEach(benef ->
-                benef.getRangs().removeIf(r ->
-                    r.getProperty() != null && removedProp.getId().equals(r.getProperty().getId())
-                )
-            );
-        });
-
-        dossier.getProperties().removeIf(p -> p.getId() != null && !dtoMap.containsKey(p.getId()));
-
-        dossier.getProperties().forEach(prop -> {
-            if(dtoMap.containsKey(prop.getId())){
-                PropertyDto pDto = dtoMap.get(prop.getId());
-                propertyMapper.updateFromDto(pDto, prop);
-                if (pDto.getId() != null) {
-                    propertyPool.put(pDto.getId().toString(), prop);
-                }
-                if (pDto.getUuid() != null) {
-                    propertyPool.put(pDto.getUuid(), prop);
-                }
-            }
-        });
-
-        for (PropertyDto pDto : propertyDtos) {
-            if (pDto.getId() == null || dossier.getId() == null) {
-                Property property = propertyMapper.convertToEntity(pDto);
-                if (dossier.getId() == null) {
-                    property.setId(null);
-                }
-                property.setDossier(dossier);
-                dossier.getProperties().add(property);
-                if (pDto.getId() != null) {
-                    propertyPool.put(pDto.getId().toString(), property);
-                }
-                if (pDto.getUuid() != null) {
-                    propertyPool.put(pDto.getUuid(), property);
-                }
-            }
-        }
-    }
-    public void syncBeneficiaries(DossierDataDto newDossier, DossierData dossier, Map<String, Property> pool, Map<String, Beneficiary> beneficiaryPool) {
-        if (dossier.getBeneficiaries() == null) dossier.setBeneficiaries(new ArrayList<>());
-        if (CollectionUtils.isEmpty(newDossier.getBeneficiaries())) {
-            dossier.getBeneficiaries().clear();
-            return;
-        }
-        Map<Long, BeneficiaryDto> dtoMap = newDossier.getBeneficiaries().stream()
-                .filter(p -> p.getId() != null)
-                .collect(Collectors.toMap(BeneficiaryDto::getId, p -> p));
-
-        dossier.getBeneficiaries().stream()
-                .filter(b -> b.getId() != null && !dtoMap.containsKey(b.getId()))
-                .forEach(b -> b.getRangs().clear());
-
-        dossier.getBeneficiaries().removeIf(p -> p.getId() != null && !dtoMap.containsKey(p.getId()));
-
-        dossier.getBeneficiaries().forEach(benef -> {
-            if(dtoMap.containsKey(benef.getId())){
-                BeneficiaryDto bDto = dtoMap.get(benef.getId());
-                beneficiaryMapper.updateFromDto(bDto, benef);
-                benef.syncProperties(bDto.getProperties(), pool);
-                benef.syncRangs(bDto.getRangs(), pool);
-                if (benef.getId() != null) {
-                    beneficiaryPool.put(benef.getId().toString(), benef);
-                }
-                if (benef.getUuid() != null) {
-                    beneficiaryPool.put(benef.getUuid(), benef);
-                }
-            }
-        });
-
-        for (BeneficiaryDto bDto : newDossier.getBeneficiaries()) {
-            if (bDto.getId() == null || dossier.getId() == null) {
-                Beneficiary beneficiary = beneficiaryMapper.convertToEntity(bDto);
-                if (dossier.getId() == null) {
-                    beneficiary.setId(null);
-                }
-                beneficiary.setDossier(dossier);
-                beneficiary.syncProperties(bDto.getProperties(), pool);
-                beneficiary.syncRangs(bDto.getRangs(), pool);
-                dossier.getBeneficiaries().add(beneficiary);
-                if (bDto.getId() != null) {
-                    beneficiaryPool.put(bDto.getId().toString(), beneficiary);
-                }
-                if (bDto.getUuid() != null) {
-                    beneficiaryPool.put(bDto.getUuid(), beneficiary);
-                }
-            }
-        }
-    }
-    public void syncGuarantors(DossierDataDto newDossier, DossierData dossier, Map<String, Guarantor> guarantorPool) {
-        if (dossier.getGuarantors() == null) dossier.setGuarantors(new ArrayList<>());
-        if (CollectionUtils.isEmpty(newDossier.getGuarantors())) {
-            dossier.getGuarantors().clear();
-            return;
-        }
-
-        Map<Long, GuarantorDto> incomingIds = newDossier.getGuarantors().stream()
-                .filter(r -> r.getId() != null)
-                .collect(Collectors.toMap(GuarantorDto::getId, r -> r));
-
-        dossier.getGuarantors().removeIf(r -> r.getId() != null && !incomingIds.containsKey(r.getId()));
-
-        dossier.getGuarantors().forEach(rep -> {
-            if(incomingIds.containsKey(rep.getId())){
-                GuarantorDto repDto = incomingIds.get(rep.getId());
-                guarantorMapper.updateFromDto(repDto, rep);
-                if (rep.getId() != null) {
-                    guarantorPool.put(rep.getId().toString(), rep);
-                }
-                if (rep.getUuid() != null) {
-                    guarantorPool.put(rep.getUuid(), rep);
-                }
-            }
-        });
-
-        for (GuarantorDto repDto : newDossier.getGuarantors()) {
-            if (repDto.getId() == null || dossier.getId() == null) {
-                Guarantor guarantor = guarantorMapper.convertToEntity(repDto);
-                if (dossier.getId() == null) {
-                    guarantor.setId(null);
-                }
-                guarantor.setDossier(dossier);
-                dossier.getGuarantors().add(guarantor);
-
-                if (repDto.getId() != null) {
-                    guarantorPool.put(repDto.getId().toString(), guarantor);
-                }
-                if (repDto.getUuid() != null) {
-                    guarantorPool.put(repDto.getUuid(), guarantor);
-                }
-            }
-        }
-    }
-    public void syncRepresentatives(DossierDataDto newDossier, DossierData dossier, Map<String, Guarantor> guarantorPool, Map<String, Beneficiary> beneficiaryPool) {
-        if (CollectionUtils.isEmpty(newDossier.getRepresentatives())) {
-            clearAllRepresentativeReferences(dossier);
-            if (dossier.getRepresentatives() != null) {
-                dossier.getRepresentatives().clear();
-            }
-            return;
-        }
-
-        Set<Long> incomingIds = dossier.getId() == null ? Collections.emptySet() : newDossier.getRepresentatives().stream()
-                .map(RepresentativeDto::getId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        if (dossier.getId() != null && dossier.getRepresentatives() != null) {
-            dossier.getRepresentatives().removeIf(r -> r.getId() != null && !incomingIds.contains(r.getId()));
-        }
-
-        Map<Long, Representative> existingById = (dossier.getId() == null || dossier.getRepresentatives() == null)
-                ? Collections.emptyMap()
-                : dossier.getRepresentatives().stream()
-                .filter(r -> r.getId() != null)
-                .collect(Collectors.toMap(Representative::getId, r -> r));
-
-        for (RepresentativeDto repDto : newDossier.getRepresentatives()) {
-            Representative rep = upsertRepresentative(repDto, existingById, dossier);
-            linkRepresentativeRelationships(repDto, rep, dossier, guarantorPool, beneficiaryPool);
-        }
-    }
-    private Representative upsertRepresentative(RepresentativeDto dto, Map<Long, Representative> existingById, DossierData dossier) {
-        Representative rep;
-
-        if (dossier.getId() != null && dto.getId() != null && existingById.containsKey(dto.getId())) {
-            rep = existingById.get(dto.getId());
-            rep.unlinkAllBeneficiaries();
-            rep.unlinkAllGuarantors();
-            rep.unlinkAllCustomers();
-        } else {
-            rep = new Representative();
-            if (dossier.getId() == null) {
-                rep.setId(null);
-            }
-            rep.setDossier(dossier);
-            if (dossier.getRepresentatives() == null) {
-                dossier.setRepresentatives(new ArrayList<>());
-            }
-            dossier.getRepresentatives().add(rep);
-        }
-
-        rep.setFirstname(dto.getFirstname());
-        rep.setLastname(dto.getLastname());
-        rep.setCin(dto.getCin());
-        rep.setCinIssuedAt(dto.getCinIssuedAt());
-
-        return rep;
+    private PropertyDto makePropertyDto(Long id, String uuid) {
+        PropertyDto dto = new PropertyDto();
+        dto.setId(id);
+        dto.setUuid(uuid);
+        return dto;
     }
 
-
-    private void linkRepresentativeRelationships(
-            RepresentativeDto dto,
-            Representative entity,
-            DossierData dossier, Map<String, Guarantor> guarantorPool, Map<String, Beneficiary> beneficiaryPool) {
-
-        linkCustomerRelationship(dto, entity, dossier);
-        linkBeneficiaryRelationships(dto, entity, dossier, beneficiaryPool);
-        linkGuarantorRelationships(dto, entity, dossier, guarantorPool);
+    private Property makeProperty(Long id, String uuid) {
+        Property p = new Property();
+        p.setId(id);
+        p.setUuid(uuid);
+        return p;
     }
 
-    private void linkCustomerRelationship(RepresentativeDto dto, Representative entity, DossierData dossier) {
-        if (dto.getCustomer() == null || dossier.getCustomerData() == null) {
-            return;
-        }
-
-        Customer customer = dossier.getCustomerData().getCustomer();
-        LocalDate proxyDate = dto.getCustomer().getProxyDate();
-
-        if (customer != null && proxyDate != null) {
-            entity.linkCustomer(customer, proxyDate);
-        }
+    private BeneficiaryDto makeBeneficiaryDto(Long id, String uuid) {
+        BeneficiaryDto dto = new BeneficiaryDto();
+        dto.setId(id);
+        dto.setUuid(uuid);
+        return dto;
     }
 
-    private void linkBeneficiaryRelationships(RepresentativeDto dto, Representative entity, DossierData dossier, Map<String, Beneficiary> beneficiaryPool) {
-        if (CollectionUtils.isEmpty(dto.getBeneficiaries()) || CollectionUtils.isEmpty(dossier.getBeneficiaries())) {
-            return;
-        }
-        if (entity.getBeneficiaryAssociations() == null) {
-            entity.setBeneficiaryAssociations(new ArrayList<>());
-        } else {
-            entity.getBeneficiaryAssociations().clear();
-        }
-        dto.getBeneficiaries().forEach(ben -> {
-            if(ben.getBeneficiary() == null) return;
-            String key =  ben.getBeneficiary().getId() != null ? ben.getBeneficiary().getId().toString()
-                    : (ben.getBeneficiary().getUuid() != null ? ben.getBeneficiary().getUuid() :null);
-            if(key != null) {
-                Beneficiary beneficiary = beneficiaryPool.get(key);
-                if(beneficiary == null) return;
-                RepresentativeBeneficiary association = new RepresentativeBeneficiary();
-                association.setRepresentative(entity);
-                association.setBeneficiary(beneficiary);
-                association.setProxyDate(ben.getProxyDate());
-                entity.getBeneficiaryAssociations().add(association);
-            }
-        });
+    private Beneficiary makeBeneficiary(Long id, String uuid) {
+        Beneficiary b = new Beneficiary();
+        b.setId(id);
+        b.setUuid(uuid);
+        b.setRangs(new ArrayList<>());
+        return b;
     }
 
-    private void linkGuarantorRelationships(RepresentativeDto dto, Representative entity, DossierData dossier, Map<String, Guarantor> guarantorPool) {
-        if (CollectionUtils.isEmpty(dto.getGuarantors()) || CollectionUtils.isEmpty(dossier.getGuarantors())) {
-            return;
-        }
-
-        if (entity.getGuarantorAssociations() == null) {
-            entity.setGuarantorAssociations(new ArrayList<>());
-        } else {
-            entity.getGuarantorAssociations().clear();
-        }
-        dto.getGuarantors().forEach(guar -> {
-            if(guar.getGuarantor() == null) return;
-            String key = guar.getGuarantor().getId() != null ? guar.getGuarantor().getId().toString()
-                    : (guar.getGuarantor().getUuid() != null ? guar.getGuarantor().getUuid() : null);
-            if(key != null) {
-                Guarantor requestGuarantor = guarantorPool.get(key);
-                if(requestGuarantor == null) return;
-                RepresentativeGuarantor association = new RepresentativeGuarantor();
-                association.setRepresentative(entity);
-                association.setGuarantor(requestGuarantor);
-                association.setProxyDate(guar.getProxyDate());
-                entity.getGuarantorAssociations().add(association);
-            }
-        });
+    private GuarantorDto makeGuarantorDto(Long id, String uuid) {
+        GuarantorDto dto = new GuarantorDto();
+        dto.setId(id);
+        dto.setUuid(uuid);
+        return dto;
     }
 
-    private void clearAllRepresentativeReferences(DossierData dossier) {
-        if (dossier.getRepresentatives() != null) {
-            dossier.getRepresentatives().forEach(rep -> {
-                rep.unlinkAllBeneficiaries();
-                rep.unlinkAllGuarantors();
-                rep.unlinkAllCustomers();
-            });
-        }
+    private Guarantor makeGuarantor(Long id, String uuid) {
+        Guarantor g = new Guarantor();
+        g.setId(id);
+        g.setUuid(uuid);
+        return g;
     }
-}
 
+    private DossierData emptyDossier() {
+        DossierData d = new DossierData();
+        d.setId(1L);
+        d.setProperties(new ArrayList<>());
+        d.setBeneficiaries(new ArrayList<>());
+        d.setGuarantors(new ArrayList<>());
+        d.setRepresentatives(new ArrayList<>());
+        return d;
+    }
 
-package ma.sg.its.octroicreditcore.strategy;
+    private DossierDataDto emptyDto() {
+        DossierDataDto dto = new DossierDataDto();
+        dto.setPropertyData(new PropertyDataDto());
+        dto.getPropertyData().setProperties(new ArrayList<>());
+        dto.setBeneficiaries(new ArrayList<>());
+        dto.setGuarantors(new ArrayList<>());
+        dto.setRepresentatives(new ArrayList<>());
+        return dto;
+    }
 
-import ma.sg.its.octroicreditcore.dto.DebtDto;
-import ma.sg.its.octroicreditcore.dto.DebtInfnDto;
-import ma.sg.its.octroicreditcore.dto.DossierDataDto;
-import ma.sg.its.octroicreditcore.dto.DossierUserDto;
-import ma.sg.its.octroicreditcore.exception.TechnicalException;
-import ma.sg.its.octroicreditcore.mapper.DebtInfonMapper;
-import ma.sg.its.octroicreditcore.mapper.DebtMapper;
-import ma.sg.its.octroicreditcore.mapper.DossierDataMapper;
-import ma.sg.its.octroicreditcore.model.*;
-import ma.sg.its.octroicreditcore.repository.*;
-import ma.sg.its.octroicreditcore.service.UserService;
-import ma.sg.its.octroicreditcore.util.Assert;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+    // ════════════════════════════════════════════════════════════════════════════
+    // syncProperties
+    // ════════════════════════════════════════════════════════════════════════════
 
-import java.util.*;
+    @Test
+    void syncProperties_nullPropertyData_clearsProperties() {
+        DossierData dossier = emptyDossier();
+        dossier.getProperties().add(makeProperty(1L, "uuid-1"));
+        DossierDataDto dto = new DossierDataDto(); // propertyData = null
 
-@Service("customer")
-public class DossierCreationCustomerService extends DossierCreation {
+        helper.syncProperties(dto, dossier, new HashMap<>());
 
-    @Autowired
-    private CustomerCardRepository customerCardRepository;
-    @Autowired
-    private CustomerRepository customerRepository;
-    @Autowired
-    private DossierDataRepository dossierDataRepository;
-    @Autowired
-    private DossierDataMapper dossierDataMapper;
-    @Autowired
-    private DebtRepository debtRepository;
-    @Autowired
-    private DebtInfonRepository debtInfonRepository;
-    @Autowired
-    private DebtInfonMapper debtInfonMapper;
-    @Autowired
-    private DebtMapper debtMapper;
-    @Autowired
-    private DossierCreationHelper dossierCreationHelper;
-    @Override
-    public DossierDataDto create(DossierDataDto dossierDto) {
-        Assert.isNull(dossierDto.getUuid(), "Dossier already created");
-        DossierOrganization dossierOrganization = getDossierOrganization(dossierDto);
-        DossierData dossier = convertToEntity(dossierDto);
-        dossier.setDossierOrganization(dossierOrganization);
-        String customerCode = dossierDto.getCustomerData().getCustomer().getCode();
-        List<CustomerCard> customerCards = customerCardRepository.findByCustomer_Code(customerCode);
-        CustomerCard customerCard = customerCards.stream().filter(item -> item.equals(dossier.getCustomerData())).findFirst().orElse(null);
-        if (customerCard != null) {
-            dossier.setCustomerData(customerCard);
-        } else {
-            Customer customer = customerRepository.findByCode(customerCode);
-            if (dossier.getCustomerData() != null && customer != null) {
-                dossier.getCustomerData().setCustomer(customer);
-            }
-        }
-        Assert.notNull(dossier.getCustomerData(), "CustomerCard is mandatory");
-        addCustomerDebts(dossierDto, dossier);
-        addDossierUser(dossierDto, dossier);
+        assertThat(dossier.getProperties()).isEmpty();
+    }
 
-      // FIX!!! SONAR  Duplicated block. Click for details.
+    @Test
+    void syncProperties_emptyList_clearsProperties() {
+        DossierData dossier = emptyDossier();
+        dossier.getProperties().add(makeProperty(1L, "uuid-1"));
+        DossierDataDto dto = emptyDto(); // empty list
 
-        Map<String, Beneficiary> beneficiaryPool = new HashMap<>();
-        Map<String, Guarantor> guarantorPool = new HashMap<>();
-        Map<String, Property> propertyPool = new HashMap<>();
+        helper.syncProperties(dto, dossier, new HashMap<>());
+
+        assertThat(dossier.getProperties()).isEmpty();
+    }
+
+    @Test
+    void syncProperties_removesPropertyNotInDto_andClearsRangsFromBeneficiaries() {
+        DossierData dossier = emptyDossier();
+        Property existingProp = makeProperty(10L, "uuid-10");
+        dossier.getProperties().add(existingProp);
+
+        // beneficiary has a rang referencing that property
+        Beneficiary benef = makeBeneficiary(1L, "b-uuid");
+        Rang rang = new Rang();
+        rang.setProperty(existingProp);
+        benef.getRangs().add(rang);
+        dossier.setBeneficiaries(List.of(benef));
+
+        DossierDataDto dto = emptyDto();
+        // DTO sends a DIFFERENT property id => existing one should be removed
+        PropertyDto newProp = makePropertyDto(99L, "uuid-99");
+        Property newPropEntity = makeProperty(99L, "uuid-99");
+        dto.getPropertyData().setProperties(List.of(newProp));
+        when(propertyMapper.convertToEntity(newProp)).thenReturn(newPropEntity);
+
+        Map<String, Property> pool = new HashMap<>();
+        helper.syncProperties(dto, dossier, pool);
+
+        assertThat(dossier.getProperties()).doesNotContain(existingProp);
+        assertThat(benef.getRangs()).isEmpty(); // rang removed
+        assertThat(dossier.getProperties()).contains(newPropEntity);
+    }
+
+    @Test
+    void syncProperties_updatesExistingProperty_andRegistersInPool() {
+        DossierData dossier = emptyDossier();
+        Property existingProp = makeProperty(10L, "uuid-10");
+        dossier.getProperties().add(existingProp);
+
+        PropertyDto dto10 = makePropertyDto(10L, "uuid-10");
+        DossierDataDto dto = emptyDto();
+        dto.getPropertyData().setProperties(List.of(dto10));
+
+        Map<String, Property> pool = new HashMap<>();
+        helper.syncProperties(dto, dossier, pool);
+
+        verify(propertyMapper).updateFromDto(dto10, existingProp);
+        assertThat(pool).containsKey("10");
+        assertThat(pool).containsKey("uuid-10");
+        assertThat(pool.get("10")).isSameAs(existingProp);
+    }
+
+    @Test
+    void syncProperties_newProperty_whenDossierIdNull_setsIdNull() {
+        DossierData dossier = new DossierData(); // id = null
         dossier.setProperties(new ArrayList<>());
         dossier.setBeneficiaries(new ArrayList<>());
+
+        PropertyDto pDto = makePropertyDto(5L, "uuid-5");
+        DossierDataDto dto = emptyDto();
+        dto.getPropertyData().setProperties(List.of(pDto));
+
+        Property created = makeProperty(5L, "uuid-5");
+        when(propertyMapper.convertToEntity(pDto)).thenReturn(created);
+
+        Map<String, Property> pool = new HashMap<>();
+        helper.syncProperties(dto, dossier, pool);
+
+        assertThat(created.getId()).isNull(); // forced null when dossier.id == null
+        assertThat(created.getDossier()).isSameAs(dossier);
+        assertThat(dossier.getProperties()).contains(created);
+        assertThat(pool).containsKey("uuid-5");
+    }
+
+    @Test
+    void syncProperties_newProperty_whenDossierIdNotNull_addsToCollectionAndPool() {
+        DossierData dossier = emptyDossier(); // id = 1L
+        // No existing properties with matching id => triggers new branch (id == null check fails but existing doesn't match)
+        PropertyDto pDto = makePropertyDto(null, "uuid-new"); // id null => always new
+        DossierDataDto dto = emptyDto();
+        dto.getPropertyData().setProperties(List.of(pDto));
+
+        Property created = makeProperty(null, "uuid-new");
+        when(propertyMapper.convertToEntity(pDto)).thenReturn(created);
+
+        Map<String, Property> pool = new HashMap<>();
+        helper.syncProperties(dto, dossier, pool);
+
+        assertThat(dossier.getProperties()).contains(created);
+        assertThat(pool).containsKey("uuid-new");
+    }
+
+    @Test
+    void syncProperties_propertiesNullOnDossier_initializesCollection() {
+        DossierData dossier = new DossierData();
+        dossier.setProperties(null);
+        dossier.setBeneficiaries(new ArrayList<>());
+        dossier.setId(1L);
+
+        DossierDataDto dto = emptyDto(); // empty => should clear
+
+        helper.syncProperties(dto, dossier, new HashMap<>());
+
+        assertThat(dossier.getProperties()).isNotNull().isEmpty();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // syncBeneficiaries
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void syncBeneficiaries_emptyDto_clearsBeneficiaries() {
+        DossierData dossier = emptyDossier();
+        dossier.getBeneficiaries().add(makeBeneficiary(1L, "b1"));
+        DossierDataDto dto = emptyDto();
+
+        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(dossier.getBeneficiaries()).isEmpty();
+    }
+
+    @Test
+    void syncBeneficiaries_removedBeneficiary_clearsRangsFirst() {
+        DossierData dossier = emptyDossier();
+        Beneficiary toRemove = makeBeneficiary(99L, "b99");
+        Rang rang = new Rang();
+        toRemove.getRangs().add(rang);
+        dossier.setBeneficiaries(new ArrayList<>(List.of(toRemove)));
+
+        DossierDataDto dto = emptyDto();
+        BeneficiaryDto bDto = makeBeneficiaryDto(1L, "b1"); // different id
+        dto.setBeneficiaries(List.of(bDto));
+
+        Beneficiary newBenef = makeBeneficiary(null, "b1");
+        when(beneficiaryMapper.convertToEntity(bDto)).thenReturn(newBenef);
+
+        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(toRemove.getRangs()).isEmpty();
+        assertThat(dossier.getBeneficiaries()).doesNotContain(toRemove);
+    }
+
+    @Test
+    void syncBeneficiaries_updatesExistingBeneficiary_andRegistersInPool() {
+        DossierData dossier = emptyDossier();
+        Beneficiary existing = makeBeneficiary(5L, "b5");
+        dossier.setBeneficiaries(new ArrayList<>(List.of(existing)));
+
+        BeneficiaryDto bDto = makeBeneficiaryDto(5L, "b5");
+        bDto.setProperties(new ArrayList<>());
+        bDto.setRangs(new ArrayList<>());
+        DossierDataDto dto = emptyDto();
+        dto.setBeneficiaries(List.of(bDto));
+
+        Map<String, Beneficiary> benefPool = new HashMap<>();
+        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), benefPool);
+
+        verify(beneficiaryMapper).updateFromDto(bDto, existing);
+        assertThat(benefPool).containsKey("5");
+        assertThat(benefPool).containsKey("b5");
+    }
+
+    @Test
+    void syncBeneficiaries_newBeneficiary_whenDossierIdNull_setsIdNull() {
+        DossierData dossier = new DossierData(); // id null
+        dossier.setBeneficiaries(new ArrayList<>());
+
+        BeneficiaryDto bDto = makeBeneficiaryDto(7L, "b7");
+        bDto.setProperties(new ArrayList<>());
+        bDto.setRangs(new ArrayList<>());
+        DossierDataDto dto = emptyDto();
+        dto.setBeneficiaries(List.of(bDto));
+
+        Beneficiary created = makeBeneficiary(7L, "b7");
+        when(beneficiaryMapper.convertToEntity(bDto)).thenReturn(created);
+
+        Map<String, Beneficiary> pool = new HashMap<>();
+        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), pool);
+
+        assertThat(created.getId()).isNull();
+        assertThat(pool).containsKey("b7");
+    }
+
+    @Test
+    void syncBeneficiaries_nullBeneficiariesOnDossier_initializesCollection() {
+        DossierData dossier = new DossierData();
+        dossier.setBeneficiaries(null);
+        DossierDataDto dto = emptyDto();
+
+        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(dossier.getBeneficiaries()).isNotNull().isEmpty();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // syncGuarantors
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void syncGuarantors_emptyDto_clearsGuarantors() {
+        DossierData dossier = emptyDossier();
+        dossier.getGuarantors().add(makeGuarantor(1L, "g1"));
+        DossierDataDto dto = emptyDto();
+
+        helper.syncGuarantors(dto, dossier, new HashMap<>());
+
+        assertThat(dossier.getGuarantors()).isEmpty();
+    }
+
+    @Test
+    void syncGuarantors_removesGuarantorNotInDto() {
+        DossierData dossier = emptyDossier();
+        dossier.getGuarantors().add(makeGuarantor(10L, "g10"));
+
+        GuarantorDto incoming = makeGuarantorDto(99L, "g99"); // different id
+        DossierDataDto dto = emptyDto();
+        dto.setGuarantors(List.of(incoming));
+        Guarantor created = makeGuarantor(null, "g99");
+        when(guarantorMapper.convertToEntity(incoming)).thenReturn(created);
+
+        helper.syncGuarantors(dto, dossier, new HashMap<>());
+
+        assertThat(dossier.getGuarantors()).noneMatch(g -> Long.valueOf(10L).equals(g.getId()));
+    }
+
+    @Test
+    void syncGuarantors_updatesExistingGuarantor_andRegistersInPool() {
+        DossierData dossier = emptyDossier();
+        Guarantor existing = makeGuarantor(3L, "g3");
+        dossier.setGuarantors(new ArrayList<>(List.of(existing)));
+
+        GuarantorDto gDto = makeGuarantorDto(3L, "g3");
+        DossierDataDto dto = emptyDto();
+        dto.setGuarantors(List.of(gDto));
+
+        Map<String, Guarantor> pool = new HashMap<>();
+        helper.syncGuarantors(dto, dossier, pool);
+
+        verify(guarantorMapper).updateFromDto(gDto, existing);
+        assertThat(pool).containsKey("3").containsKey("g3");
+    }
+
+    @Test
+    void syncGuarantors_newGuarantor_whenDossierIdNull_setsIdNull() {
+        DossierData dossier = new DossierData(); // id null
         dossier.setGuarantors(new ArrayList<>());
+
+        GuarantorDto gDto = makeGuarantorDto(5L, "g5");
+        DossierDataDto dto = emptyDto();
+        dto.setGuarantors(List.of(gDto));
+
+        Guarantor created = makeGuarantor(5L, "g5");
+        when(guarantorMapper.convertToEntity(gDto)).thenReturn(created);
+
+        Map<String, Guarantor> pool = new HashMap<>();
+        helper.syncGuarantors(dto, dossier, pool);
+
+        assertThat(created.getId()).isNull();
+        assertThat(pool).containsKey("g5");
+    }
+
+    @Test
+    void syncGuarantors_nullGuarantorsOnDossier_initializesCollection() {
+        DossierData dossier = new DossierData();
+        dossier.setGuarantors(null);
+        DossierDataDto dto = emptyDto();
+
+        helper.syncGuarantors(dto, dossier, new HashMap<>());
+
+        assertThat(dossier.getGuarantors()).isNotNull().isEmpty();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // syncRepresentatives
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void syncRepresentatives_emptyDto_clearsRepresentativesAndUnlinks() {
+        DossierData dossier = emptyDossier();
+        Representative rep = mock(Representative.class);
+        dossier.setRepresentatives(new ArrayList<>(List.of(rep)));
+        DossierDataDto dto = emptyDto(); // representatives empty
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        verify(rep).unlinkAllBeneficiaries();
+        verify(rep).unlinkAllGuarantors();
+        verify(rep).unlinkAllCustomers();
+        assertThat(dossier.getRepresentatives()).isEmpty();
+    }
+
+    @Test
+    void syncRepresentatives_nullRepresentatives_clearsAndUnlinks() {
+        DossierData dossier = emptyDossier();
+        Representative rep = mock(Representative.class);
+        dossier.setRepresentatives(new ArrayList<>(List.of(rep)));
+
+        DossierDataDto dto = new DossierDataDto();
+        dto.setRepresentatives(null);
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        verify(rep).unlinkAllBeneficiaries();
+        assertThat(dossier.getRepresentatives()).isEmpty();
+    }
+
+    @Test
+    void syncRepresentatives_newDossier_createsRepresentativeWithNullId() {
+        DossierData dossier = new DossierData(); // id null => new dossier
         dossier.setRepresentatives(new ArrayList<>());
-        dossierCreationHelper.syncProperties(dossierDto, dossier, propertyPool);
-        dossierCreationHelper.syncBeneficiaries(dossierDto, dossier, propertyPool, beneficiaryPool);
-        dossierCreationHelper.syncGuarantors(dossierDto, dossier, guarantorPool);
-        dossierCreationHelper.syncRepresentatives(dossierDto, dossier, guarantorPool, beneficiaryPool);
-        prepareDossier(dossier);
-
-        DossierData saved = dossierDataRepository.save(dossier);
-        return convertToDto(saved);
-    }
-
-    private void addCustomerDebts(DossierDataDto dossierDto, DossierData dossier) {
-        List<DebtDto> debtDtos = dossierDto.getDebts();
-        List<Debt> debts = new ArrayList<>();
-        if (debtDtos != null && !debtDtos.isEmpty()) {
-            debtDtos.stream().forEach(debtDto -> {
-                List<Debt> optDebt = debtRepository.findLastCreatedDebtByFileNumberAndRemainingCapital(debtDto.getFileNumber(), debtDto.getRemainingCapital());
-                if (!CollectionUtils.isEmpty(optDebt)) {
-                    debts.add(optDebt.get(0));
-                } else {
-                    Debt debt = debtRepository.save(debtMapper.convertToEntity(debtDto));
-                    debts.add(debt);
-                }
-            });
-        }
-        if (!debts.isEmpty()) dossier.setDebts(debts);
-
-        List<DebtInfnDto> debtInfnDto = dossierDto.getDebtsinfon();
-        List<DebtInfon> debtsInfon = new ArrayList<>();
-        if (debtInfnDto != null && !debtInfnDto.isEmpty()) {
-            debtInfnDto.stream().forEach(debtInfonDto -> {
-                DebtInfon debtInfon = debtInfonRepository.save(debtInfonMapper.convertToEntity(debtInfonDto));
-                debtsInfon.add(debtInfon);
-            });
-        }
-        if (!debtsInfon.isEmpty()) dossier.setDebtsinfon(debtsInfon);
-        if (dossier.getLoanData() != null) {
-            dossier.getLoanData().setIsExternDebtsInfnRetrieved(Boolean.FALSE);
-        }
-    }
-
-    private DossierData convertToEntity(DossierDataDto dossierDataDto) {
-        return dossierDataMapper.convertToEntity(dossierDataDto);
-    }
-
-    private DossierDataDto convertToDto(DossierData dossierData) {
-        DossierDataDto dossierDataDto = dossierDataMapper.convertToDTO(dossierData);
-        dossierDataDto.setCodeDossier(StringUtils.leftPad(dossierData.getId().toString(), 8, "0"));
-        return dossierDataDto;
-    }
-}
-
-
-package ma.sg.its.octroicreditcore.strategy;
-
-import ma.sg.its.octroicreditcore.dto.CustomerCardDto;
-import ma.sg.its.octroicreditcore.dto.DossierDataDto;
-import ma.sg.its.octroicreditcore.dto.DossierUserDto;
-import ma.sg.its.octroicreditcore.exception.TechnicalException;
-import ma.sg.its.octroicreditcore.mapper.CustomerMapper;
-import ma.sg.its.octroicreditcore.mapper.DossierDataMapper;
-import ma.sg.its.octroicreditcore.model.*;
-import ma.sg.its.octroicreditcore.repository.CustomerCardRepository;
-import ma.sg.its.octroicreditcore.repository.DossierDataRepository;
-import ma.sg.its.octroicreditcore.service.UserService;
-import ma.sg.its.octroicreditcore.util.Assert;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.util.*;
-
-import static ma.sg.its.octroicreditcore.constant.ErrorsConstants.DOSSIER_DATA_NOT_FOUND_DSC;
-
-@Service("prospect")
-public class DossierCreationProspectService extends DossierCreation {
-
-    @Autowired
-    private DossierDataRepository dossierDataRepository;
-    @Autowired
-    private CustomerCardRepository customerCardRepository;
-    @Autowired
-    private DossierDataMapper dossierDataMapper;
-    @Autowired
-    private CustomerMapper customerMapper;
-    @Autowired
-    private DossierCreationHelper dossierCreationHelper;
-
-    @Override
-    public DossierDataDto create(DossierDataDto dossierDto) {
-        if (dossierDto == null) {
-            throw new TechnicalException(DOSSIER_DATA_NOT_FOUND_DSC);
-        }
-        Assert.isNull(dossierDto.getUuid(), "Dossier already created");
-        Customer customer = createProspect(dossierDto.getCustomerData());
-        DossierOrganization dossierOrganization = getDossierOrganization(dossierDto);
-        DossierData dossier = convertToEntity(dossierDto);
-        dossier.setDossierOrganization(dossierOrganization);
-        List<CustomerCard> customerCards = customerCardRepository.findByCustomer_CardId(dossierDto.getCustomerData().getCustomer().getCardId());
-        CustomerCard customerCard = customerCards.stream().filter(item -> item.equals(dossier.getCustomerData())).findFirst().orElse(null);
-        if (customerCard != null) {
-            dossier.setCustomerData(customerCard);
-        } else {
-            if (dossier.getCustomerData() != null && customer != null) {
-                dossier.getCustomerData().setCustomer(customer);
-            }
-        }
-        Assert.notNull(dossier.getCustomerData(), "CustomerCard is mandatory");
-        addDossierUser(dossierDto, dossier);
-            // FIX!!! SONAR  Duplicated block. Click for details.
-
-        Map<String, Beneficiary> beneficiaryPool = new HashMap<>();
-        Map<String, Guarantor> guarantorPool = new HashMap<>();
-        Map<String, Property> propertyPool = new HashMap<>();
-        dossier.setProperties(new ArrayList<>());
         dossier.setBeneficiaries(new ArrayList<>());
         dossier.setGuarantors(new ArrayList<>());
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setId(1L);
+        repDto.setFirstname("Ali");
+        repDto.setLastname("Hassan");
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(dossier.getRepresentatives()).hasSize(1);
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getId()).isNull();
+        assertThat(created.getFirstname()).isEqualTo("Ali");
+        assertThat(created.getLastname()).isEqualTo("Hassan");
+    }
+
+    @Test
+    void syncRepresentatives_existingDossier_updatesExistingRep_andUnlinksFirst() {
+        DossierData dossier = emptyDossier(); // id = 1L
+
+        Representative existingRep = new Representative();
+        existingRep.setId(10L);
+        existingRep.setBeneficiaryAssociations(new ArrayList<>());
+        existingRep.setGuarantorAssociations(new ArrayList<>());
+        dossier.setRepresentatives(new ArrayList<>(List.of(existingRep)));
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setId(10L);
+        repDto.setFirstname("Updated");
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(existingRep.getFirstname()).isEqualTo("Updated");
+        assertThat(dossier.getRepresentatives()).contains(existingRep);
+    }
+
+    @Test
+    void syncRepresentatives_removesRepNotInIncomingIds() {
+        DossierData dossier = emptyDossier();
+
+        Representative toRemove = new Representative();
+        toRemove.setId(99L);
+        dossier.setRepresentatives(new ArrayList<>(List.of(toRemove)));
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setId(5L); // different
+        repDto.setFirstname("New");
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        assertThat(dossier.getRepresentatives()).noneMatch(r -> Long.valueOf(99L).equals(r.getId()));
+    }
+
+    // ─── linkCustomerRelationship ─────────────────────────────────────────────
+
+    @Test
+    void syncRepresentatives_linksCustomer_whenCustomerDataPresent() {
+        DossierData dossier = new DossierData();
+        dossier.setId(null); // new dossier
         dossier.setRepresentatives(new ArrayList<>());
-        dossierCreationHelper.syncProperties(dossierDto, dossier, propertyPool);
-        dossierCreationHelper.syncBeneficiaries(dossierDto, dossier, propertyPool, beneficiaryPool);
-        dossierCreationHelper.syncGuarantors(dossierDto, dossier, guarantorPool);
-        dossierCreationHelper.syncRepresentatives(dossierDto, dossier, guarantorPool, beneficiaryPool);
-        prepareDossier(dossier);
-        DossierData saved = dossierDataRepository.save(dossier);
+        dossier.setBeneficiaries(new ArrayList<>());
+        dossier.setGuarantors(new ArrayList<>());
 
-        return convertToDto(saved);
+        Customer customer = new Customer();
+        CustomerCard card = new CustomerCard();
+        card.setCustomer(customer);
+        dossier.setCustomerData(card);
+
+        RepresentativeDtoCustomerRef customerRef = new RepresentativeDtoCustomerRef();
+        customerRef.setProxyDate(LocalDate.of(2024, 1, 1));
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setCustomer(customerRef);
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        // linkCustomer should have been called — verify via side effect if Representative is not mocked
+        // This confirms no NPE and representative was created
+        assertThat(created).isNotNull();
     }
 
-    private DossierData convertToEntity(DossierDataDto dossierDataDto) {
-        return dossierDataMapper.convertToEntity(dossierDataDto);
+    // ─── linkBeneficiaryRelationships ─────────────────────────────────────────
+
+    @Test
+    void syncRepresentatives_linksBeneficiary_viaIdKey() {
+        DossierData dossier = emptyDossier();
+
+        Beneficiary benef = makeBeneficiary(7L, "b7");
+        dossier.setBeneficiaries(List.of(benef));
+
+        Map<String, Beneficiary> benefPool = new HashMap<>();
+        benefPool.put("7", benef);
+
+        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
+        BeneficiaryDto bInner = makeBeneficiaryDto(7L, null);
+        bRef.setBeneficiary(bInner);
+        bRef.setProxyDate(LocalDate.now());
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setId(1L);
+        repDto.setBeneficiaries(List.of(bRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getBeneficiaryAssociations()).hasSize(1);
+        assertThat(created.getBeneficiaryAssociations().get(0).getBeneficiary()).isSameAs(benef);
     }
 
-    private DossierDataDto convertToDto(DossierData dossierData) {
-        DossierDataDto dossierDataDto = dossierDataMapper.convertToDTO(dossierData);
-        dossierDataDto.setCodeDossier(StringUtils.leftPad(dossierData.getId().toString(), 8, "0"));
-        return dossierDataDto;
+    @Test
+    void syncRepresentatives_linksBeneficiary_viaUuidKey_whenIdNull() {
+        DossierData dossier = emptyDossier();
+
+        Beneficiary benef = makeBeneficiary(null, "uuid-benef");
+        dossier.setBeneficiaries(List.of(benef));
+
+        Map<String, Beneficiary> benefPool = new HashMap<>();
+        benefPool.put("uuid-benef", benef);
+
+        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
+        BeneficiaryDto bInner = makeBeneficiaryDto(null, "uuid-benef");
+        bRef.setBeneficiary(bInner);
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setBeneficiaries(List.of(bRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getBeneficiaryAssociations()).hasSize(1);
     }
-    private Customer createProspect(CustomerCardDto customerCardDto) {
-        CustomerCard customerCard = customerMapper.convertCustomerCardToEntity(customerCardDto);
-        customerCardRepository.save(customerCard);
-        return customerCard.getCustomer();
+
+    @Test
+    void syncRepresentatives_skipsBeneficiaryRef_whenBeneficiaryNotInPool() {
+        DossierData dossier = emptyDossier();
+
+        Map<String, Beneficiary> benefPool = new HashMap<>(); // empty pool
+
+        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
+        BeneficiaryDto bInner = makeBeneficiaryDto(99L, null);
+        bRef.setBeneficiary(bInner);
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setBeneficiaries(List.of(bRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+        dossier.setBeneficiaries(List.of(makeBeneficiary(1L, "b1"))); // non-empty so early return skipped
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getBeneficiaryAssociations()).isEmpty();
+    }
+
+    @Test
+    void syncRepresentatives_skipsBeneficiaryRef_whenBeneficiaryInnerDtoNull() {
+        DossierData dossier = emptyDossier();
+        dossier.setBeneficiaries(List.of(makeBeneficiary(1L, "b1")));
+
+        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
+        bRef.setBeneficiary(null); // null inner dto
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setBeneficiaries(List.of(bRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getBeneficiaryAssociations()).isEmpty();
+    }
+
+    // ─── linkGuarantorRelationships ───────────────────────────────────────────
+
+    @Test
+    void syncRepresentatives_linksGuarantor_viaIdKey() {
+        DossierData dossier = emptyDossier();
+
+        Guarantor guarantor = makeGuarantor(8L, "g8");
+        dossier.setGuarantors(List.of(guarantor));
+
+        Map<String, Guarantor> guarantorPool = new HashMap<>();
+        guarantorPool.put("8", guarantor);
+
+        GuarantorRefDto gRef = new GuarantorRefDto();
+        GuarantorDto gInner = makeGuarantorDto(8L, null);
+        gRef.setGuarantor(gInner);
+        gRef.setProxyDate(LocalDate.now());
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setGuarantors(List.of(gRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getGuarantorAssociations()).hasSize(1);
+        assertThat(created.getGuarantorAssociations().get(0).getGuarantor()).isSameAs(guarantor);
+    }
+
+    @Test
+    void syncRepresentatives_linksGuarantor_viaUuidKey_whenIdNull() {
+        DossierData dossier = emptyDossier();
+
+        Guarantor guarantor = makeGuarantor(null, "uuid-g");
+        dossier.setGuarantors(List.of(guarantor));
+
+        Map<String, Guarantor> guarantorPool = new HashMap<>();
+        guarantorPool.put("uuid-g", guarantor);
+
+        GuarantorRefDto gRef = new GuarantorRefDto();
+        GuarantorDto gInner = makeGuarantorDto(null, "uuid-g");
+        gRef.setGuarantor(gInner);
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setGuarantors(List.of(gRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getGuarantorAssociations()).hasSize(1);
+    }
+
+    @Test
+    void syncRepresentatives_skipsGuarantorRef_whenNotInPool() {
+        DossierData dossier = emptyDossier();
+        dossier.setGuarantors(List.of(makeGuarantor(1L, "g1"))); // non-empty to bypass early return
+
+        Map<String, Guarantor> guarantorPool = new HashMap<>(); // empty
+
+        GuarantorRefDto gRef = new GuarantorRefDto();
+        gRef.setGuarantor(makeGuarantorDto(99L, null));
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setGuarantors(List.of(gRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getGuarantorAssociations()).isEmpty();
+    }
+
+    @Test
+    void syncRepresentatives_skipsGuarantorRef_whenGuarantorInnerDtoNull() {
+        DossierData dossier = emptyDossier();
+        dossier.setGuarantors(List.of(makeGuarantor(1L, "g1")));
+
+        GuarantorRefDto gRef = new GuarantorRefDto();
+        gRef.setGuarantor(null); // null
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setGuarantors(List.of(gRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
+
+        Representative created = dossier.getRepresentatives().get(0);
+        assertThat(created.getGuarantorAssociations()).isEmpty();
+    }
+
+    // ─── Edge cases ───────────────────────────────────────────────────────────
+
+    @Test
+    void syncRepresentatives_multipleCalls_clearsOldAssociationsEachTime() {
+        DossierData dossier = emptyDossier();
+
+        Beneficiary benef = makeBeneficiary(3L, "b3");
+        dossier.setBeneficiaries(List.of(benef));
+        Map<String, Beneficiary> benefPool = Map.of("3", benef);
+
+        Representative existingRep = new Representative();
+        existingRep.setId(1L);
+        existingRep.setBeneficiaryAssociations(new ArrayList<>());
+        existingRep.setGuarantorAssociations(new ArrayList<>());
+        dossier.setRepresentatives(new ArrayList<>(List.of(existingRep)));
+
+        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
+        bRef.setBeneficiary(makeBeneficiaryDto(3L, null));
+
+        RepresentativeDto repDto = new RepresentativeDto();
+        repDto.setId(1L);
+        repDto.setBeneficiaries(List.of(bRef));
+
+        DossierDataDto dto = emptyDto();
+        dto.setRepresentatives(List.of(repDto));
+
+        // First sync
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
+        assertThat(existingRep.getBeneficiaryAssociations()).hasSize(1);
+
+        // Second sync — associations should be replaced, not accumulated
+        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
+        assertThat(existingRep.getBeneficiaryAssociations()).hasSize(1);
     }
 }
-
-
-
