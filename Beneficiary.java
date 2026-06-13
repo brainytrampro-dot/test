@@ -1,3 +1,79 @@
+ static diffObjects(base: any, current: any): any {
+    const changes: any = {};
+    const excludedKeys = new Set(['id', 'uuid']);
+
+    function compare(a: any, b: any, path: string = '') {
+        // 1. Alignement et nettoyage des valeurs vides
+        if (a === '' || a === null || a === undefined) a = null;
+        if (b === '' || b === null || b === undefined) b = null;
+        
+        if (a === b) return;
+
+        // Extraction de la clé pure sans les indices (ex: "beneficiaries[0].properties[1]" -> "properties")
+        const lastPart = path.split('.').pop() || '';
+        const currentKey = lastPart.replace(/\[\d+\]/g, ''); 
+
+        // Si c'est un ID ou UUID technique, on l'ignore
+        if (excludedKeys.has(currentKey) || currentKey === 'id' || currentKey === 'uuid') {
+            return;
+        }
+
+        if (a == null || b == null) {
+            changes[path] = { from: a, to: b };
+            return;
+        }
+
+        if (a instanceof Date && b instanceof Date) {
+            if (a.getTime() !== b.getTime()) {
+                changes[path] = { from: a, to: b };
+            }
+            return;
+        }
+
+        // =========================================================================
+        // 1. CRUCIAL : LE TEST DE TABLEAU DOIT ÊTRE EXÉCUTÉ EN PREMIER RECHERCHE
+        // =========================================================================
+        if (Array.isArray(a) && Array.isArray(b)) {
+            const maxLength = Math.max(a.length, b.length);
+            for (let i = 0; i < maxLength; i++) {
+                // Règle syntaxique : pas de point devant un crochet d'index de tableau
+                compare(a[i], b[i], `${path}[${i}]`);
+            }
+            return; // Bloque la descente vers le cas de secours
+        }
+
+        // Si l'un est un tableau et pas l'autre (changement radical de structure)
+        if (Array.isArray(a) !== Array.isArray(b)) {
+            changes[path] = { from: a, to: b };
+            return;
+        }
+
+        // =========================================================================
+        // 2. GESTION DES OBJETS (UNIQUEMENT S'ILS NE SONT PAS DES TABLEAUX)
+        // =========================================================================
+        if (typeof a === 'object' && typeof b === 'object') {
+            const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+
+            keys.forEach(key => {
+                if (excludedKeys.has(key)) {
+                    return;
+                }
+                const cleanPath = path ? `${path}.${key}` : key;
+                compare(a?.[key], b?.[key], cleanPath);
+            });
+
+            return; // Empêche le faux positif sur l'enveloppe de l'objet parent (ex: notary)
+        }
+
+        // Différence de valeurs primitives standards
+        changes[path] = { from: a, to: b };
+    }
+
+    compare(base, current);
+
+    return changes;
+}
+
 isFormValuesChanged(): boolean {
     const { loanData, insuranceData, propertyData, beneficiaries, guarantors, representatives, notary, warranties } = this.data;
     const formValue = this.formGroup.value;
