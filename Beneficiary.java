@@ -1,836 +1,1153 @@
-static diffObjects(base: any, current: any): any {
-    const changes: any = {};
-    const excludedKeys = new Set(['id', 'uuid']);
+import { CdkStepper } from '@angular/cdk/stepper';
+import { AfterViewInit, Component, EventEmitter, Injector, Input, OnInit, Output, ViewChild } from '@angular/core';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  Validators,
+  ValidatorFn,
+  FormArray,
+  ValidationErrors
+} from '@angular/forms';
+import {
+  CodeLabel,
+  DelayType,
+  DossierData,
+  LoanData,
+  Mechanism,
+  MechanismType,
+  Products,
+  PropertyData,
+  RateType,
+  RefCity,
+  Warranty,
+  WarrantyType,
+} from '@core/models';
+import { BehaviorSubject, combineLatest, Observable, Subject} from 'rxjs';
+import { distinctUntilChanged, map, skip, startWith } from 'rxjs/operators';
+import { BaseComponent } from '@shared/components';
+import { TopVipService } from '@loan-dossier/services';
+import { DossierDataService, DossierDataStoreService, ReferentialService } from '@core/services';
+import { SelectSearchService } from '@loan-dossier/services/select.service';
+import { NumberUtils, ObjectUtils } from '@core/util';
+import { DialogMessageService } from '@octroi-credit-common';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
+import { RateTypes } from '@core/models/rate-type';
+import { MatChipInputEvent } from '@angular/material/chips';
+import { NumberValidators } from '@shared/validators';
+import { AccordType } from '@core/models/Accord';
+import { UserService } from '@core/services/user.service';
+import { Role } from '@core/constants';
 
-    function compare(a: any, b: any, path: string = '') {
-        if (a === '' || a === null || a === undefined) a = null;
-        if (b === '' || b === null || b === undefined) b = null;
+@Component({
+  selector: 'app-back-decsion-stepper',
+  templateUrl: './back-decsion-stepper.component.html',
+  styleUrls: ['./back-decsion-stepper.component.scss'],
+})
+export class BackToDecisionStepperComponent extends BaseComponent implements OnInit, AfterViewInit {
+  dossierData!: DossierData;
+  formGroup!: FormGroup;
+  rateTypes = RateTypes;
+  rateTypes$!: Observable<CodeLabel[]>;
+  loanObject!: string;
+  acquisitionPrice!: number;
+  acquisitionFee!: number;
+  isImtilak!: boolean;
+  isImtilakPPR!: boolean;
+  isSalafBaytiSante!: boolean;
+  isSalafBaytiSantePPR!: boolean;
+  isAdlSakane!: boolean;
+  isAdlSakanePPR!: boolean;
+  isPPIProduct!:boolean;
+  buildDevelopmentQuotation!:number;
+  selectedProduct!: CodeLabel;
+  selectedMechanism: CodeLabel[]= [];
+  requestedNotaryFee!:number;
+  isFogarim!: boolean;
+  isFogaloge!: boolean;
+  isClipriMRE! : boolean;
+  isYassir!:boolean;
+  isPpoPpc!:boolean;
+  insuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  aditionalCreditnsuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  claimedAmountOfPurchase!: number;
+  claimedAmountOfBuildDevelopment!: number;
+  dossierData$!: Observable<DossierData>;
+  delayTypes$?: Observable<DelayType[]>;
+  valuesHasChanged: boolean = false;
 
-        if (a === b) return;
+  @Input() data: any = {};
+  @Output() returnToDecision = new EventEmitter<any>();
 
-        const currentKey = (path.split('.').pop() || '').replace(/\[\d+\]/g, '');
-        if (excludedKeys.has(currentKey)) return;
+  @ViewChild('principalStepper') principalStepper!: CdkStepper;
 
-        if (a == null || b == null) {
-            changes[path] = { from: a, to: b };
-            return;
-        }
+  rateTypeFilterControl=new FormControl();
+  delayTypeFilterControl=new FormControl();
 
-        if (a instanceof Date || b instanceof Date) {
-            const ta = a instanceof Date ? a.getTime() : new Date(a).getTime();
-            const tb = b instanceof Date ? b.getTime() : new Date(b).getTime();
-            if (ta !== tb) changes[path] = { from: a, to: b };
-            return;
-        }
+  filteredRateTypes$?: Observable<RateType[]>;
+  filteredDelayTypes$?: Observable<DelayType[]>;
+  propertyType!: string;
+  periodicity!:string;
+  maxDeadline!:number;
+  maxDeadlineValues: Map<string,number>=new Map([['MONTHLY',120],['ANNUAL',10],['BIMONTHLY',240],['QUARTERLY',40]]);
+  warranties: Warranty[] = [];
+  addOnBlur = true;
+  removableWarranty = true;
+  readonly separatorKeysCodes = [ENTER, COMMA] as const;
+  selectableWarranty = true;
+  private warrantiesSubject: BehaviorSubject<Warranty[]> = new BehaviorSubject<Warranty[]>([]);
+  stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
+  cities$?: Observable<RefCity[]>;
+  accord: string | undefined;
+  isProspect: boolean = false;
+  propertyDataNotaryFormGroup!: FormGroup;
+  isAccord: any;
+  count = 1;
+  oldPropertyData: any;
+  originalData!: any;
+  isCtb = false;
+  constructor(
+    private dossierStore: DossierDataStoreService,
+    public dossierDataService: DossierDataService,
+    public topVipService: TopVipService,
+    public refService: ReferentialService,
+    public selectService:SelectSearchService,
+    public dialogMessageService: DialogMessageService,
+    userService: UserService,
+    injector: Injector
+  ) {
+    
+    super(injector);
+    this.isCtb = userService.hasRole([Role.CTB]);
+    this.oldPropertyData = this.dossierStore.get()?.propertyData;
+    this.cities$ = this.refService.getCities();
+    this.delayTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllDelayTypes());
+  }
+  
 
-        if (Array.isArray(a) || Array.isArray(b)) {
-            const arrA = Array.isArray(a) ? a : [];
-            const arrB = Array.isArray(b) ? b : [];
-
-            const hasIdentifier = (item: any) => item?.id || item?.uuid;
-
-            if (arrA.some(hasIdentifier) || arrB.some(hasIdentifier)) {
-                // Match par id/uuid
-                arrA.forEach((itemA, i) => {
-                    const itemB = arrB.find(b =>
-                        (itemA.uuid && b.uuid === itemA.uuid) ||
-                        (itemA.id && b.id === itemA.id)
-                    );
-                    compare(itemA, itemB ?? null, `${path}[${i}]`);
-                });
-
-                // Nouveaux éléments dans arrB sans match dans arrA
-                arrB.forEach((itemB, i) => {
-                    const exists = arrA.find(a =>
-                        (itemB.uuid && a.uuid === itemB.uuid) ||
-                        (itemB.id && a.id === itemB.id)
-                    );
-                    if (!exists) compare(null, itemB, `${path}[${arrA.length + i}]`);
-                });
-            } else {
-                // Pas d'identifiant → comparaison par index
-                const maxLength = Math.max(arrA.length, arrB.length);
-                for (let i = 0; i < maxLength; i++) {
-                    compare(arrA[i], arrB[i], `${path}[${i}]`);
-                }
-            }
-            return;
-        }
-
-        if (typeof a === 'object' && typeof b === 'object') {
-            Object.keys(a).forEach(key => {
-                if (excludedKeys.has(key)) return;
-                compare(a[key], b[key], path ? `${path}.${key}` : key);
-            });
-            return;
-        }
-
-        changes[path] = { from: a, to: b };
+  ngOnInit(): void {
+    const dossier = this.dossierStore.get();
+    this.accord = dossier?.accord;
+    this.isProspect = !!dossier?.customerData?.personalInfo?.prospect;
+    this.refService.getAllPropertyTypes();
+    this.loanObject = this.data.loanData.loanObject.code;
+    this.acquisitionFee= this.data.loanData.acquisitionFee;
+    this.acquisitionPrice= this.data.loanData.acquisitionPrice;
+    this.requestedNotaryFee=this.data.loanData.requestedNotaryFee;
+    this.claimedAmountOfPurchase=this.data.loanData.claimedAmountOfPurchase;
+    this.claimedAmountOfBuildDevelopment= this.data.loanData.claimedAmountOfBuildDevelopment;
+    this.buildDevelopmentQuotation= this.data.loanData.buildDevelopmentQuotation;
+    this.propertyType = this.data.loanData?.propertyType?.code;
+    this.periodicity = this.data.loanData?.periodicity?.code;
+    this.propertyType=this.data.loanData?.propertyType?.code;
+    this.periodicity=this.data.loanData?.periodicity?.code;
+    this.warranties = [...this.data.warranties];
+    this.maxDeadline= this.maxDeadlineValues.get(this.periodicity) || 0;
+    this.rateTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllRateTypes());
+    this.selectedProduct= this.data.product;
+    this.selectedMechanism=this.data.loanData?.mechanisms!;
+    this.isClipriMRE= this.data.personalInfo?.market === "MCH/01PRI";
+    this.isFogarim = this.isSelectedProduct(Products.FOGARIM);
+    this.isFogaloge = this.isSelectedProduct(Products.FOGALOGE);
+    this.isPPIProduct=this.isSelectedProductIn([Products.PPI_CLASSIQUE,Products.PPI_PPR_FONC]);
+    this.isImtilak = this.isSelectedProduct(Products.IMTILAK);
+    this.isImtilakPPR = this.isSelectedProduct(Products.IMTILAK_PPR);
+    this.isAdlSakane = this.isSelectedProduct(Products.ADL_SAKANE);
+    this.isAdlSakanePPR = this.isSelectedProduct(Products.ADL_SAKANE_PPR);
+    this.isSalafBaytiSante = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE);
+    this.isSalafBaytiSantePPR = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE_PPR);
+    this.isYassir=this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
+    this.isPpoPpc = this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
+    this.isAccord = this.data?.accord;
+    this.initFormGroup();
+    this.initDelayedType();
+    this.initDelayed();
+    this.updateNotaryValidations();
+    this.insuranceCoefficient$.subscribe((value) => this.insuranceCoefficientFormControl?.setValue(value));
+    if(this.isYassir || this.isPpoPpc){
+        this.initClaimedAmountOfPurchaseValidators();
     }
 
-    compare(base, current);
-    return changes;
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR]) ){
+      this.initCappedRateValidators();
+      if(this.data?.insuranceData?.insuranceCoefficient) {
+      const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.insuranceCoefficient,'1.4-4');
+      this.insuranceCoefficientFormControl.setValue(coefficient);
+      }
+    }
+
+    if (this.isMechanism1()) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.subsidizedInsuranceCoefficient,'1.4-4');
+        this.subsidizedInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+    if (this.isMechanism2()) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.bonusInsuranceCoefficient,'1.4-4')
+        this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+    if (this.isMechanism3()) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.suportedInsuranceCoefficient,'1.4-4');
+        this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+
+    if (this.isTypeA()) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.typeAInsuranceCoefficient,'1.4-4');
+        this.typeAInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+    if (this.isTypeB()) {
+        const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.typeBInsuranceCoefficient,'1.4-4');
+        this.typeBInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+
+    if (this.isTypeB() || this.isTypeA() ||this.isMechanism1() ||this.isMechanism2() ) {
+      const coefficient = this.decimalPipe.transform(this.data?.insuranceData?.aditionalCreditInsuranceCoefficient,'1.4-4');
+      this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
+    }
+
+    this.formGroup.get('insuranceData.promotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateInsuranceCoefficient();
+    })
+
+    this.formGroup.get('insuranceData.subsidizedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateSubsidizedInsuranceCoefficient();
+    })
+
+    this.formGroup.get('insuranceData.bonusPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateBonusInsuranceCoefficient();
+    })
+
+    this.formGroup.get('insuranceData.suportedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateSuportedInsuranceCoefficient();
+    })
+
+    this.formGroup.get('insuranceData.typeAPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateTypeAInsuranceCoefficient();
+
+    })
+
+    this.formGroup.get('insuranceData.typeBPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateTypeBInsuranceCoefficient();
+    })
+
+
+    this.formGroup.get('insuranceData.aditionalCreditPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
+      this.calculateAdditionalInsuranceCoefficient();
+    })
+
+    this.formGroup.valueChanges.subscribe(() => {
+      this.valuesHasChanged = this.isFormValuesChanged();
+    });
+
+    this.filteredRateTypes$= this.selectService.filterOptions(this.rateTypes$ || [],this.rateTypeFilterControl,'designation')
+    this.filteredDelayTypes$= this.selectService.filterOptions(this.delayTypes$ || [],this.delayTypeFilterControl,'designation')
+   
+    if(this.isPPIProduct || this.isClipriMRE){
+      this.acquisitionPriceFormControl?.clearValidators();
+      this.acquisitionPriceFormControl?.addValidators([Validators.required,  NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: 0.08, fieldName: 'requestedNotaryFee' })]);
+      this.acquisitionPriceFormControl?.updateValueAndValidity();
+    }
+    if (!this.isImtilak && !this.isImtilakPPR && !this.isAdlSakane && !this.isAdlSakanePPR && !this.isSalafBaytiSante && !this.isSalafBaytiSantePPR)  {
+      this.loanDataFormGroup.addControl("rate", new FormControl(null, [Validators.required]));
+    }
+
+  
+    this.initDurationListeners();
+  }
+
+  ngAfterViewInit(): void {
+    this.dossierStore.update({propertyData: this.data?.propertyData});      
+    this.formGroup.patchValue(this.data);
+    this.originalData = this.formGroup.getRawValue();
+  }
+
+  isAnyMechanismOrType(): boolean {
+    return this.isTypeA() || this.isTypeB() || this.isMechanism1() || this.isMechanism2();
+  }
+
+  public isSelectedProductIn(productsCode: string[]) {
+    return productsCode.includes(this.selectedProduct?.code) ;
+  }
+
+  lessThanEqualToFixValue(max:number): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const loanAmount = this.claimedAmountOfPurchaseFormControl?.value;
+      return !loanAmount || loanAmount<=max ? null : { lessThanEqualToFixedValue: true }; 
+    };
+  }
+
+  nextStep = () => {
+      this.principalStepper.next();
+      this.changeDetectorRef.detectChanges();
+  }
+
+  doneStepper = () => {
+    this.onValidate();
+  };
+
+  previousStepper = () => {
+    this.principalStepper.previous();
+  }
+
+  onSelectionChange(event: any) {
+    if(event.selectedIndex === 4 && this.isFormValuesChanged()){
+      this.dossierStore.update({propertyData: this.propertyDataFormGroup.getRawValue()});      
+    }
+    if(event.selectedIndex === 5 && this.isFormValuesChanged()) {
+      const dossierData = this.dossierStore.get();
+      const dossier: DossierData = {
+        ...dossierData,
+        loanData : {
+          ...dossierData.loanData,
+          loanAmount: this.calculateLoanAmount()
+        },
+        beneficiaries: this.beneficiariesFormArray.getRawValue(),
+        propertyData: this.propertyDataFormGroup.getRawValue(),
+        guarantors: this.guarantorsFormArray.getRawValue(),
+        warranties: this.warranties
+      };
+      this.dossierDataService.generateAutoWarranties({ ...dossier }).subscribe(warranties => {
+        this.warranties = [...warranties];
+        this.changeDetectorRef.detectChanges();
+      });
+    };
+  }
+
+  calculateLoanAmount(): number {
+    const claimedAmountOfBuildDevelopment =  this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment')?.value;
+    const claimedAmountOfPurchase =  this.loanDataFormGroup.get('claimedAmountOfPurchase')?.value;
+    const requestedNotaryFee =  this.loanDataFormGroup.get('requestedNotaryFee')?.value;
+    
+    const result =  NumberUtils.toForcedNumber(claimedAmountOfBuildDevelopment || 0) + 
+                    NumberUtils.toForcedNumber(claimedAmountOfPurchase || 0) + 
+                    NumberUtils.toForcedNumber(requestedNotaryFee || 0);
+
+    return parseFloat(result.toFixed(2));
+  }
+
+  public isSelectedProduct(productCode: string) {
+    return this.selectedProduct?.code === productCode;
+  }
+
+  initFormGroup() {
+    this.formGroup = this.formBuilder.group({
+      propertyData: this.formBuilder.group({
+        properties: this.formBuilder.array([], this.minLengthArray(1)),
+        coFinancing: new FormControl()
+      }),
+      notary: this.formBuilder.group({
+        name: new FormControl(null, []),
+        address: new FormControl(null, []),
+        phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
+        email: new FormControl(null, [Validators.email])
+      }),
+      loanData: this.formBuilder.group({
+        rateType: this.formBuilder.group({
+          code: new FormControl(null, [Validators.required]),
+        }),
+        cappedRate: new FormControl(null),
+        delayed: new FormControl(false, ...(this.data?.loanData?.delayed ? [Validators.required] : [])),
+        delayType: new FormControl(),
+        delayDuration: new FormControl()
+      }),
+      insuranceData: this.formBuilder.group({}),
+      beneficiaries: this.formBuilder.array([], this.minLengthArray(1)),
+      guarantors: this.formBuilder.array([]),
+      representatives: this.formBuilder.array([]),
+    });
+
+
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+      this.loanDataFormGroup.addControl(
+        'rate',
+        new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })])
+      );
+
+      this.loanDataFormGroup.addControl(
+        'deadlineNumber',
+        new FormControl(null, [
+          Validators.required,
+          NumberValidators.sumLessThanEqualTo({ fieldNameToAdd: 'delayDuration', value: 300 }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isYasserProduct() || this.isPpoPpcProduct(), value: 36 }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isItABuildingLotAcquisition(), value: this.maxDeadline })
+        ])
+      );
+    }
+
+    if (this.loanObject.includes('AMN') || this.loanObject.includes('CST')) {
+      this.loanDataFormGroup.addControl('claimedAmountOfBuildDevelopment', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value: this.buildDevelopmentQuotation})]));
+     }
+    if (this.loanObject.includes('RCH') || this.loanObject.includes('AQS') || this.isYassir || this.isPpoPpc) {
+      this.loanDataFormGroup.addControl('claimedAmountOfPurchase', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionFee)+NumberUtils.toForcedNumber(this.acquisitionPrice))})]));
+    }
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.08)})]));
+
+    }
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.01)})]));
+
+    }
+    if (this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+
+      this.loanDataFormGroup.addControl("additionalCredit", new FormControl());
+      this.loanDataFormGroup.addControl("additionalCreditRate", new FormControl());
+      this.loanDataFormGroup.addControl("additionalLoanDuration", new FormControl());
+
+      if (this.isAdlSakane || this.isAdlSakanePPR ){
+      this.loanDataFormGroup.addControl("typeAloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 100000 }) }));
+      this.loanDataFormGroup.addControl("typeBloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 150000 }) }));
+      this.loanDataFormGroup.addControl("typeAloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 120 }) }));
+      this.loanDataFormGroup.addControl("typeBloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 240 }) }));
+      this.loanDataFormGroup.addControl("typeAloanRate", new FormControl());
+      this.loanDataFormGroup.addControl("typeBloanRate", new FormControl());
+
+      this.loanDataFormGroup.addValidators(this.sumLoanAmountsValidator.bind(this));
+      }
+      if (this.isSalafBaytiSante || this.isSalafBaytiSantePPR) {
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [Validators.required,
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 240, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+        this.loanDataFormGroup.addValidators(this.sumCreditAmountsValidator.bind(this));
+      }
+      if (this.isImtilak || this.isImtilakPPR) {
+        this.loanDataFormGroup.addControl("subsidizedCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 200000 }) }));
+        this.loanDataFormGroup.addControl("suportedCreditAmount", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("suportedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditDuration", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [Validators.required,
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 180, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+        this.loanDataFormGroup.addControl("suportedCreditDuration", new FormControl());
+
+        this.loanDataFormGroup.addValidators(this.sumCreditAmountsValidator.bind(this));
+      }
+
+    }
+    
+    this.initInsuranceDataForm()
+
+    this.loanDataFormGroup.addControl("applicationFee", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addValidators([this.applicationFeesValidator])
+
+    if(!this.isFogarim && !this.isFogaloge && (this.isPPIProduct || this.isClipriMRE)){
+      this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
+      this.loanDataFormGroup.addControl('requestedNotaryFee', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionPrice) * 0.08)})]));
+    }
+    if(this.isYassir || this.isPpoPpc){
+      this.setControlNumberValue(this.rateFormControl, 0);
+      this.rateFormControl.disable();
+      this.insuranceCoefficientFormControl.disable();
+    }
+    if (this.loanObject.includes('AQS_RCH')) {
+      this.loanDataFormGroup.addControl('repurchasedCreditNumber', new FormControl(null));
+      this.loanDataFormGroup.addValidators(this.repurchasedCreditNumberValidator());
+      this.loanDataFormGroup.updateValueAndValidity({ emitEvent: false });
+    }
+    /** for regrouping notary & propertyData only in front presentation**/
+    this.propertyDataNotaryFormGroup = this.formBuilder.group({});
+    this.propertyDataNotaryFormGroup.addControl('notary', this.formGroup.get('notary') as FormGroup);
+  }
+
+  private minLengthArray(min: number): ValidatorFn {
+    return (control: AbstractControl): {[key: string]: any} | null => {
+      if(control.value && control.value.length >= min){
+        return null;
+      }
+      return { minLengthArray: { valid: false, requiredLength: min, actualLength: control.value.length}};
+    }
+  }
+
+  private initInsuranceDataForm() {
+    const insuranceDataFormGroup = this.formGroup.get('insuranceData') as FormGroup;
+    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
+      insuranceDataFormGroup.addControl("insuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+      insuranceDataFormGroup.addControl("promotionalInsuranceRate", new FormControl());
+      insuranceDataFormGroup.addControl("insuranceCoefficient", new FormControl(null, [Validators.required]));
+    } else {
+      if (this.isMechanism1()) {
+        insuranceDataFormGroup.addControl("subsidizedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("subsidizedPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("subsidizedInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isMechanism2()) {
+        insuranceDataFormGroup.addControl("bonusInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("bonusPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("bonusInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isMechanism3()) {
+        insuranceDataFormGroup.addControl("suportedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("suportedPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("suportedInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isTypeA()) {
+        insuranceDataFormGroup.addControl("typeAInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("typeAPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("typeAInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+      }
+      if (this.isTypeB()) {
+        insuranceDataFormGroup.addControl("typeBInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("typeBPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("typeBInsuranceCoefficient", new FormControl(null, [Validators.required]));
+      }
+        insuranceDataFormGroup.addControl("aditionalCreditInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
+        insuranceDataFormGroup.addControl("aditionalCreditPromotionalInsuranceRate", new FormControl());
+        insuranceDataFormGroup.addControl("aditionalCreditInsuranceCoefficient", new FormControl(null, [Validators.required]));
+
+    }
+  }
+
+  private sumLoanAmountsValidator(control: AbstractControl): { [key: string]: any } | null {
+    const typeAloanAmount = Number(control.get('typeAloanAmount')?.value) || 0;
+    const typeBloanAmount = Number(control.get('typeBloanAmount')?.value) || 0;
+    const additionalCredit = Number(control.get('additionalCredit')?.value) || 0;
+
+    const total = typeAloanAmount + typeBloanAmount + additionalCredit;
+    const maxAmount = Number(this.data?.loanData?.loanAmount);
+
+    if (!isNaN(maxAmount) && total > maxAmount) {
+      return { sumExceedsLoanAmount: true };
+    }
+    return null;
+  }
+
+  private sumCreditAmountsValidator(control: AbstractControl): { [key: string]: any } | null {
+    const subsidizedCreditAmount = Number(control.get('subsidizedCreditAmount')?.value) || 0;
+    const bonusCreditAmount = Number(control.get('bonusCreditAmount')?.value) || 0;
+    const suportedCreditAmount = Number(control.get('suportedCreditAmount')?.value) || 0;
+    const additionalCredit = Number(control.get('additionalCredit')?.value) || 0;
+
+    const total = subsidizedCreditAmount + bonusCreditAmount +suportedCreditAmount+ additionalCredit;
+    const maxAmount = Number(this.data?.loanData?.loanAmount);
+
+    if (!isNaN(maxAmount) && total > maxAmount) {
+      return { sumExceedsLoanAmount: true };
+    }
+    return null;
+  }
+
+  private applicationFeesValidator(control: AbstractControl): { [key: string]: any } | null {
+    const parse = (val: any) => {
+    if (val === null || val === undefined) return 0;
+    return parseFloat(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+    };
+
+    const claimedAmountOfPurchase = parse(control.get('claimedAmountOfPurchase')?.value);
+    const claimedAmountOfBuildDevelopment = parse(control.get('claimedAmountOfBuildDevelopment')?.value);
+    const requestedNotaryFee = parse(control.get('requestedNotaryFee')?.value);
+    const applicationFee = parse(control.get('applicationFee')?.value);
+
+    const sum = claimedAmountOfPurchase + claimedAmountOfBuildDevelopment + requestedNotaryFee;
+
+    if (sum * 0.001 < applicationFee) {
+    return { feeExcess: true };
+   }
+    return null;
+
+  };
+
+  private getDefaultRate( type: 'subventionné' | 'complémentaire' | 'soutenu',  years: number): number | null {
+    switch (type) {
+      case 'subventionné':
+        if (years <= 7)   return 2.20;
+        if (years <= 15)  return 2.50;
+        if (years <= 25)  return 2.75;
+        break;
+
+      case 'complémentaire':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+
+      case 'soutenu':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+    }
+
+    return null;
+  }
+
+  private initDurationListeners(): void {
+    if (!(this.isImtilak || this.isImtilakPPR)) return;
+    const subsidized$ = this.subsidizedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.subsidizedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    const additional$ = this.additionalloanDurationFormControl.valueChanges.pipe(
+      startWith(this.additionalloanDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+    const supported$ = this.suportedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.suportedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    combineLatest([subsidized$, additional$,supported$])
+      .subscribe(([subYears, addYears,supYears]) => {
+        const subRate = this.getDefaultRate('subventionné', subYears);
+        const addRate = this.getDefaultRate('complémentaire', addYears);
+        const supRate = this.getDefaultRate('soutenu', supYears);
+        this.setControlNumberValue(this.subsidizedCreditRateFormControl, subRate!);
+        this.setControlNumberValue(this.additionalCreditRateFormControl, addRate!);
+        this.setControlNumberValue(this.suportedCreditRateFormControl, supRate!);
+      });
+  }
+
+
+  public isYasserProduct() {
+    return this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
+  }
+  public isPpoPpcProduct(){
+    return this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
+  }
+  public isItABuildingLotAcquisition() {
+    return this.loanObject === 'AQS' &&  this.propertyType === 'TRN';
+  }
+
+  calculateApplicationFee() {
+    const claimedAmountOfPurchase = this.loanDataFormGroup.get('claimedAmountOfPurchase');
+    const claimedAmountOfBuildDevelopment = this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment');
+    const requestedNotaryFee = this.loanDataFormGroup.get('requestedNotaryFee');
+
+    let sum = 0;
+    if(claimedAmountOfPurchase?.value && !this.isPpoPpc){
+      sum += claimedAmountOfPurchase?.value;
+    }
+    if(claimedAmountOfBuildDevelopment?.value && !this.isPpoPpc){
+      sum += claimedAmountOfBuildDevelopment?.value;
+    }
+    if(requestedNotaryFee?.value && !this.isPpoPpc){
+      sum += requestedNotaryFee?.value;
+    }
+
+    this.applicationFeeFormControl?.patchValue(NumberUtils.round(sum/1000, 2));
+  }
+
+
+  private computeInsuranceCoefficient(promotionalRate: any, Amount: number): string | null {
+    if(this.isYassir || this.isPpoPpc) return this.decimalPipe.transform(0.8, '1.4-4');
+    Amount = NumberUtils.toForcedNumber(Amount);
+    if (Amount <= 0) {
+      return null;
+    }
+
+    promotionalRate = NumberUtils.toForcedNumber(promotionalRate);
+    let rate = 0;
+
+    if (promotionalRate > 0) {
+      rate = promotionalRate / 12;
+      const decimalString: string = rate.toString();
+      const dotIndex = decimalString.indexOf('.');
+      if (dotIndex !== -1) {
+        const truncatedString: string = decimalString.substring(0, dotIndex + 4);
+        rate = Number(truncatedString);
+      }
+    } else if (Amount >= 600000) {
+      rate = 0.035;
+    } else {
+      rate = 0.04;
+    }
+
+    return this.decimalPipe.transform(Number(rate * 1.1 * 12), '1.4-4');
+  }
+
+  calculateInsuranceCoefficient() {
+    if(this.isYassir || this.isPpoPpc){
+      this.insuranceCoefficientFormControl.setValue(0.8);
+    }
+    const loanAmount = this.data.loanData?.loanAmount;
+    const promotionalRate = this.promotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.insuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateSubsidizedInsuranceCoefficient() {
+    const subsidizedCreditAmount = this.data.loanData?.subsidizedCreditAmount;
+    const promotionalRate = this.subsidizedPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, subsidizedCreditAmount);
+    this.subsidizedInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateBonusInsuranceCoefficient() {
+    const bonusCreditAmount = this.data.loanData?.bonusCreditAmount;
+    const promotionalRate = this.bonusPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, bonusCreditAmount);
+    this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateSuportedInsuranceCoefficient() {
+    const suportedCreditAmount = this.data.loanData?.suportedCreditAmount;
+    const promotionalRate = this.suportedPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, suportedCreditAmount);
+    this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateTypeAInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.typeAloanAmount;
+    const promotionalRate = this.typeAPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.typeAInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateTypeBInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.typeBloanAmount;
+    const promotionalRate = this.typeBPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.typeBInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  calculateAdditionalInsuranceCoefficient() {
+    const loanAmount = this.data.loanData?.additionalCredit;
+    const promotionalRate = this.aditionalCreditPromotionalInsuranceRateFormControl?.value;
+    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
+    this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
+  }
+
+  initCappedRateValidators() {
+    this.formGroup.get('loanData.rateType.code')?.valueChanges.subscribe(value => {
+      if (value === this.rateTypes.CAPE) {
+        this.cappedRateFormControl?.addValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+      } else {
+        this.cappedRateFormControl?.removeValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+        this.cappedRateFormControl?.reset();
+      }
+      this.cappedRateFormControl?.updateValueAndValidity();
+    });
+  }
+
+  initClaimedAmountOfPurchaseValidators(){
+    this.claimedAmountOfPurchaseFormControl.clearValidators();
+    if(this.isYassir){
+    this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required,this.lessThanEqualToFixValue(30000)]);}
+
+    if(this.loanObject.includes('AQS') && this.isYassir){
+      this.claimedAmountOfPurchaseFormControl?.addValidators(
+        [NumberValidators.lessThanEqualTo({ value : (NumberUtils.toForcedNumber(this.acquisitionFee)+NumberUtils.toForcedNumber(this.acquisitionPrice))})]);
+      }
+
+    this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
+  }
+
+  private initDelayedType() {
+      this.delayTypes$?.subscribe();
+  }
+
+  private initDelayed() {
+    this.getControlValueChanges(this.delayedFormControl).subscribe(value => {
+    const isPPRProduct= this.isImtilakPPR || this.isAdlSakanePPR||this.isSalafBaytiSantePPR;
+      if (value === true && !isPPRProduct) {
+        this.delayTypeFormControl.addValidators(Validators.required);
+        this.delayDurationFormControl.addValidators(Validators.required);
+      } else {
+        this.delayTypeFormControl.removeValidators(Validators.required);
+        this.delayTypeFormControl.reset();
+        this.delayDurationFormControl.removeValidators(Validators.required);
+        this.delayDurationFormControl.reset();
+      }
+      this.delayTypeFormControl.updateValueAndValidity();
+      this.delayDurationFormControl.updateValueAndValidity();
+    });
+  }
+
+  compareObjects(o1: any, o2: any): boolean {
+    return o1?.code === o2?.code
+  }
+
+  onValidate() {        
+    if(!this.formGroup.valid) {
+      this.showErrorMessage({ bodyKey: "Veuillez vérifier les champs du formulaire !" });
+    }
+    if(this.formGroup.valid && this.isFormValuesChanged()){
+      const emitData = {
+          ...this.formGroup.getRawValue(),
+          warranties: this.warranties.filter(({type}) => type!== WarrantyType.AUTO).map(({content})=> ({content, type: WarrantyType.PROPOSED}))
+      };
+      this.returnToDecision.emit(emitData);
+      this.dossierStore.update({propertyData: this.oldPropertyData});
+      this.changeDetectorRef.detectChanges();
+    }else{
+      const errors: any[] = [];
+      this.calculateFormValidationErrors(this.formGroup, errors);
+      const errorMessage = errors.length === 0 ? "Aucun changement n'a été effectué !" : errors
+      .filter(({ errorName }) => errorName !== 'required')
+      .map(({ controlName }) => controlName)
+      .join('\n');
+
+      this.showErrorMessage({ bodyKey: errorMessage });
+    }
+  }
+
+  addWarranty(event: MatChipInputEvent): void {
+    const value = (event.value || '').trim();
+    if (value && value.trim() !== '') {
+      const warranty: Warranty = {
+        content: value
+      };
+      this.warranties.push(warranty);
+      this.warrantiesSubject.next(this.warranties);            
+    }
+    event.chipInput!.clear();
+  }
+
+  removeWarranty(index: number, isAuto: boolean): void {
+    if (index >= 0 && !isAuto) {
+      this.warranties.splice(index, 1);
+      this.warrantiesSubject.next(this.warranties);
+    }
+  }
+
+  isFormValuesChanged(): boolean {
+    const { loanData, insuranceData, propertyData, beneficiaries, 
+            guarantors, representatives, notary, warranties } = this.data;
+    const formValue = this.formGroup.value;
+
+    const newFormObject: any = {
+      loanData: formValue.loanData,
+      propertyData: formValue.propertyData,
+      beneficiaries: formValue.beneficiaries || [],
+      guarantors: formValue.guarantors || [],
+      representatives: formValue.representatives || [],
+      notary: formValue.notary || {},
+      warranties: this.warranties || [],
+      insuranceData: {
+        ...formValue.insuranceData,
+        insuranceCoefficient: NumberUtils.toForcedNumber(
+          (this.isYassir || this.isPpoPpc) ? 0.8 : formValue.insuranceData?.insuranceCoefficient
+        ),
+        subsidizedInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.subsidizedInsuranceCoefficient),
+        bonusInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.bonusInsuranceCoefficient),
+        suportedInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.suportedInsuranceCoefficient),
+        typeAInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.typeAInsuranceCoefficient),
+        typeBInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.typeBInsuranceCoefficient),
+        aditionalCreditInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.aditionalCreditInsuranceCoefficient),
+      },
+    };
+
+    const initialObject = { 
+      loanData, insuranceData, propertyData, beneficiaries, 
+      guarantors, representatives, notary: notary || {}, warranties 
+    };
+
+    const cleanedCurrent = ObjectUtils.mergeFormWithInitial(initialObject, newFormObject);
+    const modifications = ObjectUtils.diffObjects(initialObject, cleanedCurrent);
+    
+    console.log("Deltas réels:", {modifications,initialObject, cleanedCurrent});
+    
+    return Object.keys(modifications).length > 0;
+  }
+
+
+  update = () => {
+    const dossier = this.dossierStore.get();
+    this.dossierStore.update({
+      ...dossier,
+      ...this.formGroupRawValue,
+    });
+  }
+
+  updatePropertyData(dossierPayload: any, savedDossier: any) {
+    const propertyData = dossierPayload.propertyData;
+    const newPropertyData: PropertyData = {
+      ...propertyData,
+      properties: savedDossier?.propertyData?.properties ?? propertyData?.properties,
+      coFinancing: savedDossier?.propertyData?.coFinancing ?? propertyData?.coFinancing
+    };
+
+    this.dossierStore.update({ propertyData: newPropertyData }, false);
+  }
+
+  private fieldsClearingCondition(fileds: 'Notary'): boolean {
+    const dossier = this.dossierStore.get();
+    this.accord = dossier?.accord;
+    this.isProspect = !!dossier?.customerData?.personalInfo?.prospect;
+    const product = dossier.product?.code
+
+    const allowedCodesByField: Record<typeof fileds, string[]> = {
+      Notary: [Products.MOULKIA.toString(), Products.PPI_VEFA.toString(), Products.YASSIR.toString(), Products.YASSIR_PPR.toString(), Products.PPO.toString(), Products.PPO_PPR.toString(), Products.PPC.toString(),]
+    };
+
+    return (
+      this.accord === AccordType.PRINCIPE ||
+      this.isProspect ||
+      allowedCodesByField[fileds].includes(product!)
+    );
+  }
+
+  updateNotaryValidations() {
+    if (!this.formGroup || !this.notaryFormGroup) return;
+
+    if (this.fieldsClearingCondition('Notary')) {
+      this.clearNotaryFieldValidators();
+    }
+
+    // Mise à jour sécurisée de la validité
+    this.notaryMailFormControl?.updateValueAndValidity();
+    this.notaryPhoneFormControl?.updateValueAndValidity();
+    this.notaryFormGroup.get('name')?.updateValueAndValidity();
+    this.notaryFormGroup.get('address')?.updateValueAndValidity();
+  }
+
+  private clearNotaryFieldValidators(): void {
+    this.notaryMailFormControl.clearValidators();
+    this.notaryPhoneFormControl.clearValidators();
+    this.notaryMailFormControl.addValidators([Validators.email]);
+    this.notaryPhoneFormControl.addValidators([Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]);
+    this.notaryFormGroup.get('name')?.clearValidators();
+    this.notaryFormGroup.get('address')?.clearValidators();
+  }
+private repurchasedCreditNumberValidator(): ValidatorFn {
+   return (group: AbstractControl): ValidationErrors | null => {
+    const fg = group as FormGroup;
+    // Si pas de prêt rachat, pas de validation
+    const loanObject = this.loanObject ?? '';
+    if (!loanObject.includes('AQS_RCH')) return null;
+
+    const value: string = (fg.get('repurchasedCreditNumber')?.value ?? '').toString().trim();
+    if (!value) {
+      return { repurchasedCreditNumberRequired: true };
+    }
+
+    const dossier = this.dossierStore.get();
+    const debts = dossier?.debts ?? [];
+    const found = debts.some((d: any) => {
+      const fileNumber = (d?.fileNumber ?? '').toString().trim();
+      const establishmentCode = (d?.establishmentCode ?? '').toString().trim();
+      const codeProductFamily = (d?.codeProductFamily ?? '').toString().trim();
+      return (
+        fileNumber === value &&
+        establishmentCode === '022' &&
+        codeProductFamily.toUpperCase() === 'PPO-PPC'
+      );
+    });
+
+    if (!found) {
+      return { repurchasedCreditNotFound: true };
+    }
+
+    return null;
+  };
+}
+  
+  get formGroupRawValue(): any {
+    return this.formGroup.getRawValue();
+  }
+
+  get cappedRateFormControl() {
+    return this.formGroup.get('loanData.cappedRate') as FormControl;
+  }
+
+  get applicationFeeFormControl() {
+    return this.loanDataFormGroup.get('applicationFee') as FormControl;
+  }
+  get insuranceCoefficientFormControl() {
+    return this.formGroup.get('insuranceData.insuranceCoefficient') as FormControl;
+  }
+
+  get aditionalCreditPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditPromotionalInsuranceRate") as FormControl;
+  }
+
+  get aditionalCreditInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditInsuredPercentage") as FormControl;
+  }
+
+  get aditionalCreditInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.aditionalCreditInsuranceCoefficient") as FormControl;
+  }
+
+  get subsidizedPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedPromotionalInsuranceRate") as FormControl;
+  }
+  get bonusPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.bonusPromotionalInsuranceRate") as FormControl;
+  }
+
+  get suportedPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;
+  }
+
+  get subsidizedInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;
+  }
+  
+  get bonusInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.bonusInsuranceCoefficient") as FormControl;
+  }
+
+  get suportedInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.suportedInsuranceCoefficient") as FormControl;
+  }
+
+  get subsidizedInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.subsidizedInsuredPercentage") as FormControl;
+  }
+
+  get bonusInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.bonusInsuredPercentage") as FormControl;
+  }
+
+  get suportedInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.suportedInsuredPercentage") as FormControl;
+  }
+  get typeAPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.typeAPromotionalInsuranceRate") as FormControl;
+  }
+
+  get typeAInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.typeAInsuredPercentage") as FormControl;
+  }
+
+  get typeAInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.typeAInsuranceCoefficient") as FormControl;
+  }
+
+  get typeBPromotionalInsuranceRateFormControl() {
+    return this.formGroup.get("insuranceData.typeBPromotionalInsuranceRate") as FormControl;
+  }
+
+  get typeBInsuredPercentageFormControl() {
+    return this.formGroup.get("insuranceData.typeBInsuredPercentage") as FormControl;
+  }
+
+  get typeBInsuranceCoefficientFormControl() {
+    return this.formGroup.get("insuranceData.typeBInsuranceCoefficient") as FormControl;
+  }
+  get deadlineNumberFormControl() {
+    return this.loanDataFormGroup.get('deadlineNumber') as FormControl;
+  }
+  get delayedFormControl() {
+    return this.loanDataFormGroup.get('delayed') as FormControl;
+  }
+  get delayDurationFormControl() {
+    return this.loanDataFormGroup.get('delayDuration') as FormControl;
+  }
+  get rateTypeCodeFormControl() {
+    return this.formGroup.get('loanData.rateType.code') as FormControl;
+  }
+
+  get loanDataFormGroup() {
+    return this.formGroup.get('loanData') as FormGroup;
+  }
+  get delayed() {
+    return this.formGroup?.get('loanData.delayed')?.value;
+  }
+  get acquisitionPriceFormControl() {
+    return this.loanDataFormGroup?.get('acquisitionPrice');
+  }
+  get delayType() {
+    return this.formGroup?.get('loanData.delayType')?.value;
+  }
+  get delayDuration() {
+    return this.formGroup?.get('loanData.delayDuration')?.value;
+  }
+  get rateFormControl() {
+    return this.formGroup.get('loanData.rate') as FormControl;
+  }
+  get delayTypeFormControl() {
+    return this.formGroup?.get('loanData.delayType') as FormControl;
+  }
+
+  get subsidizedCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl;
+  }
+  get bonusCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl;
+  }
+  get suportedCreditDurationFormControl() {
+    return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl;
+  }
+  get additionalloanDurationFormControl() {
+    return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;
+  }
+  get subsidizedCreditRateFormControl() {
+    return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl;
+  }
+  get bonusCreditRateFormControl() {
+    return this.loanDataFormGroup.get('bonusCreditRate') as FormControl;
+  }
+  get suportedCreditRateFormControl() {
+    return this.loanDataFormGroup.get('suportedCreditRate') as FormControl;
+  }
+  get additionalCreditRateFormControl() {
+    return this.loanDataFormGroup.get('additionalCreditRate') as FormControl;
+  }
+
+  get notaryPhoneFormControl(): FormControl {
+    return this.notaryFormGroup?.get('phone') as FormControl;
+  }
+
+  get notaryMailFormControl(): FormControl {
+    return this.notaryFormGroup?.get('email') as FormControl;
+  }
+  get propertyDataFormGroup(): FormGroup {
+    return this.formGroup.get('propertyData') as FormGroup;
+  }
+
+  get notaryFormGroup(): FormGroup {
+    return this.formGroup.get('notary') as FormGroup;
+  }
+
+  public isMechanism1() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_1);
+  }
+
+  public isMechanism2() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_2);
+  }
+
+  public isMechanism3() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_3);
+  }
+  public isTypeA() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_A);
+  }
+
+  public isTypeB() {
+    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_B);
+  }
+
+  private isMechanismExists(arrayValues: Mechanism | Mechanism[], value: string): boolean {
+    if (!Array.isArray(arrayValues)) {
+      arrayValues = [arrayValues];
+    }
+    return !!arrayValues.find(mechanism => mechanism && mechanism.code === value);
+  }
+  get promotionalInsuranceRateFormControl() {
+    return this.formGroup?.get("insuranceData.promotionalInsuranceRate") as FormControl;
+  }
+  get claimedAmountOfPurchaseFormControl() {
+    return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;
+  }
+
+  get warrantiesFormArray(): FormArray {
+    return this.formGroup.controls['warranties'] as FormArray;
+  }
+
+  get beneficiariesFormArray(): FormArray {
+    return this.formGroup.controls['beneficiaries'] as FormArray;
+  }
+
+  get guarantorsFormArray(): FormArray {
+    return this.formGroup.controls['guarantors'] as FormArray;
+  }
+
+  get representativesFormArray(): FormArray {
+    return this.formGroup.controls['representatives'] as FormArray;
+  }
 }
 
 
-package ma.sg.its.octroicreditcore.strategy;
-
-import ma.sg.its.octroicreditcore.dto.*;
-import ma.sg.its.octroicreditcore.mapper.BeneficiaryMapper;
-import ma.sg.its.octroicreditcore.mapper.GuarantorMapper;
-import ma.sg.its.octroicreditcore.mapper.PropertyMapper;
-import ma.sg.its.octroicreditcore.model.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.LocalDate;
-import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-class DossierCreationHelperTest {
-
-    @InjectMocks
-    private DossierCreationHelper helper;
-
-    @Mock
-    private PropertyMapper propertyMapper;
-
-    @Mock
-    private BeneficiaryMapper beneficiaryMapper;
-
-    @Mock
-    private GuarantorMapper guarantorMapper;
-
-    // ─── Helpers ────────────────────────────────────────────────────────────────
-
-    private PropertyDto makePropertyDto(Long id, String uuid) {
-        PropertyDto dto = new PropertyDto();
-        dto.setId(id);
-        dto.setUuid(uuid);
-        return dto;
-    }
-
-    private Property makeProperty(Long id, String uuid) {
-        Property p = new Property();
-        p.setId(id);
-        p.setUuid(uuid);
-        return p;
-    }
-
-    private BeneficiaryDto makeBeneficiaryDto(Long id, String uuid) {
-        BeneficiaryDto dto = new BeneficiaryDto();
-        dto.setId(id);
-        dto.setUuid(uuid);
-        return dto;
-    }
-
-    private Beneficiary makeBeneficiary(Long id, String uuid) {
-        Beneficiary b = new Beneficiary();
-        b.setId(id);
-        b.setUuid(uuid);
-        b.setRangs(new ArrayList<>());
-        return b;
-    }
-
-    private GuarantorDto makeGuarantorDto(Long id, String uuid) {
-        GuarantorDto dto = new GuarantorDto();
-        dto.setId(id);
-        dto.setUuid(uuid);
-        return dto;
-    }
-
-    private Guarantor makeGuarantor(Long id, String uuid) {
-        Guarantor g = new Guarantor();
-        g.setId(id);
-        g.setUuid(uuid);
-        return g;
-    }
-
-    private DossierData emptyDossier() {
-        DossierData d = new DossierData();
-        d.setId(1L);
-        d.setProperties(new ArrayList<>());
-        d.setBeneficiaries(new ArrayList<>());
-        d.setGuarantors(new ArrayList<>());
-        d.setRepresentatives(new ArrayList<>());
-        return d;
-    }
-
-    private DossierDataDto emptyDto() {
-        DossierDataDto dto = new DossierDataDto();
-        dto.setPropertyData(new PropertyDataDto());
-        dto.getPropertyData().setProperties(new ArrayList<>());
-        dto.setBeneficiaries(new ArrayList<>());
-        dto.setGuarantors(new ArrayList<>());
-        dto.setRepresentatives(new ArrayList<>());
-        return dto;
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    // syncProperties
-    // ════════════════════════════════════════════════════════════════════════════
-
-    @Test
-    void syncProperties_nullPropertyData_clearsProperties() {
-        DossierData dossier = emptyDossier();
-        dossier.getProperties().add(makeProperty(1L, "uuid-1"));
-        DossierDataDto dto = new DossierDataDto(); // propertyData = null
-
-        helper.syncProperties(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getProperties()).isEmpty();
-    }
-
-    @Test
-    void syncProperties_emptyList_clearsProperties() {
-        DossierData dossier = emptyDossier();
-        dossier.getProperties().add(makeProperty(1L, "uuid-1"));
-        DossierDataDto dto = emptyDto(); // empty list
-
-        helper.syncProperties(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getProperties()).isEmpty();
-    }
-
-    @Test
-    void syncProperties_removesPropertyNotInDto_andClearsRangsFromBeneficiaries() {
-        DossierData dossier = emptyDossier();
-        Property existingProp = makeProperty(10L, "uuid-10");
-        dossier.getProperties().add(existingProp);
-
-        // beneficiary has a rang referencing that property
-        Beneficiary benef = makeBeneficiary(1L, "b-uuid");
-        Rang rang = new Rang();
-        rang.setProperty(existingProp);
-        benef.getRangs().add(rang);
-        dossier.setBeneficiaries(List.of(benef));
-
-        DossierDataDto dto = emptyDto();
-        // DTO sends a DIFFERENT property id => existing one should be removed
-        PropertyDto newProp = makePropertyDto(99L, "uuid-99");
-        Property newPropEntity = makeProperty(99L, "uuid-99");
-        dto.getPropertyData().setProperties(List.of(newProp));
-        when(propertyMapper.convertToEntity(newProp)).thenReturn(newPropEntity);
-
-        Map<String, Property> pool = new HashMap<>();
-        helper.syncProperties(dto, dossier, pool);
-
-        assertThat(dossier.getProperties()).doesNotContain(existingProp);
-        assertThat(benef.getRangs()).isEmpty(); // rang removed
-        assertThat(dossier.getProperties()).contains(newPropEntity);
-    }
-
-    @Test
-    void syncProperties_updatesExistingProperty_andRegistersInPool() {
-        DossierData dossier = emptyDossier();
-        Property existingProp = makeProperty(10L, "uuid-10");
-        dossier.getProperties().add(existingProp);
-
-        PropertyDto dto10 = makePropertyDto(10L, "uuid-10");
-        DossierDataDto dto = emptyDto();
-        dto.getPropertyData().setProperties(List.of(dto10));
-
-        Map<String, Property> pool = new HashMap<>();
-        helper.syncProperties(dto, dossier, pool);
-
-        verify(propertyMapper).updateFromDto(dto10, existingProp);
-        assertThat(pool).containsKey("10");
-        assertThat(pool).containsKey("uuid-10");
-        assertThat(pool.get("10")).isSameAs(existingProp);
-    }
-
-    @Test
-    void syncProperties_newProperty_whenDossierIdNull_setsIdNull() {
-        DossierData dossier = new DossierData(); // id = null
-        dossier.setProperties(new ArrayList<>());
-        dossier.setBeneficiaries(new ArrayList<>());
-
-        PropertyDto pDto = makePropertyDto(5L, "uuid-5");
-        DossierDataDto dto = emptyDto();
-        dto.getPropertyData().setProperties(List.of(pDto));
-
-        Property created = makeProperty(5L, "uuid-5");
-        when(propertyMapper.convertToEntity(pDto)).thenReturn(created);
-
-        Map<String, Property> pool = new HashMap<>();
-        helper.syncProperties(dto, dossier, pool);
-
-        assertThat(created.getId()).isNull(); // forced null when dossier.id == null
-        assertThat(created.getDossier()).isSameAs(dossier);
-        assertThat(dossier.getProperties()).contains(created);
-        assertThat(pool).containsKey("uuid-5");
-    }
-
-    @Test
-    void syncProperties_newProperty_whenDossierIdNotNull_addsToCollectionAndPool() {
-        DossierData dossier = emptyDossier(); // id = 1L
-        // No existing properties with matching id => triggers new branch (id == null check fails but existing doesn't match)
-        PropertyDto pDto = makePropertyDto(null, "uuid-new"); // id null => always new
-        DossierDataDto dto = emptyDto();
-        dto.getPropertyData().setProperties(List.of(pDto));
-
-        Property created = makeProperty(null, "uuid-new");
-        when(propertyMapper.convertToEntity(pDto)).thenReturn(created);
-
-        Map<String, Property> pool = new HashMap<>();
-        helper.syncProperties(dto, dossier, pool);
-
-        assertThat(dossier.getProperties()).contains(created);
-        assertThat(pool).containsKey("uuid-new");
-    }
-
-    @Test
-    void syncProperties_propertiesNullOnDossier_initializesCollection() {
-        DossierData dossier = new DossierData();
-        dossier.setProperties(null);
-        dossier.setBeneficiaries(new ArrayList<>());
-        dossier.setId(1L);
-
-        DossierDataDto dto = emptyDto(); // empty => should clear
-
-        helper.syncProperties(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getProperties()).isNotNull().isEmpty();
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    // syncBeneficiaries
-    // ════════════════════════════════════════════════════════════════════════════
-
-    @Test
-    void syncBeneficiaries_emptyDto_clearsBeneficiaries() {
-        DossierData dossier = emptyDossier();
-        dossier.getBeneficiaries().add(makeBeneficiary(1L, "b1"));
-        DossierDataDto dto = emptyDto();
-
-        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(dossier.getBeneficiaries()).isEmpty();
-    }
-
-    @Test
-    void syncBeneficiaries_removedBeneficiary_clearsRangsFirst() {
-        DossierData dossier = emptyDossier();
-        Beneficiary toRemove = makeBeneficiary(99L, "b99");
-        Rang rang = new Rang();
-        toRemove.getRangs().add(rang);
-        dossier.setBeneficiaries(new ArrayList<>(List.of(toRemove)));
-
-        DossierDataDto dto = emptyDto();
-        BeneficiaryDto bDto = makeBeneficiaryDto(1L, "b1"); // different id
-        dto.setBeneficiaries(List.of(bDto));
-
-        Beneficiary newBenef = makeBeneficiary(null, "b1");
-        when(beneficiaryMapper.convertToEntity(bDto)).thenReturn(newBenef);
-
-        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(toRemove.getRangs()).isEmpty();
-        assertThat(dossier.getBeneficiaries()).doesNotContain(toRemove);
-    }
-
-    @Test
-    void syncBeneficiaries_updatesExistingBeneficiary_andRegistersInPool() {
-        DossierData dossier = emptyDossier();
-        Beneficiary existing = makeBeneficiary(5L, "b5");
-        dossier.setBeneficiaries(new ArrayList<>(List.of(existing)));
-
-        BeneficiaryDto bDto = makeBeneficiaryDto(5L, "b5");
-        bDto.setProperties(new ArrayList<>());
-        bDto.setRangs(new ArrayList<>());
-        DossierDataDto dto = emptyDto();
-        dto.setBeneficiaries(List.of(bDto));
-
-        Map<String, Beneficiary> benefPool = new HashMap<>();
-        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), benefPool);
-
-        verify(beneficiaryMapper).updateFromDto(bDto, existing);
-        assertThat(benefPool).containsKey("5");
-        assertThat(benefPool).containsKey("b5");
-    }
-
-    @Test
-    void syncBeneficiaries_newBeneficiary_whenDossierIdNull_setsIdNull() {
-        DossierData dossier = new DossierData(); // id null
-        dossier.setBeneficiaries(new ArrayList<>());
-
-        BeneficiaryDto bDto = makeBeneficiaryDto(7L, "b7");
-        bDto.setProperties(new ArrayList<>());
-        bDto.setRangs(new ArrayList<>());
-        DossierDataDto dto = emptyDto();
-        dto.setBeneficiaries(List.of(bDto));
-
-        Beneficiary created = makeBeneficiary(7L, "b7");
-        when(beneficiaryMapper.convertToEntity(bDto)).thenReturn(created);
-
-        Map<String, Beneficiary> pool = new HashMap<>();
-        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), pool);
-
-        assertThat(created.getId()).isNull();
-        assertThat(pool).containsKey("b7");
-    }
-
-    @Test
-    void syncBeneficiaries_nullBeneficiariesOnDossier_initializesCollection() {
-        DossierData dossier = new DossierData();
-        dossier.setBeneficiaries(null);
-        DossierDataDto dto = emptyDto();
-
-        helper.syncBeneficiaries(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(dossier.getBeneficiaries()).isNotNull().isEmpty();
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    // syncGuarantors
-    // ════════════════════════════════════════════════════════════════════════════
-
-    @Test
-    void syncGuarantors_emptyDto_clearsGuarantors() {
-        DossierData dossier = emptyDossier();
-        dossier.getGuarantors().add(makeGuarantor(1L, "g1"));
-        DossierDataDto dto = emptyDto();
-
-        helper.syncGuarantors(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getGuarantors()).isEmpty();
-    }
-
-    @Test
-    void syncGuarantors_removesGuarantorNotInDto() {
-        DossierData dossier = emptyDossier();
-        dossier.getGuarantors().add(makeGuarantor(10L, "g10"));
-
-        GuarantorDto incoming = makeGuarantorDto(99L, "g99"); // different id
-        DossierDataDto dto = emptyDto();
-        dto.setGuarantors(List.of(incoming));
-        Guarantor created = makeGuarantor(null, "g99");
-        when(guarantorMapper.convertToEntity(incoming)).thenReturn(created);
-
-        helper.syncGuarantors(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getGuarantors()).noneMatch(g -> Long.valueOf(10L).equals(g.getId()));
-    }
-
-    @Test
-    void syncGuarantors_updatesExistingGuarantor_andRegistersInPool() {
-        DossierData dossier = emptyDossier();
-        Guarantor existing = makeGuarantor(3L, "g3");
-        dossier.setGuarantors(new ArrayList<>(List.of(existing)));
-
-        GuarantorDto gDto = makeGuarantorDto(3L, "g3");
-        DossierDataDto dto = emptyDto();
-        dto.setGuarantors(List.of(gDto));
-
-        Map<String, Guarantor> pool = new HashMap<>();
-        helper.syncGuarantors(dto, dossier, pool);
-
-        verify(guarantorMapper).updateFromDto(gDto, existing);
-        assertThat(pool).containsKey("3").containsKey("g3");
-    }
-
-    @Test
-    void syncGuarantors_newGuarantor_whenDossierIdNull_setsIdNull() {
-        DossierData dossier = new DossierData(); // id null
-        dossier.setGuarantors(new ArrayList<>());
-
-        GuarantorDto gDto = makeGuarantorDto(5L, "g5");
-        DossierDataDto dto = emptyDto();
-        dto.setGuarantors(List.of(gDto));
-
-        Guarantor created = makeGuarantor(5L, "g5");
-        when(guarantorMapper.convertToEntity(gDto)).thenReturn(created);
-
-        Map<String, Guarantor> pool = new HashMap<>();
-        helper.syncGuarantors(dto, dossier, pool);
-
-        assertThat(created.getId()).isNull();
-        assertThat(pool).containsKey("g5");
-    }
-
-    @Test
-    void syncGuarantors_nullGuarantorsOnDossier_initializesCollection() {
-        DossierData dossier = new DossierData();
-        dossier.setGuarantors(null);
-        DossierDataDto dto = emptyDto();
-
-        helper.syncGuarantors(dto, dossier, new HashMap<>());
-
-        assertThat(dossier.getGuarantors()).isNotNull().isEmpty();
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    // syncRepresentatives
-    // ════════════════════════════════════════════════════════════════════════════
-
-    @Test
-    void syncRepresentatives_emptyDto_clearsRepresentativesAndUnlinks() {
-        DossierData dossier = emptyDossier();
-        Representative rep = mock(Representative.class);
-        dossier.setRepresentatives(new ArrayList<>(List.of(rep)));
-        DossierDataDto dto = emptyDto(); // representatives empty
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        verify(rep).unlinkAllBeneficiaries();
-        verify(rep).unlinkAllGuarantors();
-        verify(rep).unlinkAllCustomers();
-        assertThat(dossier.getRepresentatives()).isEmpty();
-    }
-
-    @Test
-    void syncRepresentatives_nullRepresentatives_clearsAndUnlinks() {
-        DossierData dossier = emptyDossier();
-        Representative rep = mock(Representative.class);
-        dossier.setRepresentatives(new ArrayList<>(List.of(rep)));
-
-        DossierDataDto dto = new DossierDataDto();
-        dto.setRepresentatives(null);
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        verify(rep).unlinkAllBeneficiaries();
-        assertThat(dossier.getRepresentatives()).isEmpty();
-    }
-
-    @Test
-    void syncRepresentatives_newDossier_createsRepresentativeWithNullId() {
-        DossierData dossier = new DossierData(); // id null => new dossier
-        dossier.setRepresentatives(new ArrayList<>());
-        dossier.setBeneficiaries(new ArrayList<>());
-        dossier.setGuarantors(new ArrayList<>());
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setId(1L);
-        repDto.setFirstname("Ali");
-        repDto.setLastname("Hassan");
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(dossier.getRepresentatives()).hasSize(1);
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getId()).isNull();
-        assertThat(created.getFirstname()).isEqualTo("Ali");
-        assertThat(created.getLastname()).isEqualTo("Hassan");
-    }
-
-    @Test
-    void syncRepresentatives_existingDossier_updatesExistingRep_andUnlinksFirst() {
-        DossierData dossier = emptyDossier(); // id = 1L
-
-        Representative existingRep = new Representative();
-        existingRep.setId(10L);
-        existingRep.setBeneficiaryAssociations(new ArrayList<>());
-        existingRep.setGuarantorAssociations(new ArrayList<>());
-        dossier.setRepresentatives(new ArrayList<>(List.of(existingRep)));
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setId(10L);
-        repDto.setFirstname("Updated");
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(existingRep.getFirstname()).isEqualTo("Updated");
-        assertThat(dossier.getRepresentatives()).contains(existingRep);
-    }
-
-    @Test
-    void syncRepresentatives_removesRepNotInIncomingIds() {
-        DossierData dossier = emptyDossier();
-
-        Representative toRemove = new Representative();
-        toRemove.setId(99L);
-        dossier.setRepresentatives(new ArrayList<>(List.of(toRemove)));
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setId(5L); // different
-        repDto.setFirstname("New");
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        assertThat(dossier.getRepresentatives()).noneMatch(r -> Long.valueOf(99L).equals(r.getId()));
-    }
-
-    // ─── linkCustomerRelationship ─────────────────────────────────────────────
-
-    @Test
-    void syncRepresentatives_linksCustomer_whenCustomerDataPresent() {
-        DossierData dossier = new DossierData();
-        dossier.setId(null); // new dossier
-        dossier.setRepresentatives(new ArrayList<>());
-        dossier.setBeneficiaries(new ArrayList<>());
-        dossier.setGuarantors(new ArrayList<>());
-
-        Customer customer = new Customer();
-        CustomerCard card = new CustomerCard();
-        card.setCustomer(customer);
-        dossier.setCustomerData(card);
-
-        RepresentativeDtoCustomerRef customerRef = new RepresentativeDtoCustomerRef();
-        customerRef.setProxyDate(LocalDate.of(2024, 1, 1));
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setCustomer(customerRef);
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        // linkCustomer should have been called — verify via side effect if Representative is not mocked
-        // This confirms no NPE and representative was created
-        assertThat(created).isNotNull();
-    }
-
-    // ─── linkBeneficiaryRelationships ─────────────────────────────────────────
-
-    @Test
-    void syncRepresentatives_linksBeneficiary_viaIdKey() {
-        DossierData dossier = emptyDossier();
-
-        Beneficiary benef = makeBeneficiary(7L, "b7");
-        dossier.setBeneficiaries(List.of(benef));
-
-        Map<String, Beneficiary> benefPool = new HashMap<>();
-        benefPool.put("7", benef);
-
-        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
-        BeneficiaryDto bInner = makeBeneficiaryDto(7L, null);
-        bRef.setBeneficiary(bInner);
-        bRef.setProxyDate(LocalDate.now());
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setId(1L);
-        repDto.setBeneficiaries(List.of(bRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getBeneficiaryAssociations()).hasSize(1);
-        assertThat(created.getBeneficiaryAssociations().get(0).getBeneficiary()).isSameAs(benef);
-    }
-
-    @Test
-    void syncRepresentatives_linksBeneficiary_viaUuidKey_whenIdNull() {
-        DossierData dossier = emptyDossier();
-
-        Beneficiary benef = makeBeneficiary(null, "uuid-benef");
-        dossier.setBeneficiaries(List.of(benef));
-
-        Map<String, Beneficiary> benefPool = new HashMap<>();
-        benefPool.put("uuid-benef", benef);
-
-        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
-        BeneficiaryDto bInner = makeBeneficiaryDto(null, "uuid-benef");
-        bRef.setBeneficiary(bInner);
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setBeneficiaries(List.of(bRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getBeneficiaryAssociations()).hasSize(1);
-    }
-
-    @Test
-    void syncRepresentatives_skipsBeneficiaryRef_whenBeneficiaryNotInPool() {
-        DossierData dossier = emptyDossier();
-
-        Map<String, Beneficiary> benefPool = new HashMap<>(); // empty pool
-
-        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
-        BeneficiaryDto bInner = makeBeneficiaryDto(99L, null);
-        bRef.setBeneficiary(bInner);
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setBeneficiaries(List.of(bRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-        dossier.setBeneficiaries(List.of(makeBeneficiary(1L, "b1"))); // non-empty so early return skipped
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getBeneficiaryAssociations()).isEmpty();
-    }
-
-    @Test
-    void syncRepresentatives_skipsBeneficiaryRef_whenBeneficiaryInnerDtoNull() {
-        DossierData dossier = emptyDossier();
-        dossier.setBeneficiaries(List.of(makeBeneficiary(1L, "b1")));
-
-        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
-        bRef.setBeneficiary(null); // null inner dto
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setBeneficiaries(List.of(bRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getBeneficiaryAssociations()).isEmpty();
-    }
-
-    // ─── linkGuarantorRelationships ───────────────────────────────────────────
-
-    @Test
-    void syncRepresentatives_linksGuarantor_viaIdKey() {
-        DossierData dossier = emptyDossier();
-
-        Guarantor guarantor = makeGuarantor(8L, "g8");
-        dossier.setGuarantors(List.of(guarantor));
-
-        Map<String, Guarantor> guarantorPool = new HashMap<>();
-        guarantorPool.put("8", guarantor);
-
-        GuarantorRefDto gRef = new GuarantorRefDto();
-        GuarantorDto gInner = makeGuarantorDto(8L, null);
-        gRef.setGuarantor(gInner);
-        gRef.setProxyDate(LocalDate.now());
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setGuarantors(List.of(gRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getGuarantorAssociations()).hasSize(1);
-        assertThat(created.getGuarantorAssociations().get(0).getGuarantor()).isSameAs(guarantor);
-    }
-
-    @Test
-    void syncRepresentatives_linksGuarantor_viaUuidKey_whenIdNull() {
-        DossierData dossier = emptyDossier();
-
-        Guarantor guarantor = makeGuarantor(null, "uuid-g");
-        dossier.setGuarantors(List.of(guarantor));
-
-        Map<String, Guarantor> guarantorPool = new HashMap<>();
-        guarantorPool.put("uuid-g", guarantor);
-
-        GuarantorRefDto gRef = new GuarantorRefDto();
-        GuarantorDto gInner = makeGuarantorDto(null, "uuid-g");
-        gRef.setGuarantor(gInner);
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setGuarantors(List.of(gRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getGuarantorAssociations()).hasSize(1);
-    }
-
-    @Test
-    void syncRepresentatives_skipsGuarantorRef_whenNotInPool() {
-        DossierData dossier = emptyDossier();
-        dossier.setGuarantors(List.of(makeGuarantor(1L, "g1"))); // non-empty to bypass early return
-
-        Map<String, Guarantor> guarantorPool = new HashMap<>(); // empty
-
-        GuarantorRefDto gRef = new GuarantorRefDto();
-        gRef.setGuarantor(makeGuarantorDto(99L, null));
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setGuarantors(List.of(gRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, guarantorPool, new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getGuarantorAssociations()).isEmpty();
-    }
-
-    @Test
-    void syncRepresentatives_skipsGuarantorRef_whenGuarantorInnerDtoNull() {
-        DossierData dossier = emptyDossier();
-        dossier.setGuarantors(List.of(makeGuarantor(1L, "g1")));
-
-        GuarantorRefDto gRef = new GuarantorRefDto();
-        gRef.setGuarantor(null); // null
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setGuarantors(List.of(gRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), new HashMap<>());
-
-        Representative created = dossier.getRepresentatives().get(0);
-        assertThat(created.getGuarantorAssociations()).isEmpty();
-    }
-
-    // ─── Edge cases ───────────────────────────────────────────────────────────
-
-    @Test
-    void syncRepresentatives_multipleCalls_clearsOldAssociationsEachTime() {
-        DossierData dossier = emptyDossier();
-
-        Beneficiary benef = makeBeneficiary(3L, "b3");
-        dossier.setBeneficiaries(List.of(benef));
-        Map<String, Beneficiary> benefPool = Map.of("3", benef);
-
-        Representative existingRep = new Representative();
-        existingRep.setId(1L);
-        existingRep.setBeneficiaryAssociations(new ArrayList<>());
-        existingRep.setGuarantorAssociations(new ArrayList<>());
-        dossier.setRepresentatives(new ArrayList<>(List.of(existingRep)));
-
-        BeneficiaryRefDto bRef = new BeneficiaryRefDto();
-        bRef.setBeneficiary(makeBeneficiaryDto(3L, null));
-
-        RepresentativeDto repDto = new RepresentativeDto();
-        repDto.setId(1L);
-        repDto.setBeneficiaries(List.of(bRef));
-
-        DossierDataDto dto = emptyDto();
-        dto.setRepresentatives(List.of(repDto));
-
-        // First sync
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
-        assertThat(existingRep.getBeneficiaryAssociations()).hasSize(1);
-
-        // Second sync — associations should be replaced, not accumulated
-        helper.syncRepresentatives(dto, dossier, new HashMap<>(), benefPool);
-        assertThat(existingRep.getBeneficiaryAssociations()).hasSize(1);
-    }
-}
