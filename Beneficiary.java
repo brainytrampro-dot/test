@@ -1,3 +1,76 @@
+
+private void syncWarranties(DossierData oldDossier, DossierData newDossier) {
+    if (newDossier.getWarranties() == null) {
+        oldDossier.getWarranties().clear();
+        return;
+    }
+
+    List<String> resetStatuses = Arrays.asList(
+        DossierStatus.INIT.toString(),
+        DossierStatus.INCA_VALD.toString(),
+        DossierStatus.INCA_DECS.toString(),
+        DossierStatus.INCA_AANR.toString(),
+        DossierStatus.INCA_AVRS_RANR.toString(),
+        DossierStatus.INCA_AVRS.toString(),
+        DossierStatus.INCA_DECS_RS.toString()
+    );
+
+    if (resetStatuses.contains(oldDossier.getStatus())) {
+        oldDossier.getWarranties().clear();
+        newDossier.getWarranties().forEach(w -> {
+            Warranty toAdd = new Warranty();
+            toAdd.setContent(w.getContent());
+            toAdd.setType(w.getType());
+            toAdd.setDossier(oldDossier);
+            oldDossier.getWarranties().add(toAdd);
+        });
+        return;
+    }
+
+    // Sync partiel
+    Map<Long, Warranty> oldWarrantiesMap = oldDossier.getWarranties().stream()
+        .filter(w -> w.getId() != null)
+        .collect(Collectors.toMap(Warranty::getId, w -> w));
+
+    Set<Long> newWarrantyIds = newDossier.getWarranties().stream()
+        .map(Warranty::getId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+
+    // Supprime les obsolètes
+    oldDossier.getWarranties().removeIf(w ->
+        w.getId() != null && !newWarrantyIds.contains(w.getId())
+    );
+
+    // Update ou Insert
+    List<Warranty> toAdd = new ArrayList<>();
+    for (Warranty newW : newDossier.getWarranties()) {
+        if (newW.getId() != null && oldWarrantiesMap.containsKey(newW.getId())) {
+            Warranty existing = oldWarrantiesMap.get(newW.getId());
+            existing.setContent(newW.getContent());
+            existing.setType(newW.getType());
+        } else {
+            Warranty warranty = new Warranty();
+            warranty.setContent(newW.getContent());
+            warranty.setType(newW.getType());
+            warranty.setDossier(oldDossier);
+            toAdd.add(warranty);
+        }
+    }
+
+    oldDossier.getWarranties().addAll(toAdd);
+}
+
+
+
+
+
+
+
+
+
+
+
 import { CdkStepper } from '@angular/cdk/stepper';
 import {
   AfterViewInit,
