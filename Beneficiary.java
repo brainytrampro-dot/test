@@ -1,4 +1,50 @@
 
+@Transactional
+public DossierDataDto updateWarrantiesAndRestrictions(DossierDataDto dossierDto) {
+    log.info("Core Start: update warranties : {}, and restrictions : {}", dossierDto.getWarranties(), dossierDto.getRestrictions());
+    Assert.notNull(dossierDto.getUuid(), CANNOT_PERFORM_THIS_ACTION);
+    DossierData oldDossier = dossierDataRepository.findByUuid(dossierDto.getUuid());
+    Assert.exists(oldDossier, DOSSIER_NOT_EXIST);
+    DossierData newDossier = convertToEntity(dossierDto);
+
+    if (!CollectionUtils.isEmpty(newDossier.getWarranties())) {
+        oldDossier.getWarranties().clear();
+        newDossier.getWarranties().forEach(w -> {
+            Warranty toAdd = new Warranty();
+            toAdd.setContent(w.getContent());
+            toAdd.setType(w.getType());
+            toAdd.setDossier(oldDossier);
+            oldDossier.getWarranties().add(toAdd);
+        });
+        updateWarranties(oldDossier);
+    } else {
+        oldDossier.getWarranties().clear();
+    }
+
+    if (!CollectionUtils.isEmpty(newDossier.getRestrictions())) {
+        oldDossier.getRestrictions().clear();
+        newDossier.getRestrictions().forEach(r -> {
+            Restriction toAdd = new Restriction();
+            toAdd.setContent(r.getContent());
+            toAdd.setType(r.getType());
+            toAdd.setDossier(oldDossier);
+            oldDossier.getRestrictions().add(toAdd);
+        });
+        updateRestrictions(oldDossier);
+    } else {
+        oldDossier.getRestrictions().clear();
+    }
+
+    DossierData updatedDossier = dossierDataRepository.save(oldDossier);
+    log.info("Core End: Updated dossier : {}, warranties : {}, and restrictions : {}", 
+        updatedDossier.getDossierUsers(), 
+        updatedDossier.getWarranties(), 
+        updatedDossier.getRestrictions());
+    return dossierDataMapper.convertToDTO(updatedDossier);
+}
+
+
+
 private void syncWarranties(DossierData oldDossier, DossierData newDossier) {
     if (newDossier.getWarranties() == null) {
         oldDossier.getWarranties().clear();
