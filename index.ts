@@ -223,19 +223,27 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private applyRequestedNotaryFeeValidators(loanObjectCode: string){
     const isAQS = loanObjectCode?.includes('AQS');
     const isOnlyRCH = loanObjectCode?.includes('RCH') && !loanObjectCode?.includes('AQS');
-    
-    this.clearRequestedNotaryFeeControls();
-    if((isAQS || isOnlyRCH) && (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE))){
-      const coefficient = isAQS ? 0.08 : isOnlyRCH ? 0.04 : 1;
-      this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
-      this.loanDataFormGroup.addControl("requestedNotaryFee", new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ fieldName:  'acquisitionFee' })]));
+    const isElligibleForNotaryFee = (isAQS || isOnlyRCH) && (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE));
+
+    if(!isElligibleForNotaryFee) {
+      this.acquisitionFeeFormControl?.reset(null, { emitEvent: true });
+      this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
       this.acquisitionPriceFormControl?.clearValidators();
-      this.acquisitionPriceFormControl?.addValidators([
-        Validators.required,  
-        NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: coefficient, fieldName: 'requestedNotaryFee' })
-      ]);
+      this.acquisitionPriceFormControl?.addValidators([Validators.required]);
       this.acquisitionPriceFormControl?.updateValueAndValidity();
+      this.clearRequestedNotaryFeeControls();
+      return;
     }
+
+    const coefficient = isAQS ? 0.08 : 0.04;
+    if(!this.loanDataFormGroup.contains("acquisitionFee"))     this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
+    if(!this.loanDataFormGroup.contains("requestedNotaryFee")) this.loanDataFormGroup.addControl("requestedNotaryFee", new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ fieldName:  'acquisitionFee' })]));
+    this.acquisitionPriceFormControl?.clearValidators();
+    this.acquisitionPriceFormControl?.addValidators([
+      Validators.required,  
+      NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: coefficient, fieldName: 'requestedNotaryFee' })
+    ]);
+    this.acquisitionPriceFormControl?.updateValueAndValidity();
   }
 
   private onChangeCustomerType(dossier: DossierData){
@@ -758,7 +766,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
     this.loanDataFormGroup.addControl("applicationFee", new FormControl({ value: null, disabled: false }, [Validators.required, NumberValidators.lessThanEqualTo({ fieldName: 'loanAmount', fieldNameCoefficient: 0.001 })]));
     this.loanDataFormGroup.addControl("freeHandFee", new FormControl(800, [Validators.required]));
     this.loanDataFormGroup.addControl("investmentAmount", new FormControl({ value: null, disabled: true }, [Validators.required]));
-    this.loanDataFormGroup.addControl("claimedAmountOfPurchase", new FormControl(null, ));
+    this.loanDataFormGroup.addControl("claimedAmountOfPurchase", new FormControl(null));
     this.loanDataFormGroup.addControl("buildDevelopmentQuotation", new FormControl());
     this.loanDataFormGroup.addControl("claimedAmountOfBuildDevelopment", new FormControl(null, [NumberValidators.lessThanEqualTo({ fieldName: 'buildDevelopmentQuotation' })]));
     this.loanDataFormGroup.addControl("loanAmount", new FormControl({ value: null, disabled: true }, [
@@ -772,6 +780,10 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
         ]),
       );
     }
+
+    this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
+    this.loanDataFormGroup.addControl("requestedNotaryFee", new FormControl());
+    
 
     this.loanDataFormGroup.get('rateType')?.valueChanges.subscribe(value => {
       if (value.code === this.rateTypes.CAPE) {
@@ -981,8 +993,8 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private calculateInvestmentAmount(): void {
     const price$     = this.getControlValueChanges(this.acquisitionPriceFormControl, 0, this.acquisitionPriceFormControl?.value);
     const quotation$ = this.getControlValueChanges(this.buildDevelopmentQuotationFormControl, 0, this.buildDevelopmentQuotationFormControl?.value);
-    const fee$       = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE))
-      ? this.getControlValueChanges(this.acquisitionFeeFormControl, 0, this.acquisitionFeeFormControl?.value ?? null)
+    const fee$       = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE)) && this.loanDataFormGroup.contains("acquisitionFee")
+      ? this.getControlValueChanges(this.acquisitionFeeFormControl, 0, this.acquisitionFeeFormControl?.value)
       : of(0);
   
     merge(price$, quotation$, fee$)
@@ -1014,7 +1026,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private calculateLoanAmount(): void {
     const buildCost$ = this.getControlValueChanges( this.claimedAmountOfBuildDevelopmentFormControl,  0,  this.claimedAmountOfBuildDevelopmentFormControl?.value);
     const purchase$  = this.getControlValueChanges(  this.claimedAmountOfPurchaseFormControl, 0, this.claimedAmountOfPurchaseFormControl?.value );
-    const notary$    = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE))
+    const notary$    = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE)) && this.loanDataFormGroup.contains("requestedNotaryFee")
       ? this.getControlValueChanges(this.requestedNotaryFeeFormControl, 0, this.requestedNotaryFeeFormControl?.value ?? null)
      : of(0);
   
