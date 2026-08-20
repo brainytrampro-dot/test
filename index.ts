@@ -215,11 +215,6 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
     return !this.isFormHasFunctionalErrors(formGroup as FormGroup);
   }
 
-  private clearRequestedNotaryFeeControls() {
-    if (this.loanDataFormGroup.contains("acquisitionFee")) { this.loanDataFormGroup.removeControl("acquisitionFee");}
-    if (this.loanDataFormGroup.contains("requestedNotaryFee")) { this.loanDataFormGroup.removeControl("requestedNotaryFee"); }
-  }
-
   private applyRequestedNotaryFeeValidators(loanObjectCode: string){
     const isAQS = loanObjectCode?.includes('AQS');
     const isOnlyRCH = loanObjectCode?.includes('RCH') && !loanObjectCode?.includes('AQS');
@@ -228,22 +223,26 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
     if(!isElligibleForNotaryFee) {
       this.acquisitionFeeFormControl?.reset(null, { emitEvent: true });
       this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
+      this.acquisitionFeeFormControl?.clearValidators();
+      this.requestedNotaryFeeFormControl?.clearValidators();
       this.acquisitionPriceFormControl?.clearValidators();
       this.acquisitionPriceFormControl?.addValidators([Validators.required]);
       this.acquisitionPriceFormControl?.updateValueAndValidity();
-      this.clearRequestedNotaryFeeControls();
+      this.acquisitionFeeFormControl?.updateValueAndValidity();
+      this.requestedNotaryFeeFormControl?.updateValueAndValidity();
       return;
     }
 
     const coefficient = isAQS ? 0.08 : 0.04;
-    if(!this.loanDataFormGroup.contains("acquisitionFee"))     this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
-    if(!this.loanDataFormGroup.contains("requestedNotaryFee")) this.loanDataFormGroup.addControl("requestedNotaryFee", new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ fieldName:  'acquisitionFee' })]));
+    this.acquisitionFeeFormControl.addValidators([Validators.required]);
+    this.requestedNotaryFeeFormControl?.addValidators([Validators.required, NumberValidators.lessThanEqualTo({ fieldName:  'acquisitionFee' })]);
     this.acquisitionPriceFormControl?.clearValidators();
     this.acquisitionPriceFormControl?.addValidators([
       Validators.required,  
       NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: coefficient, fieldName: 'requestedNotaryFee' })
     ]);
     this.acquisitionPriceFormControl?.updateValueAndValidity();
+    this.requestedNotaryFeeFormControl?.updateValueAndValidity();
   }
 
   private onChangeCustomerType(dossier: DossierData){
@@ -1041,9 +1040,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
           this.topVipService.next(loanSum);
         })
       )
-      .subscribe(() => {
-        console.log("Loan amount calculation completed. Current loan amount:", this.loanDataFormGroup.get('loanAmount')?.value);
-      });
+      .subscribe();
   }
 
   private computeSum(): number {
