@@ -106,6 +106,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   filteredPropertyTypes$?: Observable<DelayType[]>;
   isPatrimonial: boolean = false;
   isHautDeGamme: boolean = false;
+  showNotaryFeeFields: boolean = false;
   private destroy$ = new Subject<void>();
 
   constructor(injector: Injector, public dossierStore: DossierDataStoreService,
@@ -192,77 +193,91 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
     this.destroy$.complete();
   }
 
-  onChangeLoanObject() {
-    this.getControlValueChanges(this.loanObjectFormControl).subscribe(value => {
-      this.applyRequestedNotaryFeeValidators(value?.code);
-      this.propertyTypeFormControl?.reset();
-      this.repurchaseTypeFormControl?.reset();
-      const code = typeof value === 'object' ? value?.code : value;
-      this.propertyTypes$ = code 
-        ? this.refService.mapToCodeDesignation(this.refService.getAllPropertyTypesByLoanObject(code)).pipe(shareReplay(1))
-        : of([]);
+  private updatePropertyTypes(code: string): void {
+    this.propertyTypes$ = code 
+      ? this.refService.mapToCodeDesignation(this.refService.getAllPropertyTypesByLoanObject(code)).pipe(shareReplay(1))
+      : of([]);
 
-      this.filteredPropertyTypes$ = this.selectService.filterOptions(
-        this.propertyTypes$,
-        this.propertyTypeFilterControl,
-        'designation'
-      );
-      if(this.isYassir || this.isPpoPpc){
-        const isAcquisition = !!value?.code?.includes('AQS');
-        if(!isAcquisition){
-          this.acquisitionPriceFormControl?.reset();
-          this.investmentAmountFormControl.reset();
-          this.propertyTypeFormControl?.clearValidators();
-          this.investmentAmountFormControl?.updateValueAndValidity();
-        }else{
-          if(value?.code==='AQS_BSN_COML' ){ 
-            this.propertyTypeFormControl?.addValidators([Validators.required]); 
-          }else {
-            this.propertyTypeFormControl.removeValidators(Validators.required);
-          }
-          if (value.code.includes('RCH')) {
-            this.repurchaseTypeFormControl.addValidators(Validators.required);
-          } else {
-            this.repurchaseTypeFormControl.removeValidators(Validators.required);
-          }
-        }
+    this.filteredPropertyTypes$ = this.selectService.filterOptions(
+      this.propertyTypes$,
+      this.propertyTypeFilterControl,
+      'designation'
+    );
+  }
 
-        this.applyAcquisitionPriceValidators(isAcquisition);
-        this.applyClaimedAmountOfPurchaseValidators(value?.code);
-
-        this.loanDataFormGroup.get('apport')?.reset()
-        this.loanDataFormGroup.get('percentOfApport')?.reset()
-        this.loanDataFormGroup.get('apport')?.updateValueAndValidity();
-        this.loanDataFormGroup.get('percentOfApport')?.updateValueAndValidity();
-        this.propertyTypeFormControl?.updateValueAndValidity();
-        return;
+  private applyConsoLoanObjectRules(code: string): void {
+    const isAcquisition = !!code?.includes('AQS');
+    if(!isAcquisition){
+      this.acquisitionPriceFormControl?.reset();
+      this.investmentAmountFormControl.reset();
+      this.propertyTypeFormControl?.clearValidators();
+      this.investmentAmountFormControl?.updateValueAndValidity();
+    }else{
+      if(code==='AQS_BSN_COML' ){ 
+        this.propertyTypeFormControl?.addValidators([Validators.required]); 
+      }else {
+        this.propertyTypeFormControl.removeValidators(Validators.required);
       }
-
-      if (value.code.includes('RCH') || value.code.includes('AQS') || value?.code?.includes('REGR_CRED')  || value?.code?.includes('REF_ACH_BI')) {
-        this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required,  NumberValidators.lessThanEqualTo({ fieldName: 'acquisitionPrice' })]);
-      } else {
-        this.claimedAmountOfPurchaseFormControl.removeValidators(Validators.required);
-        this.claimedAmountOfPurchaseFormControl.reset();
-      }
-
-      if (value.code.includes('CST') || value.code.includes('AMN')) {
-        this.buildDevelopmentQuotationFormControl.addValidators(Validators.required);
-        this.claimedAmountOfBuildFormControl.addValidators(Validators.required);
-      } else {
-        this.buildDevelopmentQuotationFormControl.removeValidators(Validators.required);
-        this.buildDevelopmentQuotationFormControl.reset();
-        this.claimedAmountOfBuildFormControl.removeValidators(Validators.required);
-        this.claimedAmountOfBuildFormControl.reset();
-      }
-
-      if (value.code.includes('RCH')) {
+      if (code.includes('RCH')) {
         this.repurchaseTypeFormControl.addValidators(Validators.required);
       } else {
         this.repurchaseTypeFormControl.removeValidators(Validators.required);
       }
+    }
 
-      this.buildDevelopmentQuotationFormControl.updateValueAndValidity();
-      this.claimedAmountOfBuildFormControl.updateValueAndValidity();
+    this.applyAcquisitionPriceValidators(isAcquisition);
+    this.applyClaimedAmountOfPurchaseValidators(code);
+
+    this.loanDataFormGroup.get('apport')?.reset()
+    this.loanDataFormGroup.get('percentOfApport')?.reset()
+    this.loanDataFormGroup.get('apport')?.updateValueAndValidity();
+    this.loanDataFormGroup.get('percentOfApport')?.updateValueAndValidity();
+    this.propertyTypeFormControl?.updateValueAndValidity();
+  }
+
+  private applyDefaultLoanObjectRules(code: string): void {
+    if (code.includes('RCH') || code.includes('AQS') || code?.includes('REGR_CRED')  || code?.includes('REF_ACH_BI')) {
+      this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required,  NumberValidators.lessThanEqualTo({ fieldName: 'acquisitionPrice' })]);
+    } else {
+      this.claimedAmountOfPurchaseFormControl.removeValidators(Validators.required);
+      this.claimedAmountOfPurchaseFormControl.reset();
+    }
+
+    if (code.includes('CST') || code.includes('AMN')) {
+      this.buildDevelopmentQuotationFormControl.addValidators(Validators.required);
+      this.claimedAmountOfBuildFormControl.addValidators(Validators.required);
+    } else {
+      this.buildDevelopmentQuotationFormControl.removeValidators(Validators.required);
+      this.buildDevelopmentQuotationFormControl.reset();
+      this.claimedAmountOfBuildFormControl.removeValidators(Validators.required);
+      this.claimedAmountOfBuildFormControl.reset();
+    }
+
+    if (code.includes('RCH')) {
+      this.repurchaseTypeFormControl.addValidators(Validators.required);
+    } else {
+      this.repurchaseTypeFormControl.removeValidators(Validators.required);
+    }
+
+    this.buildDevelopmentQuotationFormControl.updateValueAndValidity();
+    this.claimedAmountOfBuildFormControl.updateValueAndValidity();
+  }
+
+  private onChangeLoanObject() {
+    this.getControlValueChanges(this.loanObjectFormControl).subscribe(value => {
+      const code = typeof value === 'object' ? value?.code : value;
+
+      this.propertyTypeFormControl?.reset();
+      this.repurchaseTypeFormControl?.reset();
+
+      this.updatePropertyTypes(code);
+      this.applyRequestedNotaryFeeValidators(code);
+
+      if(this.isYassir || this.isPpoPpc){
+        this.applyConsoLoanObjectRules(code);
+      }else{
+        this.applyDefaultLoanObjectRules(code);
+      }      
     });
   }
 
@@ -349,30 +364,29 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   }
 
   private applyRequestedNotaryFeeValidators(loanObjectCode: string){
-    const isAQS = loanObjectCode?.includes('AQS');
-    const isOnlyRCH = loanObjectCode?.includes('RCH') && !loanObjectCode?.includes('AQS');
-    const isElligibleForNotaryFee = (isAQS || isOnlyRCH) && (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE));
+    const notaryFeeRule = this.notaryFeeRuleConfig(loanObjectCode);
 
-    if(!isElligibleForNotaryFee) {
+    if(!notaryFeeRule.isEligible) {
       this.acquisitionFeeFormControl?.reset(null, { emitEvent: true });
-      this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
       this.acquisitionFeeFormControl?.clearValidators();
+      this.acquisitionFeeFormControl?.updateValueAndValidity();
+
+      this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
       this.requestedNotaryFeeFormControl?.clearValidators();
+      this.requestedNotaryFeeFormControl?.updateValueAndValidity();
+
       this.acquisitionPriceFormControl?.clearValidators();
       this.acquisitionPriceFormControl?.addValidators([Validators.required]);
       this.acquisitionPriceFormControl?.updateValueAndValidity();
-      this.acquisitionFeeFormControl?.updateValueAndValidity();
-      this.requestedNotaryFeeFormControl?.updateValueAndValidity();
       return;
     }
 
-    const coefficient = isAQS ? 0.08 : 0.04;
     this.acquisitionFeeFormControl.addValidators([Validators.required]);
     this.requestedNotaryFeeFormControl?.addValidators([Validators.required, NumberValidators.lessThanEqualTo({ fieldName:  'acquisitionFee' })]);
     this.acquisitionPriceFormControl?.clearValidators();
     this.acquisitionPriceFormControl?.addValidators([
       Validators.required,  
-      NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: coefficient, fieldName: 'requestedNotaryFee' })
+      NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: notaryFeeRule.coefficient, fieldName: 'requestedNotaryFee' })
     ]);
     this.acquisitionPriceFormControl?.updateValueAndValidity();
     this.requestedNotaryFeeFormControl?.updateValueAndValidity();
@@ -395,9 +409,11 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
         this.isClipriMRE = false;
         this.acquisitionPriceFormControl?.clearValidators();
         this.acquisitionPriceFormControl?.updateValueAndValidity();
+        
         this.requestedNotaryFeeFormControl?.reset();
         this.requestedNotaryFeeFormControl?.clearValidators();
         this.requestedNotaryFeeFormControl?.updateValueAndValidity();
+        
         this.calculateInvestmentAmount();
         this.calculateLoanAmount();
         this.changeDetectorRef.detectChanges();
@@ -1107,6 +1123,26 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
     return sum;
   } 
 
+  // --------------------------- Loan business rules ---------------------------
+  /**
+   *  Determine if the loan is eligible for notary fees based on the loan object code and product type.
+   *  A loan is eligible for notary fees if:s
+   *  - The loan object code includes 'AQS' or includes 'RCH' but not 'AQS'.
+   *  - The product is either a PPI product or both PPI MRE and Clipri MRE.
+   */
+  private notaryFeeRuleConfig(loanObjectCode?: string):{ isEligible: boolean, coefficient: number } {
+    const code = loanObjectCode ?? '';
+
+    const isAqs = code.includes('AQS');
+    const isOnlyRch = code.includes('RCH') && !code.includes('AQS');
+    const isConventionedProducts = this.isSelectedProductIn([Products.IMTILAK, Products.IMTILAK_PPR, Products.ADL_SAKANE, Products.ADL_SAKANE_PPR, Products.SALAF_BAYTI_SANTE, Products.SALAF_BAYTI_SANTE_PPR]);
+   
+    return {
+      isEligible: (isAqs || isOnlyRch) && (this.isPPIProduct || ((this.isPpiMRE || isConventionedProducts) && this.isClipriMRE)),
+      coefficient:  isAqs ? 0.08 : 0.04
+    };
+  }
+
   // --------------------------- Loan calculations -----------------------------
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1116,9 +1152,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private calculateInvestmentAmount(): void {
     const price$     = this.getControlValueChanges(this.acquisitionPriceFormControl, 0, this.acquisitionPriceFormControl?.value);
     const quotation$ = this.getControlValueChanges(this.buildDevelopmentQuotationFormControl, 0, this.buildDevelopmentQuotationFormControl?.value);
-    const fee$       = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE)) && this.loanDataFormGroup.contains("acquisitionFee")
-      ? this.getControlValueChanges(this.acquisitionFeeFormControl, 0, this.acquisitionFeeFormControl?.value)
-      : of(0);
+    const fee$       = this.getControlValueChanges(this.acquisitionFeeFormControl, 0, this.acquisitionFeeFormControl?.value);
   
     merge(price$, quotation$, fee$)
       .pipe(
@@ -1126,9 +1160,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
         map(() => {
           const acquisitionPrice     = this.toForcedNumber(this.acquisitionPriceFormControl?.value);
           const developmentQuotation = this.toForcedNumber(this.buildDevelopmentQuotationFormControl?.value);
-          const acquisitionFee       = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE))
-            ? this.toForcedNumber(this.acquisitionFeeFormControl?.value)
-            : 0;
+          const acquisitionFee       = this.toForcedNumber(this.acquisitionFeeFormControl?.value);
           return acquisitionPrice + developmentQuotation + acquisitionFee;
         }),
         tap(totalInvestment => {
@@ -1149,9 +1181,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private calculateLoanAmount(): void {
     const buildCost$ = this.getControlValueChanges( this.claimedAmountOfBuildFormControl,  0,  this.claimedAmountOfBuildFormControl?.value);
     const purchase$  = this.getControlValueChanges(  this.claimedAmountOfPurchaseFormControl, 0, this.claimedAmountOfPurchaseFormControl?.value );
-    const notary$    = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE)) && this.loanDataFormGroup.contains("requestedNotaryFee")
-      ? this.getControlValueChanges(this.requestedNotaryFeeFormControl, 0, this.requestedNotaryFeeFormControl?.value ?? null)
-     : of(0);
+    const notary$    = this.getControlValueChanges(this.requestedNotaryFeeFormControl, 0, this.requestedNotaryFeeFormControl?.value);
   
     merge(buildCost$, purchase$, notary$)
       .pipe(
@@ -1172,7 +1202,7 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
   private computeSum(): number {
     const buildDevelopmentAmount = this.toForcedNumber(this.claimedAmountOfBuildFormControl?.value);
     const purchaseAmount = this.toForcedNumber(this.claimedAmountOfPurchaseFormControl?.value);
-    const notaryFee = (this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE))  ? this.toForcedNumber(this.requestedNotaryFeeFormControl?.value): 0;
+    const notaryFee = this.toForcedNumber(this.requestedNotaryFeeFormControl?.value);
     return buildDevelopmentAmount + purchaseAmount + notaryFee;
   }
 
@@ -1287,8 +1317,9 @@ export class CustomerLoanDataFormComponent extends BaseComponent implements OnIn
       });
     }
   }
+
+
   // Form values
- 
   public isMechanism1() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_1);}
   public isMechanism2() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_2);}
   public isMechanism3() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_3);}
