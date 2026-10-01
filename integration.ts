@@ -6,7 +6,206 @@ import {
   distinctUntilChanged,
   startWith,
   takeUntil,
-} from 'rxjs/operators';
+} from 'rxjs/operators';import { ChangeDetectionStrategy, Component, Injector, OnDestroy, OnInit } from '@angular/core';
+import { Permissions } from '@core/constants';
+import {DossierAttachmentState, DossierAttachmentType, DossierUser} from '@core/models';
+import {DossierDataService, DossierDataStoreService, PermissionStoreService} from '@core/services';
+import { UserService } from '@core/services/user.service';
+import {Stage, Status} from '@loan-dossier/constants';
+import { BaseComponent, GenericDialogComponent} from '@shared/components';
+import { PermissionManagerService } from '@octroi-credit-common';
+import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
+import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
+import { StatmentValidationComponent } from '../statment-validation/statment-validation.component';
+import {SuccessDialogComponent} from "@loan-dossier/components";
+
+@Component({
+  selector: 'app-loan-attachments',
+  templateUrl: './loan-attachments.component.html',
+  styleUrls: ['./loan-attachments.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class LoanAttachmentsComponent extends BaseComponent implements OnInit, OnDestroy {
+  dossierAttachmentState!: DossierAttachmentState;
+  dossierAttachmentTypes$: Subject<DossierAttachmentType[]> = new Subject();
+  savedDossierAttachmentTypes$!: Observable<DossierAttachmentType[]>;
+  mandatoryAttachmentTypes!: string[];
+  dossierUuid!: string | undefined;
+  codeDossier!: string;
+  canValidate$: BehaviorSubject<boolean | undefined> = new BehaviorSubject<boolean | undefined>(false);
+  storeSubscription!: Subscription;
+  createDATsSubscription!: Subscription;
+  mandatoryAttsSubscription!: Subscription;
+  dossierStatus!: string | undefined;
+  currentDossierUser!: DossierUser | undefined;
+  permissions: string[] = [];
+  permissionContants = Permissions;
+  prospectUuid: string | undefined;
+
+  doneStepper = () => {
+    this.onValidate();
+  };
+
+  constructor(injector: Injector,
+    private permissionStore: PermissionStoreService,
+    private dossierService: DossierDataService,
+    private dossierDataStore: DossierDataStoreService,
+    private userService: UserService,
+    private permissionManager: PermissionManagerService) {
+    super(injector);
+  }
+
+  ngOnInit(): void {
+    this.dossierUuid = this.dossierDataStore.get().uuid;
+    this.codeDossier = (this.dossierDataStore.get().codeDossier)!;
+    this.dossierStatus = this.dossierDataStore.get().codeStatus;
+    this.prospectUuid = this.dossierDataStore.get().prospectUuid;
+    if (this.dossierUuid) {
+      this.initAttachmentProcessing(this.dossierUuid);
+      this.currentDossierUser = this.dossierDataStore.get().dossierUsers?.find(du => du.user.matricule == this.userService.currentUserMatricule);
+      Object.values(this.permissionStore.get())?.forEach(p => this.permissions.push(p?.code));
+    } else {
+      this.router.navigateByUrl("/");
+    }
+  }
+
+
+  private initAttachmentProcessing(dossierUuid: string) {
+    this.dossierService.getDossierAttachmentTypes(dossierUuid)
+      .pipe(take(1))
+      .subscribe(dossierAttachmentTypes => {
+        this.dossierDataStore.setDossierAttachmentTypes(dossierAttachmentTypes, false);
+        this.publishDossierAttachmentTypes(dossierAttachmentTypes);
+      });
+
+    this.storeSubscription = this.dossierDataStore.dossierData$
+      .pipe(
+        map(dossier => dossier.dossierAttachmentTypes),
+        filter((dossierAttachmentTypes): dossierAttachmentTypes is DossierAttachmentType[] => !!dossierAttachmentTypes),
+        distinctUntilChanged()
+      )
+      .subscribe(dossierAttachmentTypes => this.publishDossierAttachmentTypes(dossierAttachmentTypes));
+  }
+
+  private publishDossierAttachmentTypes(dossierAttachmentTypes: DossierAttachmentType[]) {
+    dossierAttachmentTypes.sort(this.sortDossierAttachmentType());
+    this.dossierAttachmentTypes$.next(dossierAttachmentTypes);
+    this.canValidate$.next(
+      dossierAttachmentTypes.every(attachmentType => attachmentType.mandatory === false || (attachmentType.attachments !== null && attachmentType.attachments.length > 0))
+      && this.permissionManager.isGranted([Permissions.ROLE_PP_VALIDATE_DOSSIER], this.permissions));
+  }
+
+
+
+  private sortDossierAttachmentType(): ((a: DossierAttachmentType, b: DossierAttachmentType) => number) {
+    return (a, b) => {
+      let sorting = (a.mandatory === b.mandatory) ? 0 : a.mandatory ? -1 : 1;
+      if (sorting == 0) {
+        sorting = a.refAttachmentTypeOrder < b.refAttachmentTypeOrder ? -1 : a.refAttachmentTypeOrder > b.refAttachmentTypeOrder ? 1 : 0;
+      }
+      return sorting;
+    };
+  }
+
+  onValidate() {
+    const dossier = this.dossierDataStore.get();
+    const {codeStage, codeStatus, uuid, prospectUuid} = dossier;
+    const isDecisionStage = codeStage === Stage.DECISION;
+    const returnedForAdditionalInfoStatuses = [Status.ADDITIONAL_AGENCY_INFORMATION_DECISION, Status.INCA_AANR];
+    const isAgencyValidation = codeStatus === Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
+    const isReturnedStatus = isDecisionStage && returnedForAdditionalInfoStatuses.includes(codeStatus!);
+    const isBlockedStatus = [Status.BLOCKED_INIT, Status.BLOCKED_INCA_VALD].includes(codeStatus!);
+    const isUpdateStatus = [
+      Status.COMPLIANCE_CONTROL, 
+      Status.DECISION, 
+      Status.DECISION_RS, 
+      Status.AANR, 
+      Status.AGREEMENT_RISK, 
+      Status.AGREEMENT_RISK_ANALIST_RETAIL,
+      Status.INFO_COMP_RETOUR_ANALIST_RETAIL
+    ].includes(codeStatus!);
+
+    if(!uuid) return;
+
+    if (isBlockedStatus) {
+      this.showErrorMessage({ bodyKey: 'kyc.error.message.body' });
+      return;
+    }
+
+    if(prospectUuid && codeStatus === Status.INITIATION) {
+      this.closeDossierProspect();
+    }
+
+    if(isUpdateStatus){
+       this.dossierService.save(dossier).subscribe(() => {
+        this.router.navigateByUrl(`/dossiers/${uuid}`);
+      });
+      return;
+    }
+
+    if (isReturnedStatus || isAgencyValidation) {
+      this.dossierService.additioanalInfoFeedBack(uuid).subscribe(() => {
+        this.router.navigateByUrl(`/dossiers/${uuid}`);
+      });
+      return;
+    }
+
+    if(codeStage === Stage.INSTRUCTION && codeStatus === Status.INITIATION){
+      this.sendDossierForValidation();
+      return;
+    }
+  }
+
+  /**
+   *  Cloturer les dossier prospect apres la création du dossier definitif
+   **/
+  private closeDossierProspect() {
+    this.dossierService.abortDossier(this.prospectUuid!, "Dossier cloturé").subscribe({
+      next: () => {
+      },
+      error: (err) => {
+        this.logService.error("Erreur lors de l'abandon du dossier prospect :", err);
+      }
+    });
+  }
+
+  /**
+   *  La methode permet d'envoyer le dossier au validateur dans la phase validation 
+   * 
+   */
+  private sendDossierForValidation() {
+    const dialogRef = this.openDialog(GenericDialogComponent, {
+      component: StatmentValidationComponent,
+      payload: {},
+      title: 'attachment.engagment.title'
+    });
+
+    dialogRef.componentInstance.validation.pipe(take(1)).subscribe((validateData: any) => {
+      if (this.dossierUuid) {
+        this.dossierService.validateStatment(this.dossierUuid, validateData?.comment,validateData?.validator).subscribe({
+          next: () => {
+            this.router.navigateByUrl(`/dossiers/${this.dossierUuid}`).then(data => {
+              this.showSuccessMessage({ bodyKey: "action.success.message" });
+              dialogRef.close();
+              this.showDialogMessage(SuccessDialogComponent);
+            });
+          },
+          error: (err) => {
+            this.logService.error("Error", err);
+            dialogRef.close();
+          }
+        });
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.storeSubscription) {
+      this.storeSubscription.unsubscribe();
+    }
+  }
+}
+
 import { MechanismType, Products } from '@core/models';
 import { RateTypes } from '@core/models/rate-type';
 import { NumberValidators } from '@octroi-credit-common';
