@@ -1,4 +1,117 @@
-   private WarrantyDto warranty(String template, String code, Object... args) {
+@Service
+public class WarrantyService {
+
+    private static final LocalDateTime AUTO_START = LocalDateTime.of(2026, 6, 15, 0, 0);
+    private static final Set<String> EXCLUDED = lower(PPI_VEFA_RESIDENT, PPI_ENGAGEMENT_PROMOTEUR,
+            MOULKIA, PPC, PPO, PPO_PPR, YASSIR, YASSIR_PPR);
+    private static final Set<String> CCG = lower(FOGALOGE, FOGARIM);
+
+    private record Def(String code, String template,
+                       Predicate<DossierDataCoreDto> when,
+                       Function<DossierDataCoreDto, List<Object[]>> args) {}
+
+    // الترتيب هنا = الترتيب ف الـ output
+    private final List<Def> defs = List.of(
+        new Def(CODE_DECES_INVAL, WARRANTY_DECES_INVAL,
+            d -> d.getLoanData() != null,
+            d -> args(amount(d))),
+
+        new Def(CODE_CAUTION_SOLIDAIRE, WARRANTY_CAUTION_SOLIDAIRE,
+            d -> d.getLoanData() != null,
+            d -> orEmpty(d.getGuarantors()).stream()
+                    .map(g -> new Object[]{g.getFirstName() + " " + g.getLastName(), amount(d)})
+                    .toList()),
+
+        new Def(CODE_CONFORT_HAB, WARRANTY_CONFORT_HAB,
+            d -> d.getLoanData() != null && !isAqsTrn(d.getLoanData()),
+            d -> args(amount(d))),
+
+        new Def(CODE_ACCORD_FOND, WARRANTY_ACCORD_FOND,
+            d -> d.getCodeProduct() != null && conventionProducts.contains(d.getCodeProduct()),
+            d -> args()),
+
+        new Def(CODE_ACCEPT_CCG, WARRANTY_ACCEPT_CCG,
+            d -> d.getCodeProduct() != null && CCG.contains(d.getCodeProduct().toLowerCase()),
+            d -> args()),
+
+        new Def(CODE_HYPOTHEQUE, WARRANTY_HYPOTHEQUE, d -> true, d -> rangArgs(d, true)),
+        new Def(CODE_CAUTION_HYPO, WARRANTY_CAUTION_HYPO, d -> true, d -> rangArgs(d, false)),
+
+        new Def(CODE_DOM_SALAIRE, WARRANTY_DOM_SALAIRE,
+            d -> hasBorrower(d) && "MAROC".equalsIgnoreCase(country(d))
+                    && (market(d).contains(MCH_01) || market(d).contains(MCH_09_PRI)),
+            d -> args()),
+
+        new Def(CODE_DOM_REVENUS, WARRANTY_DOM_REVENUS,
+            d -> hasBorrower(d) && !(market(d).contains(MCH_01) || market(d).contains(MCH_09_PRI))
+                    && (market(d).contains(MCH_02) || market(d).contains(MCH_03) || market(d).contains(MCH_09_PRO)),
+            d -> args())
+    );
+
+    // ---------- المحرك ----------
+    public void generateDefaultWarranties(DossierDataCoreDto d) {
+        if (d == null || d.getCodeProduct() == null
+                || EXCLUDED.contains(d.getCodeProduct().toLowerCase())
+                || (d.getCreatedAt() != null && d.getCreatedAt().isBefore(AUTO_START))) return;
+
+        List<WarrantyDto> all = new ArrayList<>(orEmpty(d.getWarranties()));
+        all.removeIf(w -> WarrantyType.AUTO.equals(w.getType()));
+
+        defs.stream().filter(def -> def.when().test(d))
+            .flatMap(def -> def.args().apply(d).stream()
+                .map(a -> WarrantyDto.builder().code(def.code())
+                        .content(String.format(def.template(), a))
+                        .type(WarrantyType.AUTO).build()))
+            .forEach(all::add);
+
+        d.setWarranties(all);
+    }
+
+    // ---------- helpers ----------
+    private List<Object[]> rangArgs(DossierDataCoreDto d, boolean borrower) {
+        if (d.getPropertyData() == null) return List.of();
+        Map<String, PropertyCoreDto> props = new HashMap<>();   // يتبنى مرة وحدة
+        orEmpty(d.getPropertyData().getProperties()).stream().filter(Objects::nonNull).forEach(p -> {
+            if (p.getId() != null) props.put(p.getId().toString(), p);
+            if (p.getUuid() != null) props.put(p.getUuid(), p);
+        });
+        return orEmpty(d.getBeneficiaries()).stream()
+            .filter(b -> Boolean.TRUE.equals(b.getIsBorrower()) == borrower)
+            .flatMap(b -> orEmpty(b.getRangs()).stream())
+            .map(r -> {
+                PropertyCoreDto p = props.get(r.getPropertyId() != null
+                        ? String.valueOf(r.getPropertyId()) : r.getPropertyUuid());
+                if (p == null) { log.warn("Propriété introuvable pour rang {}", r.getRang()); return null; }
+                return new Object[]{r.getRang(), p.getLandCertificateNumber(),
+                        MoneyToWords.formatAmount(r.getWarrantyAmount())};
+            })
+            .filter(Objects::nonNull).toList();
+    }
+
+    private static boolean hasBorrower(DossierDataCoreDto d) {
+        return orEmpty(d.getBeneficiaries()).stream().anyMatch(b -> Boolean.TRUE.equals(b.getIsBorrower()));
+    }
+    private static String market(DossierDataCoreDto d) {
+        return Optional.ofNullable(d.getCustomerData()).map(c -> c.getCard()).map(c -> c.getMarket()).orElse("");
+    }
+    private static String country(DossierDataCoreDto d) {
+        return Optional.ofNullable(d.getCustomerData()).map(c -> c.getCard()).map(c -> c.getResidenceCountry()).orElse("");
+    }
+    private static boolean isAqsTrn(LoanDataCoreDto l) {
+        return "AQS".equals(l.getCodeLoanObject()) && "TRN".equals(l.getCodePropertyType());
+    }
+    private static String amount(DossierDataCoreDto d) { return MoneyToWords.formatAmount(d.getLoanData().getLoanAmount()); }
+    private static List<Object[]> args(Object... a) { return List.<Object[]>of(a); }
+    private static <T> List<T> orEmpty(List<T> l) { return l == null ? List.of() : l; }
+    private static Set<String> lower(ProductCode... c) {
+        return Arrays.stream(c).map(p -> p.toString().toLowerCase()).collect(Collectors.toSet());
+    }
+}
+
+
+
+
+private WarrantyDto warranty(String template, String code, Object... args) {
         return WarrantyDto.builder().code(code).content(String.format(template, args)).type(WarrantyType.AUTO).build();
     }
 	public void generateDefaultWarranties(DossierDataCoreDto dossier) {
