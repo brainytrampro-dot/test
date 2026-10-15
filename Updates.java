@@ -1,273 +1,85 @@
-private void linkRepresentativeRelationships(
-        RepresentativeDto dto,
-        Representative entity,
-        DossierData dossier,
-        Map<String, Beneficiary> beneficiaryPool,
-        Map<String, Guarantor> guarantorPool) {
+@PostMapping(value = "/internal/{customerNumber}")
+	public ResponseEntity<DebtGeneralDto> getInternalLoans(@PathVariable String customerNumber,@RequestBody DebtGeneralDto request) throws InvocationTargetException, IllegalAccessException {
+		DebtGeneralDto cebdtGeneralDto = internalLoan.getLoansIntern(customerNumber);
+		if(request.getDossierUuid() != null) {
+			DossierDataDto dossierCore = DossierDataDto.builder()
+					.uuid(request.getDossierUuid())
+					.customerData(null)
+					.debts(cebdtGeneralDto.getDebtDto())
+					.build();
+			dossierDataService.patchDossier(dossierCore);
+		}
+		return ResponseEntity.ok(cebdtGeneralDto);
+	}
 
-    linkCustomerRelationship(dto, entity, dossier);
-    linkBeneficiaryRelationships(dto, entity, beneficiaryPool);
-    linkGuarantorRelationships(dto, entity, guarantorPool);
-}
-
-private void linkBeneficiaryRelationships(
-        RepresentativeDto dto,
-        Representative entity,
-        Map<String, Beneficiary> beneficiaryPool) {
-
-    if (CollectionUtils.isEmpty(dto.getBeneficiaries())) return;
-
-    dto.getBeneficiaries().forEach(benDto -> {
-        if (benDto.getBeneficiary() == null || benDto.getProxyDate() == null) return;
-        String key = benDto.getBeneficiary().getId() != null
-                ? benDto.getBeneficiary().getId().toString()
-                : benDto.getBeneficiary().getUuid();
-        Beneficiary b = beneficiaryPool.get(key);
-        if (b != null) {
-            entity.linkBeneficiary(b, benDto.getProxyDate());
-        } else {
-            log.warn("Beneficiary {} non trouvé dans pool", key);
+ public DebtGeneralDto getLoansIntern(String customerNumber) {
+        if (StringUtils.isEmpty(customerNumber)) {
+            throw new TechnicalException("No branch code found. Not able to retrieve customer branch code.");
         }
-    });
-}
+        DebtGeneralDto debtGeneralDto = new DebtGeneralDto();
+        List<DebtDto> debts = new ArrayList<>();
+        EntityModelGetLoanListResponseDTO loans = loanApiService.getLoansIntern(customerNumber);
+        log.info("Response loans content: {}", loans.getContent());
+        if (loans != null && loans.getContent() != null && !loans.getContent().isEmpty()) {
+            EntityModelGetLoanListResponseDTO filteredLoans = getFilteredLoans(loans);
+            log.info("Returned filteredLoans: {}", filteredLoans);
 
-private void linkGuarantorRelationships(
-        RepresentativeDto dto,
-        Representative entity,
-        Map<String, Guarantor> guarantorPool) {
+            Map<String, List<AmortizableLoanDTO>> loansMap = groupLoansByDuplicateFileNumber(filteredLoans);
+            log.info("Returned loansMap: {}", loansMap);
 
-    if (CollectionUtils.isEmpty(dto.getGuarantors())) return;
-
-    dto.getGuarantors().forEach(garDto -> {
-        if (garDto.getGuarantor() == null || garDto.getProxyDate() == null) return;
-        String key = garDto.getGuarantor().getId() != null
-                ? garDto.getGuarantor().getId().toString()
-                : garDto.getGuarantor().getUuid();
-        Guarantor g = guarantorPool.get(key);
-        if (g != null) {
-            entity.linkGuarantor(g, garDto.getProxyDate());
-        } else {
-            log.warn("Guarantor {} non trouvé dans pool", key);
+            debts = getAndMapInternalLoans(loansMap);
+            log.info("Returned Debts: {}", debts);
         }
-    });
-}
 
-
-public void syncRepresentatives(DossierDataDto newDossier, DossierData dossier) {
-    if (CollectionUtils.isEmpty(newDossier.getRepresentatives())) {
-        clearAllRepresentativeReferences(dossier);
-        List<Representative> toDelete = dossier.getRepresentatives().stream()
-                .filter(r -> r.getDossierRequest() == null)
-                .toList();
-        representativeRepository.deleteAll(toDelete);
-        dossier.getRepresentatives().removeAll(toDelete);
-        dossier.getRepresentatives().forEach(r -> r.setDossier(null));
-        dossier.getRepresentatives().clear();
-        return;
+        debtGeneralDto.setDebtDto(debts);
+        return debtGeneralDto;
     }
 
-    Set<Long> incomingIds = newDossier.getRepresentatives().stream()
-            .map(RepresentativeDto::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+@Override
+	@Auditable(actionType = AuditActionType.MODIFICATION, objectClass = AuditableObject.DOSSIER_DATA)
+	public DossierDataDto patchDossier(DossierDataDto dossierDataDto) {
+		AuditContextHolder.setObjectId(dossierDataDto.getUuid());
 
-    // Vrais orphelins → DELETE
-    List<Representative> toDelete = dossier.getRepresentatives().stream()
-            .filter(r -> r.getDossierRequest() == null
-                    && r.getId() != null
-                    && !incomingIds.contains(r.getId()))
-            .toList();
-    representativeRepository.deleteAll(toDelete);
-    dossier.getRepresentatives().removeAll(toDelete);
+		DossierDataCoreDto oldDossier = dossierDataClient.retrieveByUuid(dossierDataDto.getUuid());
+		DossierDataDto dossierData = dossierDataDtoMapper.convertToApiDTO(oldDossier);
 
-    // Linked à request → UNLINK
-    dossier.getRepresentatives().stream()
-            .filter(r -> r.getDossierRequest() != null
-                    && r.getId() != null
-                    && !incomingIds.contains(r.getId()))
-            .forEach(r -> r.setDossier(null));
-    dossier.getRepresentatives().removeIf(r -> r.getDossier() == null);
+		List<String> nonNullProperties = ObjectUtils.getNonNullPropertyNames(dossierDataDto);
+		nonNullProperties.removeIf(item -> item.endsWith("Valid") || item.endsWith("empty"));
 
-    // Build beneficiary + guarantor pool depuis dossier
-    Map<String, Beneficiary> beneficiaryPool = dossier.getBeneficiaries().stream()
-            .collect(Collectors.toMap(
-                    b -> b.getId() != null ? b.getId().toString() : b.getUuid(),
-                    b -> b,
-                    (b1, b2) -> b1
-            ));
+		ObjectUtils.copySelectedProperties(dossierDataDto, dossierData, nonNullProperties);
 
-    Map<String, Guarantor> guarantorPool = dossier.getGuarantors().stream()
-            .collect(Collectors.toMap(
-                    g -> g.getId() != null ? g.getId().toString() : g.getUuid(),
-                    g -> g,
-                    (g1, g2) -> g1
-            ));
+		if (nonNullProperties
+				.contains(DossierDataDto.Fields.loanData + ObjectUtils.PROPERTY_NAME_SEPARATOR
+						+ LoanDataDto.Fields.claimedAmountOfPurchase)
+				|| nonNullProperties.contains(DossierDataDto.Fields.loanData + ObjectUtils.PROPERTY_NAME_SEPARATOR
+				+ LoanDataDto.Fields.claimedAmountOfBuildDevelopment)) {
+			recalculateLoanAmounts(dossierData);
+		}
+		if (nonNullProperties.contains(DossierDataDto.Fields.loanData + ObjectUtils.PROPERTY_NAME_SEPARATOR
+				+ LoanDataDto.Fields.rateType + ObjectUtils.PROPERTY_NAME_SEPARATOR + CodeLabelDto.Fields.code)) {
+			recalculateRates(dossierData);
+		}
 
-    Map<Long, Representative> existingById = dossier.getRepresentatives().stream()
-            .filter(r -> r.getId() != null)
-            .collect(Collectors.toMap(Representative::getId, r -> r));
+		boolean isDelayedNull = (dossierDataDto.getLoanData() == null || dossierDataDto.getLoanData().getDelayed() == null);
+		if (isDelayedNull && DossierStatus.statusesToPurgeDelayedFields().contains(dossierData.getCodeStatus()) ){
+			dossierDataHelper.purgeDossierDelayedFields(dossierData);
+		}
 
-    for (RepresentativeDto repDto : newDossier.getRepresentatives()) {
-        Representative rep = upsertRepresentative(repDto, existingById, dossier);
-        linkRepresentativeRelationships(repDto, rep, dossier, beneficiaryPool, guarantorPool);
-    }
-}
+		return updateDossier(dossierData, dossierData.getCodeStatus());
+	}
 
 
+private DossierDataDto updateDossier(DossierDataDto dossierDataDto, String codeStatus) {
+		controlDossier(dossierDataDto, !DossierStatus.INITIATION.getCode().equals(codeStatus));
+		DossierDataCoreDto dossierDataCoreDto = dossierDataDtoMapper.convertToCoreDTO(dossierDataDto);
+		dossierDataHelper.purgeNonUpdatableDossierFields(dossierDataCoreDto);
 
-public void syncGuarantors(DossierDataDto newDossier, DossierData dossier) {
-    if (newDossier.getGuarantors() == null) {
-        List<Guarantor> toDelete = dossier.getGuarantors().stream()
-                .filter(g -> g.getDossierRequest() == null)
-                .toList();
-        guarantorRepository.deleteAll(toDelete);
-        dossier.getGuarantors().removeAll(toDelete);
-        dossier.getGuarantors().forEach(g -> g.setDossier(null));
-        dossier.getGuarantors().clear();
-        return;
-    }
+		// Calculate monthly installment value and set it into 'dossier'
+		getMonthlyInstallment(dossierDataCoreDto);
+		warrantyService.generateDefaultWarranties(dossierDataCoreDto);
+		DossierDataCoreDto updatedDossier = dossierDataClient.update(dossierDataCoreDto.getUuid(), dossierDataCoreDto);
+		createDossierAttachmentTypes(updatedDossier,dossierDataDto.getProspectUuid());
+		DossierDataCoreDto latesDossier  = dossierDataClient.retrieveByUuid(dossierDataCoreDto.getUuid());
 
-    Map<Long, GuarantorDto> newDtoMap = newDossier.getGuarantors().stream()
-            .filter(dto -> dto.getId() != null)
-            .collect(Collectors.toMap(GuarantorDto::getId, dto -> dto));
-
-    // Vrais orphelins → DELETE explicite
-    List<Guarantor> toDelete = dossier.getGuarantors().stream()
-            .filter(g -> g.getDossierRequest() == null
-                    && g.getId() != null
-                    && !newDtoMap.containsKey(g.getId()))
-            .toList();
-    guarantorRepository.deleteAll(toDelete);
-    dossier.getGuarantors().removeAll(toDelete);
-
-    // Linked à request → UNLINK
-    dossier.getGuarantors().stream()
-            .filter(g -> g.getDossierRequest() != null
-                    && g.getId() != null
-                    && !newDtoMap.containsKey(g.getId()))
-            .forEach(g -> g.setDossier(null));
-    dossier.getGuarantors().removeIf(g -> g.getDossier() == null);
-
-    // UPDATE existants
-    dossier.getGuarantors().forEach(g -> {
-        if (g.getId() != null && newDtoMap.containsKey(g.getId())) {
-            guarantorMapper.updateFromDto(newDtoMap.get(g.getId()), g);
-        }
-    });
-
-    // ADD nouveaux
-    newDossier.getGuarantors().stream()
-            .filter(dto -> dto.getId() == null)
-            .map(guarantorMapper::convertToEntity)
-            .peek(g -> g.setDossier(dossier))
-            .forEach(dossier.getGuarantors()::add);
-}
-
-
-
-
-private void syncBeneficiaries(List<BeneficiaryDto> dtos, DossierData dossier, Map<String, Property> pool) {
-    if (dossier.getBeneficiaries() == null) dossier.setBeneficiaries(new ArrayList<>());
-
-    Map<Long, BeneficiaryDto> dtoMap = dtos.stream()
-            .filter(p -> p.getId() != null)
-            .collect(Collectors.toMap(BeneficiaryDto::getId, p -> p));
-
-    // Vrais orphelins → DELETE explicite
-    List<Beneficiary> toDelete = dossier.getBeneficiaries().stream()
-            .filter(b -> b.getDossierRequest() == null
-                    && b.getId() != null
-                    && !dtoMap.containsKey(b.getId()))
-            .toList();
-    beneficiaryRepository.deleteAll(toDelete);
-    dossier.getBeneficiaries().removeAll(toDelete);
-
-    // Linked à request → UNLINK
-    dossier.getBeneficiaries().stream()
-            .filter(b -> b.getDossierRequest() != null
-                    && b.getId() != null
-                    && !dtoMap.containsKey(b.getId()))
-            .forEach(b -> b.setDossier(null));
-    dossier.getBeneficiaries().removeIf(b -> b.getDossier() == null);
-
-    // UPDATE existants
-    dossier.getBeneficiaries().forEach(benef -> {
-        if (dtoMap.containsKey(benef.getId())) {
-            BeneficiaryDto bDto = dtoMap.get(benef.getId());
-            beneficiaryMapper.updateFromDto(bDto, benef);
-            benef.syncProperties(bDto.getProperties(), pool);
-            benef.syncRangs(bDto.getRangs(), pool);
-            benef.setDossier(dossier);
-        }
-    });
-
-    // ADD nouveaux
-    for (BeneficiaryDto bDto : dtos) {
-        if (bDto.getId() == null) {
-            boolean alreadyExists = dossier.getBeneficiaries().stream()
-                    .anyMatch(b -> b.getId() == null
-                            && bDto.getUuid() != null
-                            && bDto.getUuid().equals(b.getUuid()));
-            if (!alreadyExists) {
-                Beneficiary beneficiary = beneficiaryMapper.convertToEntity(bDto);
-                beneficiary.setDossier(dossier);
-                beneficiary.syncProperties(bDto.getProperties(), pool);
-                beneficiary.syncRangs(bDto.getRangs(), pool);
-                dossier.getBeneficiaries().add(beneficiary);
-            }
-        }
-    }
-}
-
-
-
-
-
-private void processProperties(List<PropertyDto> propDtos, DossierData dossier, Map<String, Property> pool) {
-    if (dossier.getProperties() == null) dossier.setProperties(new ArrayList<>());
-
-    Map<Long, PropertyDto> dtoMap = propDtos.stream()
-            .filter(p -> p.getId() != null)
-            .collect(Collectors.toMap(PropertyDto::getId, p -> p));
-
-    // Vrais orphelins → DELETE explicite
-    List<Property> toDelete = dossier.getProperties().stream()
-            .filter(p -> p.getDossierRequest() == null
-                    && p.getId() != null
-                    && !dtoMap.containsKey(p.getId()))
-            .toList();
-    propertyRepository.deleteAll(toDelete);
-    dossier.getProperties().removeAll(toDelete);
-
-    // Linked à request → UNLINK
-    dossier.getProperties().stream()
-            .filter(p -> p.getDossierRequest() != null
-                    && p.getId() != null
-                    && !dtoMap.containsKey(p.getId()))
-            .forEach(p -> p.setDossier(null));
-    dossier.getProperties().removeIf(p -> p.getDossier() == null);
-
-    for (PropertyDto pDto : propDtos) {
-        if (pDto.getId() != null) {
-            Property property = dossier.getProperties().stream()
-                    .filter(p -> p.getId() != null && p.getId().equals(pDto.getId()))
-                    .findFirst()
-                    .orElseGet(() -> {
-                        Property newProp = propertyMapper.convertToEntity(pDto);
-                        newProp.setDossier(dossier);
-                        dossier.getProperties().add(newProp); // ← fix
-                        return newProp;
-                    });
-            propertyMapper.updateFromDto(pDto, property);
-            property.setDossier(dossier);
-        } else {
-            Property property = propertyMapper.convertToEntity(pDto);
-            property.setDossier(dossier);
-            dossier.getProperties().add(property);
-        }
-        fillPropertyPool(property, pDto, pool);
-    }
-}
-
-
-
+		return dossierDataDtoMapper.convertToApiDTO(latesDossier);
+	}
