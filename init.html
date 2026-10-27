@@ -13,17 +13,8 @@
       <app-stepper [nextFunction]="update" [doneFunction]="nextStep" [firstPreviousFunction]="previousStep"
         [showNavigationList]="false" doneButtonLabel="Suivant" [disableFirstStepPreviousButton]="true" [disabledDoneButton]="customerHasNonSegement && !employerCutomerTypeControl.valid">
         <cdk-step *ngIf="isProspect && personalInfoFormGroup" formGroupName="personalInfo" [stepControl]="personalInfoFormGroup">
-          <div class="step-header">
-            <div class="step-title-container">
-              <div class="step-visual">
-                <img src="../../../../assets/img/steps/client-informations.svg" width="217" alt="Données Prospect">
-              </div>
-              <div class="step-title-wrapper">
-                <h2 class="step-title"> {{"prospect.perspnalInfo.label" | translate }} </h2>
-                <p class="step-description"> {{"prospect.loan.initiation.steps.customerdata.description1" | translate }} </p>
-              </div>
-            </div>
-          </div>
+          <app-step-header [titleKey]="'prospect.perspnalInfo.label'" [descriptionKey]="'prospect.loan.initiation.steps.customerdata.description1'">
+          </app-step-header>
           <div class="step-form">
             <div class="stepper-content-body">
               <div class="step-form-container">
@@ -286,21 +277,8 @@
           </div>
         </cdk-step>
         <cdk-step formGroupName="employer" [stepControl]="employerFormGroup">
-          <div class="step-header">
-            <div class="step-title-container">
-              <div class="step-visual">
-                <img src="../../../../assets/img/steps/client-informations.svg" width="217" alt="Données Professionnelles">
-              </div>
-              <div class="step-title-wrapper">
-                <h2 class="step-title">
-                  1. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
-                </h2>
-                <p class="step-description">
-                  {{"customer.loan.initiation.steps.customerdata.description1" | translate }}
-                </p>
-              </div>
-            </div>
-          </div>
+          <app-step-header [titleKey]="'customer.loan.initiation.steps.customerdata.label'" [descriptionKey]="'customer.loan.initiation.steps.customerdata.description1'">
+          </app-step-header>  
           <div class="step-form">
             <div class="stepper-content-body">
               <div class="step-form-container">
@@ -437,22 +415,8 @@
           </div>
         </cdk-step>
         <cdk-step formGroupName="financialData" [stepControl]="financialDataFormGroup">
-          <div class="step-header">
-            <div class="step-title-container">
-              <div class="step-visual">
-                <img src="../../../../assets/img/steps/client-informations.svg" width="217"
-                  alt="Données Professionnelles">
-              </div>
-              <div class="step-title-wrapper">
-                <h2 class="step-title">
-                  2. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
-                </h2>
-                <p class="step-description">
-                  {{"customer.loan.initiation.steps.customerdata.description2" | translate }}
-                </p>
-              </div>
-            </div>
-          </div>
+          <app-step-header [titleKey]="'customer.loan.initiation.steps.customerdata.label'" [descriptionKey]="'customer.loan.initiation.steps.customerdata.description2'">
+          </app-step-header>
           <div class="step-form">
             <div class="stepper-content-body">
               <div class="step-form-container">
@@ -686,18 +650,19 @@
       [guarantorsFormArray]="guarantorsFormArray"
       ></app-beneficiaries-data-table>
     </cdk-step>
-    <cdk-step [stepControl]="representativesFormArray" [completed]="isStepCompleted(representativesFormArray, 4)" [hasError]="isStepHasError(representativesFormArray, 4)">
-      <ng-template cdkStepLabel>
-        <span>
-          {{"customer.loan.initiation.steps.representative.label" | translate}}
-        </span>
-      </ng-template>
-      <app-representatives-data-table
-        [representativesList]="dossierData?.representatives || []"
-        [beneficiariesList]="dossierData?.beneficiaries || []"
-        [guarantorsList]="dossierData?.guarantors || []"
-        [representativesFormArray]="representativesFormArray">
-      </app-representatives-data-table>
+    <cdk-step [completed]="isStepCompleted(representativesFormArray, 4)"
+              [hasError]="isStepHasError(representativesFormArray, 4)">
+        <ng-template cdkStepLabel>
+      <span>
+        {{"customer.loan.initiation.steps.representative.label" | translate}}
+      </span>
+        </ng-template>
+        <app-representatives-data-table
+                [representativesList]="dossierData?.representatives || []"
+                [beneficiariesList]="dossierData?.beneficiaries || []"
+                [guarantorsList]="dossierData?.guarantors || []"
+                [representativesFormArray]="representativesFormArray">
+        </app-representatives-data-table>
     </cdk-step>
     <cdk-step [stepControl]="insuranceDataFormGroup" [completed]="isStepCompleted(insuranceDataFormGroup,5)"
       [hasError]="isStepHasError(insuranceDataFormGroup,5)">
