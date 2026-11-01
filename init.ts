@@ -36,44 +36,54 @@ import { DossierValidators } from '@loan-dossier/config/dossier-validators';
   styleUrls: ['./initiation-stepper.component.scss'],
 })
 export class InitiationStepperComponent extends BaseComponent implements OnInit, AfterViewInit, OnDestroy {
+  @Output() goToloanHistoryStep=new EventEmitter<any>();
+  @Output() validation = new EventEmitter<any>();
+  @ViewChild('principalStepper') principalStepper!: CdkStepper;
+
+  activitySector$?: Observable<CodeLabel[]>;
+  cities$?: Observable<RefCity[]>;
+  activitiesSectors$!: Observable<ActivitySector[]>;
+  dossierSavedSubject: Subject<boolean> = new Subject();
+  dossierSaved$: Observable<Boolean> = this.dossierSavedSubject.asObservable();
+  delayTypes$?: Observable<DelayType[]>;
+  filteredCities$?: Observable<RefCity[]>;
+  filteredActivitiesSectors$?: Observable<ActivitySector[]>;
+  professions$?: Observable<RefCustomerProfession[]>;
+  filteredProfessions$?: Observable<RefCustomerProfession[]>;
+
+  cityFilterControl=new FormControl();
+  sectorActivityFilterControl = new FormControl();
+  professionFilterControl = new FormControl();
+  accountFilterControl = new FormControl('');
+
   dossierData!: DossierData;
   formGroup!: FormGroup;
   propertyData!: FormGroup;
   customerDataFormGroup!: FormGroup;
   propertyDataNotaryFormGroup!: FormGroup;
   isProspect: boolean = false;
-  activitySector$?: Observable<CodeLabel[]>;
-  cities$?: Observable<RefCity[]>;
-  activitiesSectors$!: Observable<ActivitySector[]>;
   addGuarantorEnabled: boolean = false;
   savedGuarantors: Guarantor[] = [];
   stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
   patchedForm: boolean = false;
-  dossierSavedSubject: Subject<boolean> = new Subject();
-  dossierSaved$: Observable<Boolean> = this.dossierSavedSubject.asObservable();
   dossierStoreSubscription!: Subscription;
-  delayTypes$?: Observable<DelayType[]>;
   customerHasNonSegement:boolean=false;
   showContractType:boolean=false;
-  cityFilterControl=new FormControl();
-  sectorActivityFilterControl=new FormControl;
   accord: string | undefined;
-  filteredCities$?: Observable<RefCity[]>;
-  filteredActivitiesSectors$?: Observable<ActivitySector[]>;
-  professions$?: Observable<RefCustomerProfession[]>;
-  filteredProfessions$?: Observable<RefCustomerProfession[]>;
-  professionFilterControl = new FormControl();
   showProfessionList:boolean = false;
   showSeparation:boolean = false;
   isClientMRE:boolean=false;
   segmentClient!:string;
   prospect: boolean | undefined;
-  accountFilterControl = new FormControl('');
   isPpoPpcFamily:boolean=false;
-  @Output() goToloanHistoryStep=new EventEmitter<any>();
-  @Output() validation = new EventEmitter<any>();
-  @ViewChild('principalStepper') principalStepper!: CdkStepper;
-  customers: any = ["1", "3", "4"];
+  
+  customerDataList!: FormArray;
+  customerList: any[] = [
+    { id: 1, nom: 'Client 1' },
+    { id: 2, nom: 'Client 2' },
+    { id: 3, nom: 'Client 3' }
+  ];
+
   constructor(
     public dossierStore: DossierDataStoreService,
     public dossierDataService: DossierDataService,
@@ -93,22 +103,26 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   ngOnInit(): void {
     this.buildInitiationForm();
     this.listenTypeClientChanges();
-    this.dossierStore.dossierData$.pipe(take(1)).subscribe(dossierData => {
-      const productCode = dossierData?.product?.code;
-      this.isPpoPpcFamily = [ Products.PPO, Products.PPC, Products.PPO_PPR, Products.YASSIR, Products.YASSIR_PPR].includes(productCode as Products);
+    this.dossierStore.dossierData$.pipe(take(1)).subscribe(dossierData => {    
       if (dossierData.uuid) { this.stepsVisited = new Array(7).fill(true); }
+      this.patchedForm             = true;
+      this.dossierData             = dossierData;  
+      this.initCustomerDataList(dossierData);
       this.refService.getAllPropertyTypes();
-      const market = dossierData.customerData?.personalInfo?.market?.slice(-1);
-      const segementClient=dossierData.customerData?.personalInfo?.segment;
-      const isMRE=dossierData.customerData?.personalInfo?.residenceCountry !== "MAROC";
-      const marketitem = dossierData.customerData?.personalInfo?.market?.split('/')[1];
 
-      this.isClientMRE=isMRE;
-      this.segmentClient=segementClient!;
-      this.showContractType= dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
-      this.patchedForm = true;
-      this.dossierData= dossierData;
-      this.customerHasNonSegement= (isMRE && market==='1') || ((market==='9'||marketitem==='09PRI'||marketitem==='09PRO') && (!segementClient || !(segementClient?.includes("CLIPRI") && segementClient?.includes("CLIPRO"))))
+
+      const productCode            = dossierData?.product?.code;
+      const market                 = dossierData.customerData?.personalInfo?.market?.slice(-1);
+      const segementClient         = dossierData.customerData?.personalInfo?.segment;
+      const isMRE                  = dossierData.customerData?.personalInfo?.residenceCountry !== "MAROC";
+      const marketitem             = dossierData.customerData?.personalInfo?.market?.split('/')[1];
+      this.showSeparation          = ['03','02'].includes(marketitem!);
+      this.isPpoPpcFamily          = [ Products.PPO, Products.PPC, Products.PPO_PPR, Products.YASSIR, Products.YASSIR_PPR].includes(productCode as Products);
+      this.isClientMRE             = isMRE;
+      this.segmentClient           = segementClient!;
+      this.showContractType        = dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
+      
+      this.customerHasNonSegement  = (isMRE && market==='1') || ((market==='9'|| marketitem==='09PRI'|| marketitem==='09PRO') && (!segementClient || !(segementClient?.includes("CLIPRI") && segementClient?.includes("CLIPRO"))))
 
       switch (marketitem) {
         case '01': {
@@ -116,10 +130,12 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
           this.dossierStore.updateTypeClient("CLIPRI")
           break;
         } case '09': {
-          if( this.customerHasNonSegement)   this.dossierStore.updateTypeClient('')
+          if( this.customerHasNonSegement){
+            this.dossierStore.updateTypeClient('');
+          }
           if(segementClient?.includes('CLIPRI')){
-          this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
-          this.dossierStore.updateTypeClient("CLIPRI")
+            this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRI));
+            this.dossierStore.updateTypeClient("CLIPRI")
           }else if(segementClient?.includes('CLIPRO')){
             this.activitySector$ = this.refService.mapToCodeDesignation(this.filterByType(ActivitySectorType.CLIPRO));
             this.dossierStore.updateTypeClient("CLIPRO")
@@ -145,9 +161,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
       if((segementClient?.includes('CLIPRO') || ['02','03','09PRO'].includes(marketitem!)) && isMRE==false){
              this.showProfessionList=true;
       }
-      if((['03','02'].includes(marketitem!))){
-          this.showSeparation=true;
-      }
+      
       this.updatePropertyData(dossierData, {});
       const cutomerType=dossierData.customerData?.personalInfo?.market?.includes("PRI")?'CLIPRI':'CLIPRO';
       this.professions$ = this.refService.getAllCustomerProfessions(cutomerType!);
@@ -194,6 +208,48 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
     this.setupAutoSave();
     this.updateNotaryValidations();
     this.listenLoanObjectChanges();
+  }
+
+  private initCustomerDataList(dossierData: DossierData): void {
+    if(!dossierData.jointsAccountsCustomerData || dossierData.jointsAccountsCustomerData.length === 0) {
+      return;
+    }
+    this.customerDataList = this.formBuilder.array([]);
+    dossierData.jointsAccountsCustomerData.forEach((client) => {
+      this.customerDataList.push(
+        this.formBuilder.group({
+          customerCode: new FormControl(client.customerCode),
+          employer: this.formBuilder.group({
+            activitySector: new FormControl(null, [Validators.required]),
+            cutomerType: new FormControl(),
+            contractType: new FormControl(),
+            isTitularized: new FormControl(false),
+            name: new FormControl(null, [Validators.required]),
+            address: new FormControl(null),
+            separation: new FormControl(true, [Validators.required]),
+            profession: new FormControl(),
+            phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
+          }, { validators: [DossierValidators.titularizedValidator] }),
+          financialData: this.formBuilder.group({
+            income: new FormControl(null, [Validators.required]),
+            spouseIncome: new FormControl(),
+            otherIncome: new FormControl(),
+            rentalIncome: new FormControl(),
+            familyAllowance: new FormControl(),
+            pension: new FormControl(),
+            dividends: new FormControl(),
+          })
+        })
+      );
+    });
+  }
+
+  getCustomerForm(index: number): FormGroup {
+    return this.customerDataList.at(index) as FormGroup;
+  }
+
+  get customerDataListControls(): FormArray {
+    return this.customerDataList;
   }
 
   private listenLoanObjectChanges(): void {
@@ -302,7 +358,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
             : currentMarket)
       : currentMarket;
   }
-  
+
   private listenTypeClientChanges(): void {
     this.dossierStore.typeClient$
     .subscribe(data=>{
@@ -643,6 +699,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
       residenceCountry: new FormControl(null, [Validators.required])
     }, { validators: [DossierValidators.prospectValidator]});
   }
+
 
   maxDateFilter = (d: any): boolean => {
       if (!d) return false;
