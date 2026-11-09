@@ -1,3 +1,110 @@
+
+// Paths vidables (whitelist). Zid hna les champs saisis par l'user.
+private static final Set<String> CLEARABLE_PATHS = Set.of(
+        "loanData.delayed",
+        "loanData.delayDuration",
+        "loanData.delayType",
+        "loanData.requestedNotaryFee",
+        "loanData.claimedAmountOfPurchase",
+        "loanData.claimedAmountOfBuildDevelopment"
+        // ... les autres champs saisissables
+);
+
+@Auditable(actionType = AuditActionType.VALIDATE_DOSSIER_REQUEST, objectClass = AuditableObject.DOSSIER_REQUEST)
+public DossierDataDto validateDossierRequest(String uuid) {
+    try {
+        DossierRequestDto request = dossierDataClient.getDossierRequestByUuid(uuid);
+        Assert.notNull(request, messageService.getMessage(MessageKeyConstants.DOSSIER_REQUEST_INPROGRESS_NOTFOUND));
+
+        // Garde de statut: idempotent si déjà validé
+        if (RequestStatus.ACCEPTED.toString().equals(request.getRequestStatus())) {
+            return dossierDataDtoMapper.convertToApiDTO(
+                    dossierDataClient.retrieveByUuid(request.getDossier().getUuid()));
+        }
+
+        DossierDataDto patch = dossierRequestMapper.toDossierDataDto(request);
+        patch.setClearedFields(request.getClearedFields());
+
+        DossierDataDto result = patchDossier(patch);
+
+        // ACCEPTED seulement après succès du patch
+        request.setRequestStatus(RequestStatus.ACCEPTED.toString());
+        updateDossierRequest(request);
+        return result;
+    } catch (BusinessException ex) {          // adapte au nom de ton exception métier
+        throw ex;
+    } catch (RuntimeException ex) {
+        log.error("Error in validateDossierRequest, uuid={}", uuid, ex);
+        throw new TechnicalException("You cannot perform this action", ex);
+    }
+}
+
+@Auditable(actionType = AuditActionType.MODIFICATION, objectClass = AuditableObject.DOSSIER_DATA)
+public DossierDataDto patchDossier(DossierDataDto patch) {
+    AuditContextHolder.setObjectId(patch.getUuid());
+
+    DossierDataDto current = dossierDataDtoMapper.convertToApiDTO(
+            dossierDataClient.retrieveByUuid(patch.getUuid()));
+
+    applyPatch(current, patch);   // 1. présent / vidé
+    deriveFields(current);        // 2. calculables sur l'état final
+
+    return updateDossier(current, current.getCodeStatus());
+}
+
+private void applyPatch(DossierDataDto target, DossierDataDto patch) {
+    // a) Valeurs non-null (comme avant)
+    List<String> nonNull = ObjectUtils.getNonNullPropertyNames(patch);
+    nonNull.removeIf(p -> p.endsWith("Valid") || p.endsWith("empty") || p.startsWith("clearedFields"));
+    ObjectUtils.copySelectedProperties(patch, target, nonNull);
+
+    // b) Champs vidés explicitement
+    Set<String> cleared = patch.getClearedFields();
+    if (cleared == null || cleared.isEmpty()) {
+        return;
+    }
+    BeanWrapper wrapper = PropertyAccessorFactory.forBeanPropertyAccess(target);
+    wrapper.setAutoGrowNestedPaths(true);   // évite NPE si loanData est null
+
+    for (String path : cleared) {
+        if (!CLEARABLE_PATHS.contains(path)) {
+            log.warn("clearedFields: path ignoré (hors whitelist): {}", path);
+            continue;
+        }
+        if (!wrapper.isWritableProperty(path)) {
+            continue;
+        }
+        Class<?> type = wrapper.getPropertyType(path);
+        if (type != null && type.isPrimitive()) {
+            log.warn("clearedFields: path primitif ignoré: {}", path);
+            continue;
+        }
+        wrapper.setPropertyValue(path, null);
+    }
+}
+
+// Idempotent: toujours exécuté sur l'état final, sans conditions "contains(path)"
+private void deriveFields(DossierDataDto dossier) {
+    recalculateLoanAmounts(dossier);
+    recalculateRates(dossier);
+
+    boolean delayed = dossier.getLoanData() != null
+            && Boolean.TRUE.equals(dossier.getLoanData().getDelayed());
+    if (!delayed && DossierStatus.statusesToPurgeDelayedFields().contains(dossier.getCodeStatus())) {
+        dossierDataHelper.purgeDossierDelayedFields(dossier);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 @Auditable(actionType = AuditActionType.VALIDATE_DOSSIER_REQUEST, objectClass = AuditableObject.DOSSIER_REQUEST)
 	public DossierDataDto validateDossierRequest(String uuid) {
 		try {
