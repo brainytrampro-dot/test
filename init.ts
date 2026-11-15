@@ -196,7 +196,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.initDelayedType();
     this.initDelayed();
     this.updateNotaryValidations();
-    this.setupLoanCalculationListeners();
     this.initClaimedAmountOfPurchaseValidators();
 
     this.insuranceCoefficient$.subscribe((value) => this.insuranceCoefficientFormControl?.setValue(value));
@@ -272,7 +271,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.notaryFeeRule = this.notaryFeeRuleConfig(this.loanObject);
     this.applyRequestedNotaryFeeValidators(this.loanObject);
     this.initDurationListeners();
-    this.calculateLoanAmountListener();
+    this.setupLoanCalculationListeners();
   }
 
   ngAfterViewInit(): void {
@@ -308,8 +307,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.acquisitionPriceFormControl?.updateValueAndValidity();
     this.requestedNotaryFeeFormControl?.updateValueAndValidity();
   }
-
- 
 
   isAnyMechanismOrType(): boolean {
     return this.isTypeA() || this.isTypeB() || this.isMechanism1() || this.isMechanism2();
@@ -924,7 +921,7 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     }
     event.chipInput!.clear();
   }
-  
+
   private buildProposedRestrictionType(family: RestrictionType): RestrictionType {
     if (family === RestrictionType.DSC) {
       return this.isCtb ? RestrictionType.PROPOSED_CTB : RestrictionType.PROPOSED_DSC;
@@ -993,11 +990,6 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.dossierStore.update({ propertyData: newPropertyData }, false);
   }
 
-  private setupLoanCalculationListeners() {
-    const isNotaryFeesActive:boolean = this.isPPIProduct || (this.isPpiMRE && this.isClipriMRE);
-    this.loanCalculationService.setupInvestmentAmount(this.loanDataFormGroup, { isNotaryFeesActive }, this.destroy$);
-  }
-
   private fieldsClearingCondition(fileds: 'Notary'): boolean {
     const dossier = this.dossierStore.get();
     const product = dossier.product?.code
@@ -1036,13 +1028,42 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.notaryFormGroup.get('address')?.clearValidators();
   }
 
+  public isInternalRepurchaseSelected(): boolean {
+    const value = this.loanDataFormGroup?.get('repurchaseTypes')?.value;
+    if (Array.isArray(value)) {
+      return value.some(
+        item => item?.code === 'INT' || item === 'INT'
+      );
+    }
+
+    return value?.code === 'INT' || value === 'INT';
+  }
+
+  private notaryFeeRuleConfig(loanObjectCode?: string):{ isEligible: boolean, coefficient: number } {
+    const code = loanObjectCode ?? '';
+
+    const isAqs = code.includes('AQS');
+    const isOnlyRch = code.includes('RCH') && !code.includes('AQS');
+    const isConventionedProducts = this.isSelectedProductIn([Products.IMTILAK, Products.IMTILAK_PPR, Products.ADL_SAKANE, Products.ADL_SAKANE_PPR, Products.SALAF_BAYTI_SANTE, Products.SALAF_BAYTI_SANTE_PPR]);
+    const isPPIEngagementPromoteur = this.isSelectedProduct(Products.PPI_Engagement_Promoteur);
+    return {
+      isEligible: (isAqs || isOnlyRch) && (this.isPPIProduct || ((this.isPpiMRE || isConventionedProducts || isPPIEngagementPromoteur) && this.isClipriMRE)),
+      coefficient:  isAqs ? 0.08 : 0.04
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //
+  // ──────────────────────────────────────────────────────────────────────────
+
+
   private repurchasedCreditNumberValidator(): ValidatorFn {
    return (group: AbstractControl): ValidationErrors | null => {
     const fg = group as FormGroup;
     // Si pas de prêt rachat, pas de validation
     const loanObject = this.loanObject ?? '';
     const isAqsRepurchase = loanObject.includes('AQS_RCH');
-    const isInternalPpoPpcRepurchase = this.isPpoPpcFamily && this.isInternalRepurchaseSelected(fg.get('repurchaseTypes')?.value);
+    const isInternalPpoPpcRepurchase = this.isPpoPpcFamily && this.isInternalRepurchaseSelected();
     if (!isAqsRepurchase && !isInternalPpoPpcRepurchase) return null;
 
 
@@ -1071,216 +1092,20 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
       return null;
     };
   }
-  public isInternalRepurchaseSelected(value = this.loanDataFormGroup?.get('repurchaseTypes')?.value): boolean {
-    if (Array.isArray(value)) {
-      return value.some(
-        item => item?.code === 'INT' || item === 'INT'
-      );
-    }
-
-    return value?.code === 'INT' || value === 'INT';
-  }
-
-  private notaryFeeRuleConfig(loanObjectCode?: string):{ isEligible: boolean, coefficient: number } {
-    const code = loanObjectCode ?? '';
-
-    const isAqs = code.includes('AQS');
-    const isOnlyRch = code.includes('RCH') && !code.includes('AQS');
-    const isConventionedProducts = this.isSelectedProductIn([Products.IMTILAK, Products.IMTILAK_PPR, Products.ADL_SAKANE, Products.ADL_SAKANE_PPR, Products.SALAF_BAYTI_SANTE, Products.SALAF_BAYTI_SANTE_PPR]);
-    const isPPIEngagementPromoteur = this.isSelectedProduct(Products.PPI_Engagement_Promoteur);
-    return {
-      isEligible: (isAqs || isOnlyRch) && (this.isPPIProduct || ((this.isPpiMRE || isConventionedProducts || isPPIEngagementPromoteur) && this.isClipriMRE)),
-      coefficient:  isAqs ? 0.08 : 0.04
-    };
-  }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 2. Montant demandé
-  //    = claimedAmountOfBuildDevelopment + claimedAmountOfPurchase [+ requestedNotaryFee si PPI/ClipriMRE]
-  //    → met aussi à jour applicationFee (loanAmount × 0.001)
-  //    → notifie TopVipService
+  // Listeners for loan calculation
   // ───────────────────────────────────────────────────────────────────────────
-  private calculateLoanAmountListener(): void {
-    const buildCost$ = this.getControlValueChanges( this.claimedAmountOfBuildFormControl,  0,  this.claimedAmountOfBuildFormControl?.value);
-    const purchase$  = this.getControlValueChanges(  this.claimedAmountOfPurchaseFormControl, 0, this.claimedAmountOfPurchaseFormControl?.value );
-    const notary$    = this.getControlValueChanges(this.requestedNotaryFeeFormControl, 0, this.requestedNotaryFeeFormControl?.value);
-  
-    merge(buildCost$, purchase$, notary$)
-      .pipe(
-        takeUntil(this.destroy$),
-        map(() => this.calculateLoanAmount()),
-        tap(loanSum => {          
-          this.setControlNumberValue(this.loanDataFormGroup.get('loanAmount'), loanSum);
-          if(!this.isPpoPpcFamily){
-            const applicationFee = NumberUtils.round(loanSum * 0.001, 2);
-            this.setControlNumberValue(this.loanDataFormGroup.get('applicationFee'), applicationFee);
-          }
-          this.topVipService.next(loanSum);
-        })
-      )
-      .subscribe();
-  }
-  
-
-  get formGroupRawValue(): any {
-    return this.formGroup.getRawValue();
+  private setupLoanCalculationListeners() {
+    const isNotaryFeesActive:boolean = this.notaryFeeRuleConfig(this.loanObject).isEligible;
+    this.loanCalculationService.setupInvestmentAmount(this.loanDataFormGroup, { isNotaryFeesActive }, this.destroy$);
+    this.loanCalculationService.setupLoanAmount(this.loanDataFormGroup, { isPpoPpcFamily: this.isPpoPpcFamily }, this.destroy$);
   }
 
-  get cappedRateFormControl() {
-    return this.formGroup.get('loanData.cappedRate') as FormControl;
-  }
 
-  get applicationFeeFormControl() {
-    return this.loanDataFormGroup.get('applicationFee') as FormControl;
-  }
-  get insuranceCoefficientFormControl() {
-    return this.formGroup.get('insuranceData.insuranceCoefficient') as FormControl;
-  }
-
-  get aditionalCreditPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.aditionalCreditPromotionalInsuranceRate") as FormControl;
-  }
-
-  get aditionalCreditInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.aditionalCreditInsuredPercentage") as FormControl;
-  }
-
-  get aditionalCreditInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.aditionalCreditInsuranceCoefficient") as FormControl;
-  }
-
-  get subsidizedPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.subsidizedPromotionalInsuranceRate") as FormControl;
-  }
-  get bonusPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.bonusPromotionalInsuranceRate") as FormControl;
-  }
-
-  get suportedPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;
-  }
-
-  get subsidizedInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;
-  }
-
-  get bonusInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.bonusInsuranceCoefficient") as FormControl;
-  }
-
-  get suportedInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.suportedInsuranceCoefficient") as FormControl;
-  }
-
-  get subsidizedInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.subsidizedInsuredPercentage") as FormControl;
-  }
-
-  get bonusInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.bonusInsuredPercentage") as FormControl;
-  }
-
-  get suportedInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.suportedInsuredPercentage") as FormControl;
-  }
-  get typeAPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.typeAPromotionalInsuranceRate") as FormControl;
-  }
-
-  get typeAInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.typeAInsuredPercentage") as FormControl;
-  }
-
-  get typeAInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.typeAInsuranceCoefficient") as FormControl;
-  }
-
-  get typeBPromotionalInsuranceRateFormControl() {
-    return this.formGroup.get("insuranceData.typeBPromotionalInsuranceRate") as FormControl;
-  }
-
-  get typeBInsuredPercentageFormControl() {
-    return this.formGroup.get("insuranceData.typeBInsuredPercentage") as FormControl;
-  }
-
-  get typeBInsuranceCoefficientFormControl() {
-    return this.formGroup.get("insuranceData.typeBInsuranceCoefficient") as FormControl;
-  }
-  get deadlineNumberFormControl() {
-    return this.loanDataFormGroup.get('deadlineNumber') as FormControl;
-  }
-  get delayedFormControl() {
-    return this.loanDataFormGroup.get('delayed') as FormControl;
-  }
-  get delayDurationFormControl() {
-    return this.loanDataFormGroup.get('delayDuration') as FormControl;
-  }
-  get rateTypeCodeFormControl() {
-    return this.formGroup.get('loanData.rateType.code') as FormControl;
-  }
-
-  get loanDataFormGroup() {
-    return this.formGroup.get('loanData') as FormGroup;
-  }
-  get delayed() {
-    return this.formGroup?.get('loanData.delayed')?.value;
-  }
-  get acquisitionPriceFormControl() {
-    return this.loanDataFormGroup?.get('acquisitionPrice');
-  }
-  get delayType() {
-    return this.formGroup?.get('loanData.delayType')?.value;
-  }
-  get delayDuration() {
-    return this.formGroup?.get('loanData.delayDuration')?.value;
-  }
-  get rateFormControl() {
-    return this.formGroup.get('loanData.rate') as FormControl;
-  }
-  get delayTypeFormControl() {
-    return this.formGroup?.get('loanData.delayType') as FormControl;
-  }
-
-  get subsidizedCreditDurationFormControl() {
-    return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl;
-  }
-  get bonusCreditDurationFormControl() {
-    return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl;
-  }
-  get suportedCreditDurationFormControl() {
-    return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl;
-  }
-  get additionalloanDurationFormControl() {
-    return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;
-  }
-  get subsidizedCreditRateFormControl() {
-    return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl;
-  }
-  get bonusCreditRateFormControl() {
-    return this.loanDataFormGroup.get('bonusCreditRate') as FormControl;
-  }
-  get suportedCreditRateFormControl() {
-    return this.loanDataFormGroup.get('suportedCreditRate') as FormControl;
-  }
-  get additionalCreditRateFormControl() {
-    return this.loanDataFormGroup.get('additionalCreditRate') as FormControl;
-  }
-
-  get notaryPhoneFormControl(): FormControl {
-    return this.notaryFormGroup?.get('phone') as FormControl;
-  }
-
-  get notaryMailFormControl(): FormControl {
-    return this.notaryFormGroup?.get('email') as FormControl;
-  }
-  get propertyDataFormGroup(): FormGroup {
-    return this.formGroup.get('propertyData') as FormGroup;
-  }
-
-  get notaryFormGroup(): FormGroup {
-    return this.formGroup.get('notary') as FormGroup;
-  }
-
+  // ───────────────────────────────────────────────────────────────────────────
+  // Mechanism checks
+  // ──────────────────────────────────────────────────────────────────────────
   public isMechanism1() {
     return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_1);
   }
@@ -1306,1105 +1131,73 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     }
     return !!arrayValues.find(mechanism => mechanism && mechanism.code === value);
   }
-
-  get claimedAmountOfBuildFormControl() { return this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment') as FormControl; }
   
-  get promotionalInsuranceRateFormControl() {
-    return this.formGroup?.get("insuranceData.promotionalInsuranceRate") as FormControl;
-  }
-  get claimedAmountOfPurchaseFormControl() {
-    return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;
-  }
 
-  get warrantiesFormArray(): FormArray {
-    return this.formGroup.controls['warranties'] as FormArray;
-  }
-  get restrictionsFormArray(): FormArray {
-    return this.formGroup.controls['restrictions'] as FormArray;
-  }
+  // ───────────────────────────────────────────────────────────────────────────
+  // Form controls getters
+  // ───────────────────────────────────────────────────────────────────────────
 
-  get beneficiariesFormArray(): FormArray {
-    return this.formGroup.controls['beneficiaries'] as FormArray;
-  }
-
-  get guarantorsFormArray(): FormArray {
-    return this.formGroup.controls['guarantors'] as FormArray;
-  }
-
-  get representativesFormArray(): FormArray {
-    return this.formGroup.controls['representatives'] as FormArray;
-  }
-
+  get formGroupRawValue(): any {return this.formGroup.getRawValue();  }
+  get cappedRateFormControl() {return this.formGroup.get('loanData.cappedRate') as FormControl;  }
+  get applicationFeeFormControl() {return this.loanDataFormGroup.get('applicationFee') as FormControl;  }
+  get insuranceCoefficientFormControl() {return this.formGroup.get('insuranceData.insuranceCoefficient') as FormControl;  }
+  get aditionalCreditPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.aditionalCreditPromotionalInsuranceRate") as FormControl;  }
+  get aditionalCreditInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.aditionalCreditInsuredPercentage") as FormControl;  }
+  get aditionalCreditInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.aditionalCreditInsuranceCoefficient") as FormControl;  }
+  get subsidizedPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.subsidizedPromotionalInsuranceRate") as FormControl;  }
+  get bonusPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.bonusPromotionalInsuranceRate") as FormControl;  }
+  get suportedPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;  }
+  get subsidizedInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;  }
+  get bonusInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.bonusInsuranceCoefficient") as FormControl;  }
+  get suportedInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.suportedInsuranceCoefficient") as FormControl;  }
+  get subsidizedInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.subsidizedInsuredPercentage") as FormControl;  }
+  get bonusInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.bonusInsuredPercentage") as FormControl;  }
+  get suportedInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.suportedInsuredPercentage") as FormControl;  }
+  get typeAPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.typeAPromotionalInsuranceRate") as FormControl;  }
+  get typeAInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.typeAInsuredPercentage") as FormControl;  }
+  get typeAInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.typeAInsuranceCoefficient") as FormControl;  }
+  get typeBPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.typeBPromotionalInsuranceRate") as FormControl;  }
+  get typeBInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.typeBInsuredPercentage") as FormControl;  }
+  get typeBInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.typeBInsuranceCoefficient") as FormControl;  }
+  get deadlineNumberFormControl() {return this.loanDataFormGroup.get('deadlineNumber') as FormControl;  }
+  get delayedFormControl() {return this.loanDataFormGroup.get('delayed') as FormControl;  }
+  get delayDurationFormControl() {return this.loanDataFormGroup.get('delayDuration') as FormControl;  }
+  get rateTypeCodeFormControl() {return this.formGroup.get('loanData.rateType.code') as FormControl;  }
+  get loanDataFormGroup() {return this.formGroup.get('loanData') as FormGroup;  }
+  get delayed() {return this.formGroup?.get('loanData.delayed')?.value;  }
+  get acquisitionPriceFormControl() {return this.loanDataFormGroup?.get('acquisitionPrice');  }
+  get delayType() {return this.formGroup?.get('loanData.delayType')?.value;  }
+  get delayDuration() {return this.formGroup?.get('loanData.delayDuration')?.value;  }
+  get rateFormControl() {return this.formGroup.get('loanData.rate') as FormControl;  }
+  get delayTypeFormControl() {return this.formGroup?.get('loanData.delayType') as FormControl;  }
+  get subsidizedCreditDurationFormControl() {return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl;  }
+  get bonusCreditDurationFormControl() {return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl;  }
+  get suportedCreditDurationFormControl() {return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl;  }
+  get additionalloanDurationFormControl() {return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;  }
+  get subsidizedCreditRateFormControl() {return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl;  }
+  get bonusCreditRateFormControl() {return this.loanDataFormGroup.get('bonusCreditRate') as FormControl;  }
+  get suportedCreditRateFormControl() {return this.loanDataFormGroup.get('suportedCreditRate') as FormControl;  }
+  get additionalCreditRateFormControl() {return this.loanDataFormGroup.get('additionalCreditRate') as FormControl;  }
+  get notaryPhoneFormControl(): FormControl {return this.notaryFormGroup?.get('phone') as FormControl;  }
+  get notaryMailFormControl(): FormControl {return this.notaryFormGroup?.get('email') as FormControl;  }
+  get propertyDataFormGroup(): FormGroup {return this.formGroup.get('propertyData') as FormGroup;  }
+  get notaryFormGroup(): FormGroup {return this.formGroup.get('notary') as FormGroup;  }
+  get claimedAmountOfBuildFormControl() { return this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment') as FormControl; }
+  get promotionalInsuranceRateFormControl() {  return this.formGroup?.get("insuranceData.promotionalInsuranceRate") as FormControl;  }
+  get claimedAmountOfPurchaseFormControl() {  return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;  }
+  get warrantiesFormArray(): FormArray {  return this.formGroup.controls['warranties'] as FormArray;  }
+  get restrictionsFormArray(): FormArray {  return this.formGroup.controls['restrictions'] as FormArray;  }
+  get beneficiariesFormArray(): FormArray {  return this.formGroup.controls['beneficiaries'] as FormArray;  }
+  get guarantorsFormArray(): FormArray {  return this.formGroup.controls['guarantors'] as FormArray;  }
+  get representativesFormArray(): FormArray { return this.formGroup.controls['representatives'] as FormArray;}
   get acquisitionFeeFormControl() { return this.loanDataFormGroup.get('acquisitionFee') as FormControl;}
   get requestedNotaryFeeFormControl() { return this.loanDataFormGroup?.get('requestedNotaryFee') as FormControl; }
-
   get showRiskAgreementWarningForPpoPpc(): boolean {
-  const isTargetProduct = this.isSelectedProductIn([Products.PPO, Products.PPC]); 
-  const duration = this.toForcedNumber(this.deadlineNumberFormControl?.value);
-  return isTargetProduct && duration > 84;
-}
+    const isTargetProduct = this.isSelectedProductIn([Products.PPO, Products.PPC]); 
+    const duration = this.toForcedNumber(this.deadlineNumberFormControl?.value);
+    return isTargetProduct && duration > 84;
+  }
 
 }
-
-
-
-
-// HTML
-<form [formGroup]="formGroup" autocomplete="off" class="initiation-form">
-    <app-stepper #principalStepper linear="false" [showIndicator]="false" [showNavigationButtons]="false"
-      [showNavigationList]="false">
-      <ng-template #additionalActions>
-        <div class="dossierNumber" (click)="goBack.emit()">
-          <img src="../../../../assets/svg/dossierNumber.svg" width="20" alt="dossier Number" />
-          <span *ngIf="data?.codeDossier">N°{{data?.codeDossier}}</span>
-        </div>
-      </ng-template>
-      <cdk-step>
-        <ng-template cdkStepLabel>
-          <span>{{"customer.loan.initiation.steps.loandata.label" | translate}}</span>
-        </ng-template>
-        <app-stepper [nextFunction]="nextStep" [doneFunction]="doneStepper" [firstPreviousFunction]="previousStepper"
-          [showNavigationList]="false" doneButtonLabel="Valider" (selectionChange)="onSelectionChange($event)" >
-          <cdk-step *ngIf="!dossierAccordPrincipe">
-            <div class="step-header">
-              <div class="step-title-container">
-                <div class="step-visual">
-                  <img src="../../../../assets/img/steps/credit-informations.svg" width="200" alt="Données Crédit">
-                </div>
-                <div class="step-title-wrapper">
-                  <h2 class="step-title">
-                    1. {{"customer.loan.initiation.steps.loandata.label" | translate}}
-                  </h2>
-                  <p class="step-description">
-                    {{"customer.loan.initiation.steps.loandata.text" | translate}}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="step-form" formGroupName="loanData">
-              <div class="stepper-content-body">
-                <div class="step-form-container">
-                  <div class="row" >
-                    <div class="col-6 mb-4" *ngIf="(!isYassir && !isPpoPpc ) || ( (isPpoPpc || isYassir) && loanObject?.includes('AQS'))">
-                      <div class="form-control-wrapper disabled">
-                        <label class="form-control-label">{{"loan.acquisition.price.label" | translate}}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n type="text" formControlName="acquisitionPrice" [readonly]="true"/>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="col-6 mb-4" *ngIf="loanObject.includes('CST') || loanObject.includes('AMN')">
-                      <div class="form-control-wrapper disabled">
-                        <label class="form-control-label"> {{ "loan.build.quotation" | translate }} </label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n type="text"
-                                formControlName="buildDevelopmentQuotation" [readonly]="true"/>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="col-6 mb-4" *ngIf="(!isYassir && !isPpoPpc) || ( (isPpoPpc || isYassir) && loanObject?.includes('AQS'))">
-                      <div class="form-control-wrapper disabled">
-                        <label class="form-control-label">
-                          {{ "loan.investment.amount" | translate }}
-                        </label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" [readonly]="true" appDecimalI18n type="text"
-                                formControlName="investmentAmount" />
-
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="row row-cols-2">
-                    <div class="col mb-4" *ngIf="loanObject?.includes('AQS') || loanObject?.includes('RCH') || loanObject?.includes('REGR_CRED')  || loanObject?.includes('REF_ACH_BI') || isYassir || isPpoPpc">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">
-                          <span *ngIf="isYassir; else DefaultLabel"> 
-                            {{ 'loan.bonusCreditAmount.yassir.label' | translate }} 
-                          </span>
-
-                          <ng-template #DefaultLabel> 
-                            {{ "loan.claimed.amount.purchase" | translate }} 
-                          </ng-template>
-                        </label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appDecimalI18n formControlName="claimedAmountOfPurchase" (blur)="calculateApplicationFee()" />
-                          <div class="error-stack">
-                            <div class="error-container" *ngIf="formGroup.get('loanData.claimedAmountOfPurchase')?.hasError('lessThanEqualTo')">
-                              <span>{{ "loan.amounts.acquisition.message" | translate}}</span>
-                            </div>
-                            <div class="error-container" *ngIf="formGroup.get('loanData.claimedAmountOfPurchase')?.hasError('required')">
-                              <span>{{"field.requierd.error.message" | translate}}</span>
-                            </div>
-                            <div class="error-container" *ngIf="formGroup.get('loanData.claimedAmountOfPurchase')?.hasError('lessThanEqualToFixedValue') && isYassir">
-                              <span>{{ "loan.bonusCreditAmount.yassir.error.message" | translate}}</span>
-                            </div>
-                            
-                            <div class="error-container" *ngIf="loanDataFormGroup?.errors?.equalToMechanismSum && formGroup.get('loanData')?.touched">
-                              <span>{{ "loan.amounts.sum.equal.error" | translate }}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="loanObject?.includes('CST') || loanObject?.includes('AMN')">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ ("loan.claimed.amount.build" | translate) | slice:0:35
-                          }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appDecimalI18n
-                            formControlName="claimedAmountOfBuildDevelopment" (blur)="calculateApplicationFee()" />
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.claimedAmountOfBuildDevelopment')?.hasError('lessThanEqualTo')">
-                            <span>{{"loan.amounts.quotation.message"| translate}}</span>
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.claimedAmountOfBuildDevelopment')?.hasError('required')">
-                            <span>{{ "field.requierd.error.message" | translate}}</span>
-                          </div>
-                          <div class="error-container" *ngIf="formGroup.get('loanData.claimedAmountOfBuildDevelopment')?.hasError('equalToMechanismSum')">
-                            <span>{{ "loan.amounts.sum.equal.error" | translate }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <ng-container *ngIf="notaryFeeRule.isEligible">
-                      <div class="col mb-4">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.acquisition.fee.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n formControlName="acquisitionFee"/>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4"s>
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.claimed.amount.purchase.including.notaryFees" |
-                            translate | slice:0:35}}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" type="text" appDecimalI18n
-                              formControlName="requestedNotaryFee" (blur)="calculateApplicationFee()" />
-                            <div class="error-container error-message " *ngIf="acquisitionPriceFormControl?.hasError('sumPercentLessThanEqualTo')">
-                              <span>{{ "loan.claimed.amount.purchase.including.notaryFees.error" | translate : {maxPercent:acquisitionPriceFormControl?.errors?.['sumPercentLessThanEqualTo']?.maxPercent} }}</span>
-                            </div>                                        
-                            <div class="error-container error-message" *ngIf="requestedNotaryFeeFormControl?.hasError('lessThanEqualTo')">
-                              <span>{{ "loan.claimed.amount.purchase.including.notaryFees.message" | translate}}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </ng-container>
-                    <div class="col mb-4" *ngIf="loanObject?.includes('AQS_RCH') || (isPpoPpcFamily && isInternalRepurchaseSelected())">
-                        <div class="form-control-wrapper"
-                            [ngClass]="{
-                                'has-error': loanDataFormGroup.get('repurchasedCreditNumber')?.invalid &&
-                                            (loanDataFormGroup.get('repurchasedCreditNumber')?.dirty || loanDataFormGroup.get('repurchasedCreditNumber')?.touched)
-                            }">
-                          <label class="form-control-label">
-                            {{ 'loan.repurchasedCreditNumber.label' | translate }}<span class="required">*</span>
-                          </label>
-                          <div class="form-control-container">
-                            <input class="form-control-input"
-                                  type="text"
-                                  formControlName="repurchasedCreditNumber"
-                                  maxlength="255" />
-                            <div class="error-container"
-                                *ngIf="loanDataFormGroup.hasError('repurchasedCreditNumberRequired') && (loanDataFormGroup.get('repurchasedCreditNumber')?.dirty || loanDataFormGroup.get('repurchasedCreditNumber')?.touched)">
-                              <span>{{ 'field.requierd.error.message' | translate }}</span>
-                            </div>
-                            <div class="error-container"
-                                *ngIf="loanDataFormGroup.hasError('repurchasedCreditNotFound') && (loanDataFormGroup.get('repurchasedCreditNumber')?.dirty || loanDataFormGroup.get('repurchasedCreditNumber')?.touched)">
-                              <span>{{ 'loan.repurchasedCreditNumber.warningNotFound' | translate }}</span>
-                            </div>
-                          </div>
-                        </div>
-                    </div>
-                    <ng-container *ngIf="isSelectedProductIn(['ADL_SAKANE','ADL_SAKANE_PPR','IMTILAK','IMTILAK_PPR','SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR'])">
-                      <div class="col mb-4" *ngIf="isMechanism1()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.subsidizedCreditAmount.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="subsidizedCreditAmount" />
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.subsidizedCreditAmount')?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.subsidizedCreditAmount.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4" *ngIf="isMechanism2()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.bonusCreditAmount.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="bonusCreditAmount" />
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.bonusCreditAmount')?.hasError('lessThanEqualTo')">
-                            <ng-container
-                              *ngIf="isSelectedProductIn(['SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR']); else defaultMessage">
-                              <span>{{ "loan.bonusCreditAmount.SalafBaytiSante.message" | translate}}</span>
-                            </ng-container>
-                            <ng-template #defaultMessage>
-                              <span> {{ "loan.bonusCreditAmount.message" | translate }}</span>
-                            </ng-template>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4" *ngIf="isMechanism3()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.suportedCreditAmount.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="suportedCreditAmount" />
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.suportedCreditAmount')?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.suportedCreditAmount.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4" *ngIf="isTypeA()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.typeAloanAmount.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="typeAloanAmount" />
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.typeAloanAmount')?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.typeAloanAmount.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4" *ngIf="isTypeB()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.typeBloanAmount.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="typeBloanAmount" />
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.typeBloanAmount')?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.typeBloanAmount.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col mb-4" *ngIf="isAnyMechanismOrType()">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.additionalCredit.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" appDecimalI18n type="text"
-                              formControlName="additionalCredit" />
-                          </div>
-                        </div>
-                      </div>
-                    </ng-container>
-                    <div class="col mb-4">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : formGroup.get('loanData')?.hasError('feeExcess') }">
-                        <label class="form-control-label">{{
-                          "loan.application.fee.label" | translate
-                          }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appDecimalI18n formControlName="applicationFee" />
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.applicationFee')?.hasError('required')">
-                            <span>{{ "field.requierd.error.message" | translate}}</span>
-                          </div>
-                          <div class="error-container" *ngIf="formGroup.get('loanData')?.hasError('feeExcess')">
-                            <span>{{ "loan.applicationFee.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">
-                          {{ "loan.freehand.label" | translate }}
-                        </label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="freeHandFee" />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4"
-                      *ngIf="!isSelectedProductIn(['ADL_SAKANE','ADL_SAKANE_PPR','IMTILAK','IMTILAK_PPR','SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR'])">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">
-                          <span *ngIf="(!isYassir) else yassir">  {{ "loan.deadline.number.label" | translate }}</span>
-                          <ng-template #yassir> {{'loan.subvDuration.yassir.label' | translate}} </ng-template>
-                        </label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appNumber formControlName="deadlineNumber" />
-                          <div class="error-container" *ngIf="(isYassir || isPpoPpc) && deadlineNumberFormControl?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.deadlineNumber.conso.max.message" | translate:{maxDeadline: isPpoPpc ? 120 : 36} }}</span>
-                          </div>
-                          <div class="error-container" *ngIf="formGroup.get('loanData.deadlineNumber')?.hasError('required')">
-                            <span>{{ "field.requierd.error.message" | translate}}</span>
-                          </div>
-                          <div class="error-container" *ngIf="formGroup.get('loanData.deadlineNumber')?.hasError('sumLessThanEqualTo')">
-                            <span>{{ "loan.deadlineNumber.max.message" | translate}}</span>
-                          </div>
-                          <div class="error-container" *ngIf="!isPpoPpcFamily && formGroup.get('loanData.deadlineNumber')?.hasError('lessThanEqualTo')">
-                            <span>{{'message.deadlineNumber.'+periodicity | translate:{max:maxDeadline} }}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="warning-msg" *ngIf="isYassir">
-                        {{ 'deadline.yassir.message' | translate }}
-                      </div>
-                      <div class="warning-msg" *ngIf="showRiskAgreementWarningForPpoPpc">
-                           {{ "loan.deadlineNumber.riskAgreement.message" | translate }}
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism1()">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : formGroup.get('loanData.subsidizedCreditDuration')?.hasError('lessThanEqualTo') }">
-                        <label class="form-control-label">{{ "loan.subsidizedCreditDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="subsidizedCreditDuration" />
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.subsidizedCreditDuration')?.hasError('lessThanEqualTo')">
-                          {{ "loan.subsidizedCreditDuration.message" | translate}}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism2()">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : formGroup.get('loanData.bonusCreditDuration')?.hasError('lessThanEqualTo') }">
-                        <label class="form-control-label">{{ "loan.bonusCreditDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="bonusCreditDuration" />
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.bonusCreditDuration')?.hasError('lessThanEqualTo') && isSelectedProductIn(['IMTILAK','IMTILAK_PPR'])">
-                          {{ "loan.bonusCreditDuration.mechanisms.max.message" | translate}}
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.bonusCreditDuration')?.hasError('lessThanEqualTo') && isSelectedProductIn(['SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR'])">
-                          {{ "loan.bonusCreditDuration.SalafBaytiSante.mechanisms.max.message" | translate}}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism3()">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : formGroup.get('loanData.suportedCreditDuration')?.hasError('lessThanEqualTo') }">
-                        <label class="form-control-label">{{ "loan.suportedCreditDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="suportedCreditDuration" />
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.suportedCreditDuration')?.hasError('lessThanEqualTo')">
-                          {{ "loan.suportedCreditDuration.error.message" | translate}}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isTypeA()">
-                      <div class="form-control-wrapper"
-                        [ngClass]="{'has-error' : formGroup.get('loanData.typeAloanDuration')?.hasError('lessThanEqualTo') }">
-                        <label class="form-control-label">{{ "loan.typeAloanDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="typeAloanDuration" />
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.typeAloanDuration')?.hasError('lessThanEqualTo')">
-                          {{ "loan.typeAloanDuration.error.message" | translate}}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isTypeB()">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : formGroup.get('loanData.typeBloanDuration')?.hasError('lessThanEqualTo') }">
-                        <label class="form-control-label">{{ "loan.typeBloanDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="typeBloanDuration" />
-                        </div>
-                        <div class="error-container" *ngIf="formGroup.get('loanData.typeBloanDuration')?.hasError('lessThanEqualTo')">
-                          {{ "loan.typeBloanDuration.error.message" | translate}}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isAnyMechanismOrType()">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.additionalLoanDuration.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="additionalLoanDuration" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="col-4 mb-3">
-                      <label class="check-control">
-                        <input type="checkbox" formControlName="delayed">
-                        <div class="form-control-wrapper">
-                          <span class="fake-check"></span>
-                          <span class="fake-label">{{ "customer.delayed" | translate }}</span>
-                        </div>
-                      </label>
-                    </div>
-                    <div class="col mb-3" *ngIf="delayed">
-                      <mat-form-field class="matselectsearch-dialog matselectsearch">
-                        <mat-label class="form-control-label">{{ "customer.delay.types" | translate }}</mat-label>
-                        <div class="form-control-container">
-                          <mat-select [compareWith]="compareObjects" formControlName="delayType" disableOptionCentering>
-                            <mat-option>
-                              <ngx-mat-select-search [formControl]="delayTypeFilterControl"
-                                [placeholderLabel]="'Recherche ici'"
-                                [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
-                              </ngx-mat-select-search>
-                              <span class="icon-search-select"></span>
-                            </mat-option>
-                            <mat-option *ngFor="let delay of filteredDelayTypes$ | async" [value]="delay">
-                              {{ delay.designation }}
-                            </mat-option>
-                          </mat-select>
-                          <mat-hint *ngIf="delayType?.code==='CAPITAL_INTERETS'">
-                            {{"customer.delayed.capital.interet.message" | translate }}
-                          </mat-hint>
-                        </div>
-                      </mat-form-field>
-                    </div>
-                    <div class="col mb-3" *ngIf="delayed">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error':deadlineNumberFormControl?.hasError('sumLessThanEqualTo')}">
-                        <label class="form-control-label">{{ "customer.delay.duration" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber type="number" formControlName="delayDuration" min="0" />
-                        </div>
-                        <mat-hint *ngIf="delayDuration> 3">
-                          {{"customer.delayed.duration.message" | translate }}
-                        </mat-hint>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </cdk-step>
-          <cdk-step *ngIf="!dossierAccordPrincipe">
-            <div class="step-header">
-              <div class="step-title-container">
-                <div class="step-visual">
-                  <img src="../../../../assets/img/steps/credit-informations.svg" width="200" alt="Données Crédit">
-                </div>
-                <div class="step-title-wrapper">
-                  <h2 class="step-title">
-                    2. {{"customer.loan.initiation.steps.loandata.label" | translate}}
-                  </h2>
-                  <p class="step-description">
-                    {{"customer.loan.initiation.steps.loandata.text" | translate}}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="step-form" formGroupName="loanData">
-              <div class="stepper-content-body">
-                <div class="step-form-container">
-                  <div class="row">
-                    <div class="col-12 mb-4">
-                      <mat-form-field class="matselectsearch-dialog matselectsearch"
-                           [ngClass]="{'disabled' :  isYassir || isPpoPpc}">
-                        <mat-label class="form-control-label">{{ "loan.rate.types.label" | translate }}</mat-label>
-                        <div class="form-control-container" formGroupName="rateType">
-                          <mat-select formControlName="code" disableOptionCentering
-                          [disabled]="isYassir || isPpoPpc">
-                            <mat-option>
-                              <ngx-mat-select-search [formControl]="rateTypeFilterControl"
-                                [placeholderLabel]="'Recherche ici'"
-                                [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
-                              </ngx-mat-select-search>
-                              <span class="icon-search-select"></span>
-                            </mat-option>
-                            <mat-option *ngFor="let rate of filteredRateTypes$ | async" [value]="rate.code">
-                              {{ rate.designation }}
-                            </mat-option>
-                          </mat-select>
-                        </div>
-                      </mat-form-field>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism1()">
-                      <div class="form-control-wrapper ">
-                        <label class="form-control-label">{{ "loan.subsidizedCreditRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n formControlName="subsidizedCreditRate" />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism2()">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.bonusCreditRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n formControlName="bonusCreditRate"
-                            />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isMechanism3()">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.suportedCreditRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n formControlName="suportedCreditRate" />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isTypeA()">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.typeAloanRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n formControlName="typeAloanRate"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4" *ngIf="isTypeB()">
-                      <div class="form-control-wrapper ">
-                        <label class="form-control-label">{{ "loan.typeBloanRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appDecimalI18n formControlName="typeBloanRate"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="col mb-4" *ngIf="isAnyMechanismOrType()">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.additionalCreditRate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" appNumber formControlName="additionalCreditRate" />
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col mb-4"
-                      *ngIf="!isSelectedProductIn(['ADL_SAKANE','ADL_SAKANE_PPR','IMTILAK','IMTILAK_PPR','SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR']) ">
-                      <div class="form-control-wrapper" [ngClass]="{'disabled' : rateFormControl?.disabled}">
-                        <label class="form-control-label">{{
-                          "loan.rate.label" | translate
-                          }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appDecimalI18n formControlName="rate" />
-                          <div class="error-container" *ngIf="formGroup.get('loanData.rate')?.hasError('required')">
-                            <span>{{ "field.requierd.error.message" | translate}}</span>
-                          </div>
-                          <div class="error-container"
-                            *ngIf="formGroup.get('loanData.rate')?.hasError('lessThanEqualTo')">
-                            <span>{{ "loan.rate.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col  mb-4" *ngIf="rateTypeCodeFormControl.value === rateTypes.CAPE">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "loan.capped.rate.label" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appDecimalI18n formControlName="cappedRate" />
-                          <div class="error-container" *ngIf="cappedRateFormControl?.hasError('greaterThanEqualTo')">
-                            <span>{{ "loan.capped.rate.message" | translate}}</span>
-                          </div>
-                          <div class="error-container" *ngIf="cappedRateFormControl?.hasError('required')">
-                            <span>{{ "field.requierd.error.message" | translate}}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </cdk-step>
-          <cdk-step *ngIf="!dossierAccordPrincipe">
-            <div class="step-header">
-              <div class="step-title-container">
-                <div class="step-visual">
-                  <img src="../../../../assets/img/steps/credit-informations.svg" width="200" alt="Données Crédit">
-                </div>
-                <div class="step-title-wrapper">
-                  <h2 class="step-title">
-                    3. {{"customer.loan.initiation.steps.insurancedata.label" | translate}}
-                  </h2>
-                  <p class="step-description">
-                    {{"customer.loan.initiation.steps.insurancedata.description" | translate}}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="step-form">
-              <div class="stepper-content-body">
-                <div class="step-form-container">
-                  <div class="row">
-                    <ng-container formGroupName="insuranceData" *ngIf="!isSelectedProductIn(['ADL_SAKANE','ADL_SAKANE_PPR','IMTILAK','IMTILAK_PPR','SALAF_BAYTI_SANTE','SALAF_BAYTI_SANTE_PPR']) ; else mechanims ">
-                      <div class="col-6 mb-4">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ 'loan.insurance.promotionalInsuranceRate.label' | translate }} (%)</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" type="text" appPrecision formControlName="promotionalInsuranceRate" />
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col-6 mb-4">
-                        <div class="form-control-wrapper" [ngClass]="{'disabled' : formGroup.get('insuranceData.insuranceCoefficient')?.disabled}">
-                          <label class="form-control-label">
-                            <span *ngIf="(!isYassir || !isPpoPpc) else yassir">
-                              {{ 'loan.insurance.coefficient.label' | translate }}</span>
-                            <ng-template #yassir> {{'loan.insurance.coefficient.annul.label'| translate}} </ng-template>
-                          </label>
-                          <div class="form-control-container disabled">
-                            <input class="form-control-input" type="text" appPrecision formControlName="insuranceCoefficient" readOnly />
-                            <div class="error-container" *ngIf="formGroup.get('insuranceData.insuranceCoefficient')?.hasError('required')">
-                              <span>{{ "field.requierd.error.message" | translate}}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col-6 mb-4">
-                        <div class="form-control-wrapper">
-                          <label class="form-control-label">{{ "loan.insurance.insuredPercentage.label" | translate }}</label>
-                          <div class="form-control-container">
-                            <input class="form-control-input" type="text" appDecimalI18n formControlName="insuredPercentage" />
-                            <div class="error-container" *ngIf="formGroup.get('insuranceData.insuredPercentage')?.hasError('required')">
-                              <span>{{ "field.requierd.error.message" | translate}}</span>
-                            </div>
-                            <div class="error-container" *ngIf="formGroup.get('insuranceData.insuredPercentage')?.hasError('lessThanEqualTo')">
-                              <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </ng-container>
-
-                    <ng-template #mechanims>
-                      <ng-container formGroupName="insuranceData" *ngIf="isMechanism1()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{
-                              'loan.insurance.subsidized.promotionalInsuranceRate.label' |
-                              translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision
-                                formControlName="subsidizedPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.subsidized.coefficient.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="subsidizedInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.subsidizedInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.subsidized.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="subsidizedInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.subsidizedInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.subsidizedInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                      <ng-container formGroupName="insuranceData" *ngIf="isMechanism2()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.bonus.promotionalInsuranceRate.label' |
-                              translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="bonusPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.bonus.coefficient.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="bonusInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.bonusInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.bonus.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="bonusInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.bonusInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.bonusInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                      <ng-container formGroupName="insuranceData" *ngIf="isMechanism3()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.suported.promotionalInsuranceRate.label'| translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="suportedPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.suported.coefficient.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="suportedInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.suportedInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.suported.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="suportedInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.suportedInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.suportedInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                      <ng-container formGroupName="insuranceData" *ngIf="isTypeA()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.typeA.promotionalInsuranceRate.label' |
-                              translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision
-                                formControlName="typeAPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.typeA.coefficient.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="typeAInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeAInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.typeA.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="typeAInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeAInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeAInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                      <ng-container formGroupName="insuranceData" *ngIf="isTypeB()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.typeB.promotionalInsuranceRate.label' | translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="typeBPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.typeB.coefficient.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="typeBInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeBInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.typeB.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="typeBInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeBInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.typeBInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                      <ng-container formGroupName="insuranceData" *ngIf="isTypeA() || isTypeB() || isMechanism1() || isMechanism2()">
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.additionalCredit.promotionalInsuranceRate.label'| translate }} (%)</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="aditionalCreditPromotionalInsuranceRate" />
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ 'loan.insurance.additionalCredit.coefficient.label' | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appPrecision formControlName="aditionalCreditInsuranceCoefficient" readOnly />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.aditionalCreditInsuranceCoefficient')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-6 mb-4">
-                          <div class="form-control-wrapper">
-                            <label class="form-control-label">{{ "loan.insurance.additionalCredit.insuredPercentage.label" | translate }}</label>
-                            <div class="form-control-container">
-                              <input class="form-control-input" type="text" appDecimalI18n formControlName="aditionalCreditInsuredPercentage" />
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.aditionalCreditInsuredPercentage')?.hasError('required')">
-                                <span>{{ "field.requierd.error.message" | translate}}</span>
-                              </div>
-                              <div class="error-container" *ngIf="formGroup.get('insuranceData.aditionalCreditInsuredPercentage')?.hasError('lessThanEqualTo')">
-                                <span>{{ "loan.insuredPercentage.error.message" | translate}}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </ng-container>
-                    </ng-template>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </cdk-step>
-          <cdk-step>
-             <div class="step-form" formGroupName="propertyData">
-            <div class="stepper-content-body">
-              <div class="step-form-container">
-                <app-loan-property-details class="property-body"
-                  [beneficiaryList]="beneficiariesFormArray.value || []"
-                  [propertyFormGroup]="propertyDataFormGroup"
-                  [loanDataFormGroup]="loanDataFormGroup"
-                  [cities$]="cities$"
-                  [propertyData]="data.propertyData">
-                </app-loan-property-details>
-              </div>
-            </div>
-            </div>
-          </cdk-step>
-          <cdk-step>
-            <div class="step-header">
-              <div class="step-title-container">
-                <div class="step-visual">
-                  <img src="../../../../assets/img/steps/client-informations.svg" width="217" alt="Notaire" />
-                </div>
-                <div class="step-title-wrapper">
-                  <h2 class="step-title">
-                    {{ "customer.loan.initiation.steps.notary.label" | translate }}
-                  </h2>
-                  <p class="step-description">
-                    {{ "customer.loan.initiation.steps.notary.description" | translate }}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-          <div class="step-form" formGroupName="notary">
-            <div class="step-form">
-              <div class="stepper-content-body">
-                <div class="step-form-container">
-                  <!-- Champ Nom -->
-                  <div class="row">
-                    <div class="col">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "customer.notary.name" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" appAlphanumericInput formControlName="name" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Champ Adresse -->
-                  <div class="row">
-                    <div class="col">
-                      <div class="form-control-wrapper">
-                        <label class="form-control-label">{{ "customer.notary.address" | translate }}</label>
-                        <div class="form-control-container">
-                          <textarea class="form-control-textarea" formControlName="address" rows="3"></textarea>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Champ Téléphone -->
-                  <div class="row">
-                    <div class="col">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error': notaryPhoneFormControl?.errors?.pattern}">
-                        <label class="form-control-label">{{ "customer.notary.phone" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" formControlName="phone" />
-                        </div>
-                        <div class="error-container" *ngIf="notaryPhoneFormControl?.errors?.pattern">
-                          <span>{{ "customer.invalid.phone.message" | translate }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Champ Email -->
-                  <div class="row">
-                    <div class="col">
-                      <div class="form-control-wrapper" [ngClass]="{'has-error' : notaryMailFormControl?.errors?.email}">
-                        <label class="form-control-label">{{ "customer.notary.mail" | translate }}</label>
-                        <div class="form-control-container">
-                          <input class="form-control-input" type="text" formControlName="email" />
-                        </div>
-                        <div class="error-container" *ngIf="notaryMailFormControl?.errors?.email">
-                          <span>{{ "customer.notary.valid.email" | translate }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </cdk-step>
-          <cdk-step>
-            <ng-template cdkStepLabel>
-              <span>
-                {{ "customer.loan.initiation.steps.beneficiary.label" | translate }}
-              </span>
-            </ng-template>
-            <app-beneficiaries-data-table
-            [representativeList]="representativesFormArray.value || []"
-            [beneficiaryList] = "data.beneficiaries"
-            [guarantorsList] = "data.guarantors"
-            [propertyData]="propertyDataFormGroup.value"
-            [beneficiariesFormArray]="beneficiariesFormArray"
-            [guarantorsFormArray] = "guarantorsFormArray"></app-beneficiaries-data-table>
-          </cdk-step>
-          <cdk-step>
-              <ng-template cdkStepLabel>
-                <span>
-                  {{"customer.loan.initiation.steps.representative.label" | translate}}
-                </span>
-              </ng-template>
-              <app-representatives-data-table
-                      [representativesList]="data?.representatives || []"
-                      [beneficiariesList]="beneficiariesFormArray.value || []"
-                      [guarantorsList]="guarantorsFormArray.value || []"
-                      [representativesFormArray]="representativesFormArray">
-              </app-representatives-data-table>
-          </cdk-step>
-          <cdk-step>
-            <div class="step-header">
-              <div class="step-title-container">
-                <div class="step-visual">
-                  <img src="../../../../assets/img/steps/credit-informations.svg" width="200" alt="Données Crédit">
-                </div>
-                <div class="step-title-wrapper">
-                  <h2 class="step-title">
-                    6. {{"customer.loan.initiation.steps.guarantor.label" | translate}}
-                  </h2>
-                  <p class="step-description">
-                    {{"customer.loan.initiation.steps.warranties.capture" | translate}}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="step-form">
-              <div class="stepper-content-body">
-                <div class="step-form-container">
-                  <div class="row">
-                    <div class="col">
-                      <div class="form-control-wrapper">
-                        <span class="pb-2">{{ "loan.dossier.warraties" | translate }}</span>
-                          <mat-chip-list #chipList aria-label="Warranties selection">
-                            <ng-container *ngFor="let w of warranties; let i = index">
-                            <mat-chip *ngIf="!!data?.isEdit && w.type !== 'TO_COLLECT' || !data?.isEdit"
-                                      [selectable]="selectableWarranty"
-                                      [removable]="w.type !=='AUTO' && !isCtb"
-                                      (removed)="removeWarranty(i, w.type ==='AUTO')">
-                              {{w.content}}
-                              <button matChipRemove *ngIf="w.type !=='AUTO'&& !isCtb ">
-                                <mat-icon>cancel</mat-icon>
-                              </button>
-                            </mat-chip>
-                          </ng-container>
-
-                          <input *ngIf="!isCtb" placeholder="{{'dialog.loan.dossier.add.warranty' | translate}}"
-                            [matChipInputFor]="chipList" [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
-                            [matChipInputAddOnBlur]="addOnBlur" (matChipInputTokenEnd)="addWarranty($event)">
-                        </mat-chip-list>
-
-                      </div>
-                    </div>
-                  </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <span class="pb-2">{{ "loan.dossier.restrictions.dsc.collection" | translate }}</span>
-                      <mat-chip-list #chipList aria-label="Restrictions DSC selection">
-                        <mat-chip *ngFor="let r of filterRestrictionByType(restrictions,RestrictionType.DSC); let i = index"
-                                  [selectable]="selectableRestriction"
-                                  [removable]="removableRestriction" (removed)="removeRestriction(r)">
-                          {{r.content}}
-                          <button matChipRemove *ngIf="removableRestriction">
-                            <mat-icon>cancel</mat-icon>
-                          </button>
-                        </mat-chip>
-                        <input placeholder="{{'dialog.loan.dossier.add.restriction' | translate}}"
-                               [matChipInputFor]="chipList" [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
-                               [matChipInputAddOnBlur]="addOnBlur" (matChipInputTokenEnd)="addRestriction($event,RestrictionType.DSC)">
-                      </mat-chip-list>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <span class="pb-2">{{ "loan.dossier.observations.front.collection" | translate }}</span>
-                      <mat-chip-list #chipList aria-label="Observations selection">
-                        <mat-chip *ngFor="let r of filterRestrictionByType(restrictions,RestrictionType.OBSERVATION); let i = index"
-                                  [selectable]="selectableRestriction"
-                                  [removable]="removableRestriction" (removed)="removeRestriction(r)">
-                          {{r.content}}
-                          <button matChipRemove *ngIf="removableRestriction">
-                            <mat-icon>cancel</mat-icon>
-                          </button>
-                        </mat-chip>
-                        <input placeholder="{{'dialog.loan.dossier.add.observation' | translate}}"
-                               [matChipInputFor]="chipList" [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
-                               [matChipInputAddOnBlur]="addOnBlur" (matChipInputTokenEnd)="addRestriction($event,RestrictionType.OBSERVATION)">
-                      </mat-chip-list>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              </div>
-            </div>
-          </cdk-step>
-        </app-stepper>
-      </cdk-step>
-
-    </app-stepper>
-  </form>
 
 
