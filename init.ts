@@ -1,300 +1,625 @@
-import { CdkStepper } from '@angular/cdk/stepper';
-import { AfterViewInit, Component, EventEmitter, Injector, Input, OnInit, Output, ViewChild } from '@angular/core';
-import {
-  AbstractControl,
-  FormControl,
-  FormGroup,
-  Validators,
-  ValidatorFn,
-  FormArray,
-  ValidationErrors
-} from '@angular/forms';
-import {
-  CodeLabel,
-  DelayType,
-  DossierData,
-  LoanData,
-  Mechanism,
-  MechanismType,
-  Products,
-  PropertyData,
-  RateType,
-  RefCity,
-  Restriction,
-  RestrictionType,
-  Warranty,
-  WarrantyType,
-} from '@core/models';
-import { BehaviorSubject, combineLatest, merge, Observable, Subject} from 'rxjs';
-import { distinctUntilChanged, map, skip, startWith, takeUntil, tap } from 'rxjs/operators';
+import { AfterViewInit, ChangeDetectionStrategy, Component, Injector, Input, OnDestroy, OnInit, Optional } from '@angular/core';
+import { FormControl, FormGroup, Validators, ValidatorFn, ValidationErrors } from '@angular/forms';
+import { CCGCommissionChargeType, CodeLabel, DossierData, LoanObject, Mechanism, MechanismType, Products, PropertyType, RateNature, RateType } from '@core/models';
 import { BaseComponent } from '@shared/components';
-import { TopVipService } from '@loan-dossier/services';
-import { DossierDataService, DossierDataStoreService, ReferentialService } from '@core/services';
-import { SelectSearchService } from '@loan-dossier/services/select.service';
-import { NumberUtils, ObjectUtils } from '@core/util';
-import { DialogMessageService } from '@octroi-credit-common';
-import { COMMA, ENTER } from '@angular/cdk/keycodes';
+import { BehaviorSubject, EMPTY, Observable, Subject, combineLatest, merge, of } from 'rxjs';
 import { RateTypes } from '@core/models/rate-type';
-import { MatChipInputEvent } from '@angular/material/chips';
-import { NumberValidators } from '@shared/validators';
-import { AccordType } from '@core/models/Accord';
-import { UserService } from '@core/services/user.service';
-import { Role } from '@core/constants';
+import { DossierDataService, DossierDataStoreService, ReferentialService } from '@core/services';
+import { DelayType } from '@core/models/delay-type';
+import { debounceTime, distinctUntilChanged, filter, map, pairwise, startWith, takeUntil, take, tap, shareReplay, switchMap } from 'rxjs/operators';
+import { ErrorStateMatcher, ShowOnDirtyErrorStateMatcher } from '@angular/material/core';
+import { TopVipService } from '@loan-dossier/services';
+import { NumberUtils } from '@core/util/number-utils';
+import { CdkStepper } from '@angular/cdk/stepper';
+import { InitiationStepperComponent } from '../initiation-stepper/initiation-stepper.component';
+import { animate, style, transition, trigger } from '@angular/animations';
+import { DialogConfirmationService, NumberValidators} from '@octroi-credit-common';
+import { AbstractControl } from '@angular/forms';
+import { SelectSearchService } from '@loan-dossier/services/select.service';
+import * as moment from 'moment';
+import { CcgCommessionMatrix } from '@core/models/ccg-commession-matrix';
 import { DossierValidators } from '@loan-dossier/config/dossier-validators';
-import { LoanDataCalculationService } from '@loan-dossier/services/loan-calculation.service';
+import { ProductContext } from '@core/services/dossier-data-store.service';
 
 @Component({
-  selector: 'app-back-decsion-stepper',
-  templateUrl: './back-decsion-stepper.component.html',
-  styleUrls: ['./back-decsion-stepper.component.scss'],
-  providers:[LoanDataCalculationService]
+  selector: 'app-customer-loan-data-form',
+  templateUrl: './customer-loan-data-form.component.html',
+  styleUrls: ['./customer-loan-data-form.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    { provide: ErrorStateMatcher, useClass: ShowOnDirtyErrorStateMatcher }
+  ],
+  animations: [
+    trigger('scaleInOut',
+      [
+        transition(':enter', [
+          style({
+            transform: 'scale(0)', opacity: 0
+          }),
+          animate('100ms', style({ transform: 'scale(1)', opacity: 1 })),
+        ]),
+        transition(':leave', [
+          animate('100ms', style({
+            transform: 'scale(0)', opacity: 0
+          }))
+        ])
+      ])
+  ]
 })
-export class BackToDecisionStepperComponent extends BaseComponent implements OnInit, AfterViewInit {
+export class CustomerLoanDataFormComponent extends BaseComponent implements OnInit, OnDestroy {
+  // Inputs
+  @Input() loanDataFormGroup!: FormGroup;
 
-  @Input() data: any = {};
-  @Output() returnToDecision = new EventEmitter<any>();
-  @Output() goBack = new EventEmitter<any>();
-  @ViewChild('principalStepper') principalStepper!: CdkStepper;
-
-  dossierData!: DossierData;
-  oldPropertyData: any;
-  loanObject!: string;
-  propertyType!: string;
-  periodicity!: string;
-  isProspect: boolean = false;
-  valuesHasChanged: boolean = false;
-  stepsVisited: boolean[] = [true, ...new Array(6).fill(false)];
-
-  formGroup!: FormGroup;
-  propertyDataNotaryFormGroup!: FormGroup;
-  rateTypeFilterControl = new FormControl();
-  delayTypeFilterControl = new FormControl();
-
-  selectedProduct!: CodeLabel;
-  selectedMechanism: CodeLabel[] = [];
-
-  isImtilak!: boolean;
-  isImtilakPPR!: boolean;
-  isSalafBaytiSante!: boolean;
-  isSalafBaytiSantePPR!: boolean;
-
-  isAdlSakane!: boolean;
-  isAdlSakanePPR!: boolean;
-  isFogarim!: boolean;
-  isFogaloge!: boolean;
-  isClipriMRE!: boolean;
-  isPpiMRE!: boolean;
-  isVeFa!: boolean;
-  isPpoPpcFamily!: boolean;
-  isYassir!: boolean;
-  isPpoPpc!: boolean;
-  isPPIProduct!: boolean;
-  isCtb = false;
-
-  acquisitionPrice!: number;
-  acquisitionFee!: number;
-  requestedNotaryFee!: number;
-  claimedAmountOfPurchase!: number;
-  claimedAmountOfBuildDevelopment!: number;
-  buildDevelopmentQuotation!: number;
-
-  maxDeadline!: number;
-  maxDeadlineValues: Map<string, number> = new Map([
-    ['MONTHLY', 120],
-    ['ANNUAL', 10],
-    ['BIMONTHLY', 240],
-    ['QUARTERLY', 40]
-  ]);
-
-  warranties: Warranty[] = [];
-  restrictions: Restriction [] = [];
-  addOnBlur = true;
-  removableWarranty = true;
-  selectableWarranty = true;
-  selectableRestriction = true;
-  readonly separatorKeysCodes = [ENTER, COMMA] as const;
-  private warrantiesSubject: BehaviorSubject<Warranty[]> = new BehaviorSubject<Warranty[]>([]);
-  private restrictionsSubject: BehaviorSubject<Restriction[]> = new BehaviorSubject<Restriction[]>([]);
-  removableRestriction = true;
-  public readonly RestrictionType = RestrictionType;
-
-  rateTypes = RateTypes;
-  dossierData$!: Observable<DossierData>;
-  rateTypes$!: Observable<CodeLabel[]>;
-  cities$?: Observable<RefCity[]>;
+  // Observables
+  rateTypes$?: Observable<RateType[]>;
+  rateNatures$?: Observable<RateNature[]>;
   delayTypes$?: Observable<DelayType[]>;
+  propertyTypes$!: Observable<PropertyType[]>;
+  mechanisms$!: Observable<Mechanism[]>;
+  loanObjects$!: Observable<LoanObject[]>;
+  ccgCommissionChargeType$!: Observable<CCGCommissionChargeType[]>;
+  filteredCcgCommissionChargeType$!: Observable<CCGCommissionChargeType[]>;
+  investmentAmount$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  repurchaseTypes$!: Observable<CodeLabel[]>;
+  periodicities$!: Observable<CodeLabel[]>;
+  filteredPeriodicities$!: Observable< CodeLabel[]>;
+  filteredMechanisms$!: Observable< CodeLabel[]>;
   filteredRateTypes$?: Observable<RateType[]>;
+  filteredRateNatures$?: Observable<RateNature[]>;
   filteredDelayTypes$?: Observable<DelayType[]>;
+  filteredLoanObjects$?: Observable<DelayType[]>;
+  filteredPropertyTypes$?: Observable<DelayType[]>;
 
-  insuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
-  aditionalCreditnsuranceCoefficient$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
-  private destroy$ = new Subject<void>();
-  dossierAccordPrincipe: boolean | undefined;
+
+  isClipriMRE!:boolean;
+
+  // Lists
+  mechanisms= MechanismType;
+  rateTypes = RateTypes;
+  repurchaseTypes!: CodeLabel[];
+  selectedMechanism: CodeLabel[]= [];
+
+  // Search controls
+  periodicityFilterControl=new FormControl();
+  rateTypeFilterControl=new FormControl();
+  rateNatureFilterControl=new FormControl();
+  delayTypeFilterControl=new FormControl();
+  loanObjectFilterControl=new FormControl();
+  propertyTypeFilterControl=new FormControl();
+  mechanismFilterControl=new FormControl();
+  ccgCommissionChargeTypeFilterControl=new FormControl();
+  mechanismsFilterControl=new FormControl();
+
+  isPatrimonial: boolean = false;
+  isHautDeGamme: boolean = false;
+  rateTypesEnum: string[] = Object.keys(RateTypes);
+  selectedProduct!: CodeLabel;
+  customerType!: string;
+  isProspect!:boolean;
+  isAccordPrincipe!:boolean;
+  showNotaryFeeFields: boolean = false;
+  dossierData: DossierData | undefined;
+  dossierContext: any = {};
   notaryFeeRule: any = { isEligible: false, coefficient: 0 };
+  productCtx!: ProductContext;
 
-  constructor(
-    private dossierStore: DossierDataStoreService,
-    public dossierDataService: DossierDataService,
-    public topVipService: TopVipService,
-    public refService: ReferentialService,
-    public selectService:SelectSearchService,
-    public dialogMessageService: DialogMessageService,
-    userService: UserService,
+  private destroy$ = new Subject<void>();
+  private isLoanObjectChanging = false;
 
-    private loanCalculationService: LoanDataCalculationService,
-    injector: Injector
-  ) {
-
+  constructor(injector: Injector, public dossierStore: DossierDataStoreService,
+              private dossierDataService: DossierDataService,
+              private topVipService: TopVipService,
+              public refService: ReferentialService, private  selectService:SelectSearchService,
+              private cdkStepper: CdkStepper, @Optional() private parent: InitiationStepperComponent,private dialogConfirmationService:DialogConfirmationService) {
     super(injector);
-    this.isCtb = userService.hasRole([Role.CTB]);
-    this.oldPropertyData = this.dossierStore.get()?.propertyData;
-    this.cities$ = this.refService.getCities();
+    this.rateTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllRateTypes());
+    this.rateNatures$ = this.refService.mapToCodeDesignation(this.refService.getAllRateNatures());
     this.delayTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllDelayTypes());
+    this.ccgCommissionChargeType$ = this.refService.mapToCodeDesignation(this.refService.getAllCCGCommissionChargeTypes());
+    this.repurchaseTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllRepurchaseTypes());
+    this.periodicities$ = this.refService.getPeriodicities();
   }
 
-
   ngOnInit(): void {
-    this.refService.getAllPropertyTypes();
-
-    const dossier = this.dossierStore.get();
-    const personalInfo = this.data.customerData?.personalInfo;
-    this.isProspect = !!dossier?.customerData?.personalInfo?.prospect;
-
-    this.loanObject = this.data.loanData.loanObject.code;
-    this.acquisitionFee= this.data.loanData.acquisitionFee;
-    this.acquisitionPrice= this.data.loanData.acquisitionPrice;
-    this.buildDevelopmentQuotation= this.data.loanData.buildDevelopmentQuotation;
-    this.propertyType=this.data.loanData?.propertyType?.code;
-    this.periodicity=this.data.loanData?.periodicity?.code;
-    this.warranties = [...this.data.warranties];
-    this.restrictions = [...(this.data.restrictions ?? [])];
-    this.maxDeadline= this.maxDeadlineValues.get(this.periodicity) || 0;
-    this.rateTypes$ = this.refService.mapToCodeDesignation(this.refService.getAllRateTypes());
-    this.selectedProduct= this.data.product;
-    this.selectedMechanism=this.data.loanData?.mechanisms!;
-    this.isClipriMRE = ['MCH/01', 'MCH/01PRI','MCH/09PRI'].includes(personalInfo?.market);
-    this.dossierAccordPrincipe = this.data?.accord === AccordType.PRINCIPE;
-
-    // Product selection flags
-    this.isPpiMRE=this.isSelectedProduct(Products.PPI_MRE);
-    this.isVeFa=this.isSelectedProduct(Products.PPI_VEFA_RESIDENT);
-    this.isFogarim = this.isSelectedProduct(Products.FOGARIM);
-    this.isFogaloge = this.isSelectedProduct(Products.FOGALOGE);
-    this.isPPIProduct=this.isSelectedProductIn([Products.PPI_CLASSIQUE,Products.PPI_PPR_FONC]);
-    this.isImtilak = this.isSelectedProduct(Products.IMTILAK);
-    this.isImtilakPPR = this.isSelectedProduct(Products.IMTILAK_PPR);
-    this.isAdlSakane = this.isSelectedProduct(Products.ADL_SAKANE);
-    this.isAdlSakanePPR = this.isSelectedProduct(Products.ADL_SAKANE_PPR);
-    this.isSalafBaytiSante = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE);
-    this.isSalafBaytiSantePPR = this.isSelectedProduct(Products.SALAF_BAYTI_SANTE_PPR);
-    this.isYassir=this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
-    this.isPpoPpc = this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
-    this.isPpoPpcFamily = this.isSelectedProductIn([ Products.PPO, Products.PPC, Products.PPO_PPR, Products.YASSIR, Products.YASSIR_PPR,
-          Products.PRET_ETU_BANK_IN, Products.PRET_ENS_PLUS, Products.PRET_ETU_MAST_BANK, Products.CREDIT_ORDI_BANK]);
-
-    this.initFormGroup();
-    this.initDelayedType();
+    const dossier = this.dossierStore.get();    
+    this.productCtx = this.dossierStore.productCtx as ProductContext;
+    this.selectedProduct = dossier.product!;
+    this.isPatrimonial = !!dossier?.customerData?.personalInfo?.market?.includes('09');
+    this.isHautDeGamme = !!dossier?.customerData?.personalInfo?.segment?.toLowerCase()?.includes('haut de gamme');
+    this.initDossierForm(dossier);
+    this.initLoanDataForm();
+    this.initMechanismsControls();
+    this.initCcgCommissionChargeTypeControls();
+    this.initRateType();
     this.initDelayed();
-    this.updateNotaryValidations();
-    this.initClaimedAmountOfPurchaseValidators();
-
-    this.insuranceCoefficient$.subscribe((value) => this.insuranceCoefficientFormControl?.setValue(value));
+    this.initRateNature();
+    this.initDurationListeners();    
+    this.loanObjects$ = this.refService.getAllLoanObjects().pipe(
+      map(list => list.filter(item => item?.products?.some(p => p.code === this.selectedProduct?.code))
+        .map(({ code, designation }) => ({ code, designation }))
+    ));
+    this.filteredLoanObjects$ = this.selectService.filterOptions(this.loanObjects$, this.loanObjectFilterControl, 'designation');
+    this.filteredPeriodicities$= this.selectService.filterOptions(this.periodicities$ || of([]),this.periodicityFilterControl,'designation');
+    this.filteredRateTypes$= this.selectService.filterOptions(this.rateTypes$ || of([]),this.rateTypeFilterControl,'designation');
+    this.filteredRateNatures$= this.selectService.filterOptions(this.rateNatures$ || of([]),this.rateNatureFilterControl,'designation');
+    this.filteredDelayTypes$= this.selectService.filterOptions(this.delayTypes$ || of([]),this.delayTypeFilterControl,'designation');
+    this.filteredCcgCommissionChargeType$= this.selectService.filterOptions(this.ccgCommissionChargeType$ || of([]),this.ccgCommissionChargeTypeFilterControl,'designation');
+    this.mechanisms$ = this.refService.mapToCodeDesignation(this.refService.getProductByCode(this.selectedProduct?.code).pipe(map(({ mechanisms }) => mechanisms)));
+    this.filteredMechanisms$ = this.selectService.filterOptions(this.mechanisms$, this.mechanismFilterControl, 'designation');
     
+    this.onChangeCustomerType(dossier);
+    this.onChangeMechanisms();
+    this.onChangeLoanObject();
+    this.onChangePeriodicity();
+    this.calculateInvestmentAmount();
+    this.calculateLoanAmount();
+    this.calculateApport();
+    this.calculatePercentOfApport();
+    this.calculateSocialHousing();
+    this.calculateMonthlyCoefficient();
+    this.validateAmounts(); 
+    this.onInitSalafBaytiSanteValues();  
 
-    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR]) ){
-      this.initCappedRateValidators();
-      this.initCoefficientWithFallback(this.data?.insuranceData?.insuranceCoefficient, this.insuranceCoefficientFormControl, () => this.calculateInsuranceCoefficient());
+    if (this.productCtx.isFogaloge || this.productCtx.isFogarim || this.productCtx.isConventionedProducts || this.productCtx.isYassir || this.productCtx.isPpoPpr) {
+      this.setFormControlValueAndDisable(this.periodicities$, this.periodicityFormControl, "MONTHLY");
+    }
+    
+    if (this.productCtx.isSalafBaytiSante || this.productCtx.isSalafBaytiSantePPR) {
+      this.setFormControlValueAndDisable(this.mechanisms$, this.mechanismFormControl, "MCN2");
     }
 
-    if (this.isMechanism1()) {
-        this.initCoefficientWithFallback(this.data?.insuranceData?.subsidizedInsuranceCoefficient, this.subsidizedInsuranceCoefficientFormControl, () => this.calculateSubsidizedInsuranceCoefficient());
+    if(this.productCtx.isYassir){
+      this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required, DossierValidators.lessThanEqualToFixValue(() => this.productCtx.isYassir, this.loanDataFormGroup,  30000)]);
+      this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
+      this.deadlineNumberFormControl?.clearValidators();
+      this.deadlineNumberFormControl?.addValidators([NumberValidators.lessThanEqualTo({ value: 36 })])
+      this.deadlineNumberFormControl?.updateValueAndValidity();
+      this.setControlNumberValue(this.rateFormControl, 0);
+      this.rateFormControl.disable()
     }
-    if (this.isMechanism2()) {
-        this.initCoefficientWithFallback(this.data?.insuranceData?.bonusInsuranceCoefficient, this.bonusInsuranceCoefficientFormControl, () => this.calculateBonusInsuranceCoefficient());
-    }
-    if (this.isMechanism3()) {
-        this.initCoefficientWithFallback(this.data?.insuranceData?.suportedInsuranceCoefficient, this.suportedInsuranceCoefficientFormControl, () => this.calculateSuportedInsuranceCoefficient());
-    }
+      
+    this.loanDataFormGroup.setValidators([ this.loanAmountGroupValidator(),this.repurchasedCreditNumberValidator() ]);
+    this.loanDataFormGroup.updateValueAndValidity();
+    this.forceRepurchaseTypeINTForSpecificLoanObjects();
+    this.confirmResetRepurchasedCreditNumberOnLoanObjectChange();
+    this.confirmResetRepurchasedCreditNumberOnRepurchaseTypeChange();
 
-    if (this.isTypeA()) {
-        this.initCoefficientWithFallback(this.data?.insuranceData?.typeAInsuranceCoefficient, this.typeAInsuranceCoefficientFormControl, () => this.calculateTypeAInsuranceCoefficient());
-    }
-    if (this.isTypeB()) {
-        this.initCoefficientWithFallback(this.data?.insuranceData?.typeBInsuranceCoefficient, this.typeBInsuranceCoefficientFormControl, () => this.calculateTypeBInsuranceCoefficient());
-    }
+  }
 
-    if (this.isTypeB() || this.isTypeA() ||this.isMechanism1() ||this.isMechanism2() ) {
-      this.initCoefficientWithFallback(this.data?.insuranceData?.aditionalCreditInsuranceCoefficient, this.aditionalCreditInsuranceCoefficientFormControl, () => this.calculateAdditionalInsuranceCoefficient());
-    }
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 
-    this.formGroup.get('insuranceData.promotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateInsuranceCoefficient();
-    })
+  // ───────────────────────────────────────────────────────────────────────────
+  // Initialisation generales
+  // ───────────────────────────────────────────────────────────────────────────
 
-    this.formGroup.get('insuranceData.subsidizedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateSubsidizedInsuranceCoefficient();
-    })
-
-    this.formGroup.get('insuranceData.bonusPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateBonusInsuranceCoefficient();
-    })
-
-    this.formGroup.get('insuranceData.suportedPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateSuportedInsuranceCoefficient();
-    })
-
-    this.formGroup.get('insuranceData.typeAPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateTypeAInsuranceCoefficient();
-
-    })
-
-    this.formGroup.get('insuranceData.typeBPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateTypeBInsuranceCoefficient();
-    })
-
-
-    this.formGroup.get('insuranceData.aditionalCreditPromotionalInsuranceRate')?.valueChanges.subscribe(()=> {
-      this.calculateAdditionalInsuranceCoefficient();
-    })
-
-    this.formGroup.valueChanges.subscribe(() => {
-      this.valuesHasChanged = this.isFormValuesChanged();
-    });
-
-    this.filteredRateTypes$= this.selectService.filterOptions(this.rateTypes$ || [],this.rateTypeFilterControl,'designation')
-    this.filteredDelayTypes$= this.selectService.filterOptions(this.delayTypes$ || [],this.delayTypeFilterControl,'designation')
-
-    if (!this.isImtilak && !this.isImtilakPPR && !this.isAdlSakane && !this.isAdlSakanePPR && !this.isSalafBaytiSante && !this.isSalafBaytiSantePPR)  {
+  private initDossierForm(dossier: DossierData){
+    const personalInfo = dossier.customerData?.personalInfo;
+    const isNotConventionedProduct =  !this.isSelectedProductIn([Products.IMTILAK,
+                                        Products.IMTILAK_PPR,
+                                        Products.ADL_SAKANE,
+                                        Products.ADL_SAKANE_PPR,
+                                        Products.SALAF_BAYTI_SANTE,
+                                        Products.SALAF_BAYTI_SANTE_PPR]);
+    this.isClipriMRE = ['MCH/01', 'MCH/01PRI', 'MCH/09PRI'].includes(personalInfo?.market!);
+    this.isProspect = dossier.customerData?.personalInfo?.prospect!;
+    this.isAccordPrincipe= dossier.accord ==='PRINCIPE';
+    
+    if (isNotConventionedProduct) {
       this.loanDataFormGroup.addControl("rate", new FormControl(null, [Validators.required]));
     }
 
-    this.notaryFeeRule = this.notaryFeeRuleConfig(this.loanObject);
-    this.applyRequestedNotaryFeeValidators(this.loanObject);
-    this.initDurationListeners();
-    this.setupLoanCalculationListeners();
+    if(this.productCtx.isVeFa || this.productCtx.isPPIEngagementPromoteur){
+      this.acquisitionPriceFormControl?.clearValidators();
+      this.acquisitionPriceFormControl?.addValidators([Validators.required,  NumberValidators.sumGreaterThanEqualTo({ fieldNameCoefficient: 0.9, fieldName: 'claimedAmountOfPurchase' })]);
+      this.acquisitionPriceFormControl?.updateValueAndValidity();
+    }
+
+    if(this.productCtx.isMoulkia){
+      this.acquisitionPriceFormControl?.clearValidators();
+      this.acquisitionPriceFormControl?.addValidators([Validators.required,  NumberValidators.sumPercentLessThanEqualTo({ fieldNameCoefficient: 0.8,  fieldName: 'claimedAmountOfPurchase' })]);
+      this.acquisitionPriceFormControl?.updateValueAndValidity();
+    }
   }
 
-  ngAfterViewInit(): void {
-    this.dossierStore.update({propertyData: this.data?.propertyData});
-    this.formGroup.patchValue(this.data);
+  private initLoanDataForm() {
+    const dossier = this.dossierStore.get();
+
+    const isProspect = dossier.customerData?.personalInfo?.prospect ===true;
+
+    this.loanDataFormGroup.addControl("apport", new FormControl({ value: null, disabled: true }, [Validators.required]));
+    this.loanDataFormGroup.addControl("percentOfApport", new FormControl({ value: null, disabled: true }, [Validators.required]));
+    //desactivating debt info in case of a prospect
+    this.loanDataFormGroup.addControl("debtRatio", new FormControl({ value: null, disabled: true } , isProspect?[]: [Validators.required]));
+    this.loanDataFormGroup.addControl("isExternDebtsRetrieved", new FormControl({ value: null, disabled: true } , isProspect?[]: [Validators.required]));
+    this.loanDataFormGroup.addControl("isExternDebtsInfnRetrieved", new FormControl({ value: null, disabled: true }, isProspect?[]: [Validators.required]));
+    this.loanDataFormGroup.addControl("rateType", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addControl("rateNature", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addControl("cappedRate", new FormControl());
+    this.loanDataFormGroup.addControl("delayed", new FormControl(false, [Validators.required]));
+    this.loanDataFormGroup.addControl("delayType", new FormControl());
+    this.loanDataFormGroup.addControl("delayDuration", new FormControl());
+    this.loanDataFormGroup.addControl("repurchasedCreditNumber", new FormControl(null));
+    this.loanDataFormGroup.addControl("repurchaseTypes", new FormControl());
+    this.loanDataFormGroup.addControl("periodicity", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addControl("propertyType", new FormControl(null,[Validators.required]));
+    this.loanDataFormGroup.addControl("acquisitionPrice", new FormControl(null, [Validators.required, NumberValidators.sumGreaterThanEqualTo({ fieldNameToAdd: 'acquisitionFee', fieldName: 'claimedAmountOfPurchase' })]));
+    this.loanDataFormGroup.addControl("firstDueDate", new FormControl(null, [Validators.required]));
+    this.loanDataFormGroup.addControl("applicationFee", new FormControl({ value: null, disabled: false }, [
+      Validators.required, 
+      NumberValidators.lessThanEqualTo({ conditionalExpression: () => !this.productCtx.isPpoPpcFamily, fieldName: 'loanAmount', fieldNameCoefficient: 0.001 })
+    ]));
+    this.loanDataFormGroup.addControl("freeHandFee", new FormControl(800, [Validators.required]));
+    this.loanDataFormGroup.addControl("investmentAmount", new FormControl({ value: null, disabled: true }, [Validators.required]));
+    this.loanDataFormGroup.addControl("claimedAmountOfPurchase", new FormControl(null));
+    this.loanDataFormGroup.addControl("buildDevelopmentQuotation", new FormControl());
+    this.loanDataFormGroup.addControl("claimedAmountOfBuildDevelopment", new FormControl(null, [NumberValidators.lessThanEqualTo({ fieldName: 'buildDevelopmentQuotation' })]));
+    this.loanDataFormGroup.addControl("loanAmount", new FormControl({ value: null, disabled: true }, [
+      Validators.required,
+      NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.productCtx.isYassir, value: 30000 }),
+      NumberValidators.lessThanEqualTo({ fieldName: 'investmentAmount' }), 
+      this.lessThanEqualToSumOfAmounts()]));
+    this.loanDataFormGroup.addControl("externalRealStateLoan", new FormControl({ value: null, disabled: false }, [Validators.required]));
+    this.loanDataFormGroup.addControl("externalConsomptionLoan", new FormControl({ value: null, disabled: false }, [Validators.required]));
+    if(!this.productCtx.isConventionedProducts ){
+      this.loanDataFormGroup.addControl("deadlineNumber", new FormControl(null, [Validators.required,
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.productCtx.isPpoPpc, value: 120 }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.productCtx.isYassir,  value: 36 }),
+          NumberValidators.sumLessThanEqualTo({ conditionalExpression: () => !this.productCtx.isPpoPpcFamily && !this.isMechanismSelected(), fieldNameToAdd: 'delayDuration', value: 300 }),
+          NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => !this.productCtx.isPpoPpcFamily && this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} }),
+        ])
+      );
+    }
+
+    this.loanDataFormGroup.addControl("acquisitionFee", new FormControl());
+    this.loanDataFormGroup.addControl("requestedNotaryFee", new FormControl());
+    
+
+    this.loanDataFormGroup.get('rateType')?.valueChanges.subscribe(value => {
+      if (value.code === this.rateTypes.CAPE) {
+        this.cappedRateFormControl?.addValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+      } else {
+        this.cappedRateFormControl?.removeValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+        this.cappedRateFormControl?.reset();
+      }
+      this.cappedRateFormControl?.updateValueAndValidity();
+    });
+  }
+
+  private initCcgCommissionChargeTypeControls() {
+    if (this.productCtx.isFogaloge || this.productCtx.isFogarim) {
+      this.loanDataFormGroup.addControl("socialHousing", new FormControl({ value: null, disabled: true }, [Validators.required]));
+      this.loanDataFormGroup.addControl("area", new FormControl(null, [Validators.required]));
+      this.loanDataFormGroup.addControl("monthlyCoefficient", new FormControl({ value: null, disabled: true }, [Validators.required]));
+      this.loanDataFormGroup.addControl("ccgCommissionChargeType", new FormControl(null, [Validators.required]));
+    }
+  }
+
+  private initMechanismsControls() {
+    if (this.productCtx.isConventionedProducts) {      
+      this.setFormControlValueAndDisable(this.rateNatures$!, this.rateNatureFormControl, "CNV");
+      this.loanDataFormGroup.addControl("mechanisms", new FormControl(null, [Validators.required]));
+      this.loanDataFormGroup.addControl("additionalCredit", new FormControl());
+      this.loanDataFormGroup.addControl("additionalCreditRate", new FormControl());
+      this.loanDataFormGroup.addControl("additionalLoanDuration", new FormControl(null, this.getAdditionalLoanDurationValidators()));
+
+      if (this.productCtx.isSalafBaytiSante || this.productCtx.isSalafBaytiSantePPR) {
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [
+          NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, }),
+          NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 240, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+      }
+
+      if (this.productCtx.isImtilak || this.productCtx.isImtilakPPR) {
+        this.loanDataFormGroup.addControl("subsidizedCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
+        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 200000 }) }));
+        this.loanDataFormGroup.addControl("suportedCreditAmount", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("suportedCreditRate", new FormControl());
+        this.loanDataFormGroup.addControl("subsidizedCreditDuration", new FormControl(null, [
+          NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, }),
+          NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} }) ]));
+        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [
+          NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, }),
+          NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} }),
+          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 180, extraFieldsToUpdateValidator: ['mechanism'] }),
+        ]))
+        this.loanDataFormGroup.addControl("suportedCreditDuration", new FormControl(null , [
+          NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, }),
+          NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} })
+        ]));
+      }
+
+      if (this.productCtx.isAdlSakane || this.productCtx.isAdlSakanePPR) {
+        this.loanDataFormGroup.addControl("typeAloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 150000  }) }));
+        this.loanDataFormGroup.addControl("typeBloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 250000 }) }));
+        this.loanDataFormGroup.addControl("typeAloanDuration", new FormControl(null,
+           [NumberValidators.lessThanEqualTo({ value: 120 }) ,
+            NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, })
+           ]));
+        this.loanDataFormGroup.addControl("typeBloanDuration", new FormControl(null,
+          [ NumberValidators.lessThanEqualToWithCases({ conditionalExpression: () => this.isItABuildingLotAcquisition(), fieldName: 'periodicity',keyField: 'code', maxValues: {'MONTHLY':120,'ANNUAL':10,'BIANNUAL':20,'QUARTERLY':40} }),
+          NumberValidators.sumLessThanEqualTo({  fieldNameToAdd: 'delayDuration', value: 300, }),
+          NumberValidators.lessThanEqualTo({ value: 240 })
+          ]));
+        this.loanDataFormGroup.addControl("typeAloanRate", new FormControl());
+        this.loanDataFormGroup.addControl("typeBloanRate", new FormControl());
+      }      
+    }
+  }
+
+  private initDurationListeners(): void {
+    if (!(this.productCtx.isImtilak || this.productCtx.isImtilakPPR)) return;
+    const subsidized$ = this.subsidizedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.subsidizedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    const additional$ = this.additionalloanDurationFormControl.valueChanges.pipe(
+      startWith(this.additionalloanDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+    const supported$ = this.suportedCreditDurationFormControl.valueChanges.pipe(
+      startWith(this.suportedCreditDurationFormControl.value),
+      map(v => NumberUtils.toForcedNumber(v) / 12),
+      distinctUntilChanged()
+    );
+
+    combineLatest([subsidized$, additional$,supported$])
+      .subscribe(([subYears, addYears,supYears]) => {
+        const subRate = this.getDefaultRate('subventionné', subYears);
+        const addRate = this.getDefaultRate('complémentaire', addYears);
+        const supRate = this.getDefaultRate('soutenu', supYears);
+        if (this.isMechanism1()) {
+        this.setControlNumberValue(this.subsidizedCreditRateFormControl, subRate!);
+        }
+      
+        if (this.isMechanism3()) {
+        this.setControlNumberValue(this.suportedCreditRateFormControl, supRate!);
+        }
+
+        if(this.isMechanismSelected() && !this.isMechanism3()){
+             this.setControlNumberValue(this.additionalCreditRateFormControl, addRate!);
+        }
+        
+      });
+  }
+
+  private initRateNature() {
+    if (this.productCtx.isFogaloge || this.productCtx.isFogarim  || this.productCtx.isYassir) {
+      this.setFormControlValueAndDisable(this.rateNatures$!, this.rateNatureFormControl, "CNV");
+    }
+  }
+
+  private initRateType() {
+    if (this.productCtx.isConventionedProducts || this.productCtx.isFogaloge || this.productCtx.isFogarim || this.productCtx.isPpoPpc || this.productCtx.isYassir) {
+      this.setFormControlValueAndDisable(this.rateTypes$!, this.rateTypeFormControl, RateTypes.FIXE);
+    }
+    this.getControlValueChanges(this.rateTypeFormControl).subscribe(value => {
+      if (value === RateTypes.CAPE) {
+        this.cappedRateFormControl.addValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+      } else {
+        this.cappedRateFormControl.removeValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
+        this.cappedRateFormControl.reset();
+      }
+
+      this.cappedRateFormControl.updateValueAndValidity();
+    });
+  }
+
+  private initDelayed() {
+
+    this.getControlValueChanges(this.delayedFormControl).subscribe(value => {
+      if (value === true ) {
+        this.delayTypeFormControl.addValidators(Validators.required);
+        this.delayDurationFormControl.addValidators(Validators.required);
+      } else {
+        this.delayTypeFormControl.removeValidators(Validators.required);
+        this.delayTypeFormControl.reset();
+        this.delayDurationFormControl.removeValidators(Validators.required);
+        this.delayDurationFormControl.reset();
+      }
+      this.delayTypeFormControl.updateValueAndValidity();
+      this.delayDurationFormControl.updateValueAndValidity();
+    });
+  }
+
+  private updatePropertyTypes(code: string): void {
+    this.propertyTypes$ = code 
+      ? this.refService.mapToCodeDesignation(this.refService.getAllPropertyTypesByLoanObject(code)).pipe(shareReplay(1))
+      : of([]);
+
+    this.filteredPropertyTypes$ = this.selectService.filterOptions(
+      this.propertyTypes$,
+      this.propertyTypeFilterControl,
+      'designation'
+    );
+  }
+
+  private applyConsoLoanObjectRules(code: string): void {
+    const isAcquisition = !!code?.includes('AQS');
+    if(!isAcquisition){
+      this.acquisitionPriceFormControl?.reset();
+      this.investmentAmountFormControl.reset();
+      this.propertyTypeFormControl?.clearValidators();
+      this.investmentAmountFormControl?.updateValueAndValidity();
+    }else{
+      if(code==='AQS_BSN_COML' ){ 
+        this.propertyTypeFormControl?.addValidators([Validators.required]); 
+      }else {
+        this.propertyTypeFormControl.removeValidators(Validators.required);
+      }
+      if (code.includes('RCH')) {
+        this.repurchaseTypeFormControl.addValidators(Validators.required);
+      } else {
+        this.repurchaseTypeFormControl.removeValidators(Validators.required);
+      }
+    }
+
+    this.applyAcquisitionPriceValidators(isAcquisition);
+    this.applyClaimedAmountOfPurchaseValidators(code);
+
+    this.loanDataFormGroup.get('apport')?.reset()
+    this.loanDataFormGroup.get('percentOfApport')?.reset()
+    this.loanDataFormGroup.get('apport')?.updateValueAndValidity();
+    this.loanDataFormGroup.get('percentOfApport')?.updateValueAndValidity();
+    this.propertyTypeFormControl?.updateValueAndValidity();
+    this.repurchaseTypeFormControl?.updateValueAndValidity();
+  }
+
+  private applyDefaultLoanObjectRules(code: string): void {
+    if (code.includes('RCH') || code.includes('AQS') || code?.includes('REGR_CRED')  || code?.includes('REF_ACH_BI')) {
+      this.claimedAmountOfPurchaseFormControl?.addValidators([Validators.required,  NumberValidators.lessThanEqualTo({ fieldName: 'acquisitionPrice' })]);
+    } else {
+      this.claimedAmountOfPurchaseFormControl.removeValidators(Validators.required);
+      this.claimedAmountOfPurchaseFormControl.reset();
+    }
+
+    if (code.includes('CST') || code.includes('AMN')) {
+      this.buildDevelopmentQuotationFormControl.addValidators(Validators.required);
+      this.claimedAmountOfBuildFormControl.addValidators(Validators.required);
+    } else {
+      this.buildDevelopmentQuotationFormControl.removeValidators(Validators.required);
+      this.buildDevelopmentQuotationFormControl.reset();
+      this.claimedAmountOfBuildFormControl.removeValidators(Validators.required);
+      this.claimedAmountOfBuildFormControl.reset();
+    }
+
+    if (code.includes('RCH')) {
+      this.repurchaseTypeFormControl.addValidators(Validators.required);
+    } else {
+      this.repurchaseTypeFormControl.removeValidators(Validators.required);
+    }
+
+    this.buildDevelopmentQuotationFormControl.updateValueAndValidity();
+    this.claimedAmountOfBuildFormControl.updateValueAndValidity();
+  }
+
+  private onChangeLoanObject() {
+    this.getControlValueChanges(this.loanObjectFormControl).subscribe(value => {
+      const code = typeof value === 'object' ? value?.code : value;
+      this.isLoanObjectChanging = true;
+
+      this.propertyTypeFormControl?.reset();
+      this.repurchaseTypeFormControl?.reset();
+
+      this.updatePropertyTypes(code);
+      this.applyRequestedNotaryFeeValidators(code);
+
+      if(this.productCtx.isYassir || this.productCtx.isPpoPpc){
+        this.applyConsoLoanObjectRules(code);
+      }else{
+        this.applyDefaultLoanObjectRules(code);
+      }      
+      this.isLoanObjectChanging = false;
+
+    });
+  }
+
+  private isAcquisitionPriceFilled(): boolean {
+    const value = this.acquisitionPriceFormControl?.value;
+    return value !== null && value !== undefined && value !== '';
+  }
+
+  private applyAcquisitionPriceValidators(isAcquisition: boolean): void {
+    const validators: ValidatorFn[] = isAcquisition
+      ? [
+          Validators.required,
+          NumberValidators.sumGreaterThanEqualTo({
+            conditionalExpression: () => this.isAcquisitionPriceFilled(),
+            fieldNameToAdd: 'acquisitionFee',
+            fieldName: 'claimedAmountOfPurchase'
+          })
+        ]
+      : [];
+
+    this.acquisitionPriceFormControl?.setValidators(validators);
+    this.acquisitionPriceFormControl?.updateValueAndValidity();
+  }
+
+  private applyClaimedAmountOfPurchaseValidators(loanObjectCode: string): void {
+    const isAcquisition = !!loanObjectCode?.includes('AQS');
+    const validators: ValidatorFn[] = [];
+
+    if (this.productCtx.isYassir || isAcquisition) {
+      validators.push(Validators.required);
+    }
+    if (this.productCtx.isYassir) {
+      validators.push(DossierValidators.lessThanEqualToFixValue(() => this.productCtx.isYassir, this.loanDataFormGroup, 30000));
+    }
+    if (isAcquisition) {
+      validators.push(NumberValidators.lessThanEqualTo({
+        conditionalExpression: () => this.isAcquisitionPriceFilled(),
+        fieldName: 'acquisitionPrice'
+      }));
+    }
+
+    this.claimedAmountOfPurchaseFormControl?.setValidators(validators);
+    this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
+  }
+
+  firstDueDateFilter = (d: Date | null): boolean => {
+    if(!d) return false;
+    const date = moment(d).toDate();
+    const day = date.getDate();
+    const month = date.getMonth();
+    const year = date.getFullYear();
+    const lastDay  = new Date(year, month + 1, 0).getDate();
+
+    return (day >= 1 && day <= 5 ) || (day >= 25 && day <= lastDay);
+  }
+
+  nextStep = () => {    
+    if(this.loanDataFormGroup.hasError('maxAmount')){
+      this.showErrorMessage({bodyKey: "loan.total.installments.message"});
+    }
+    else{
+      this.dossierStore.update({
+        loanData: {...this.loanDataFormGroup.getRawValue()},
+        ccgCommessionMatrix: this.dossierStore.get()?.ccgCommessionMatrix
+      });
+    }
+  }
+
+  doneStepper = () => {
+    this.cdkStepper.next();
+  };
+
+  previousStepper = () => {
+    this.cdkStepper.previous();
+  }
+
+  compareObjects(o1: any, o2: any): boolean {
+    return o1?.code === o2?.code
+  }
+
+  isStepValid(formGroup: AbstractControl) {
+    return !this.isFormHasFunctionalErrors(formGroup as FormGroup);
   }
 
   private applyRequestedNotaryFeeValidators(loanObjectCode: string){
-    const isAQS = loanObjectCode?.includes('AQS');
+    this.notaryFeeRule = this.notaryFeeRuleConfig(loanObjectCode);
 
     if(!this.notaryFeeRule.isEligible) {
-      const isAcquisitionPriceHidden = (this.isYassir || this.isPpoPpc) && !isAQS;
       this.acquisitionFeeFormControl?.reset(null, { emitEvent: true });
-      this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
       this.acquisitionFeeFormControl?.clearValidators();
-      this.requestedNotaryFeeFormControl?.clearValidators();
-      this.acquisitionPriceFormControl?.clearValidators();
-      if (!isAcquisitionPriceHidden) {
-      this.acquisitionPriceFormControl?.addValidators([Validators.required]);
-      }
-      this.acquisitionPriceFormControl?.updateValueAndValidity();
       this.acquisitionFeeFormControl?.updateValueAndValidity();
+
+      this.requestedNotaryFeeFormControl?.reset(null, { emitEvent: true });
+      this.requestedNotaryFeeFormControl?.clearValidators();
       this.requestedNotaryFeeFormControl?.updateValueAndValidity();
+
+      this.acquisitionPriceFormControl?.clearValidators();
+      this.acquisitionPriceFormControl?.addValidators([Validators.required]);
+      this.acquisitionPriceFormControl?.updateValueAndValidity();
       return;
     }
 
@@ -308,240 +633,429 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     this.requestedNotaryFeeFormControl?.updateValueAndValidity();
   }
 
-  isAnyMechanismOrType(): boolean {
-    return this.isTypeA() || this.isTypeB() || this.isMechanism1() || this.isMechanism2();
-  }
-
-  public isSelectedProductIn(productsCode: string[]) {
-    return productsCode.includes(this.selectedProduct?.code) ;
-  }
-
-  nextStep = () => {
-      this.principalStepper.next();
-      this.changeDetectorRef.detectChanges();
-  }
-
-  doneStepper = () => {
-    this.onValidate();
-  };
-
-  previousStepper = () => {
-    if(this.principalStepper.selectedIndex === 0) this.goBack.emit();
-    else this.principalStepper.previous();
-  }
-
-  onSelectionChange(event: any) {
-    if(event.selectedIndex === 4 || event.selectedIndex ===6) {
-      const dossierData = this.dossierStore.get();
-      const dossier: DossierData = {
-        ...dossierData,
-        createdAt: dossierData.createdAt,
-        loanData : {
-          ...dossierData.loanData,
-          loanAmount: this.calculateLoanAmount()
-        },
-        beneficiaries: this.beneficiariesFormArray.value,
-        propertyData: this.propertyDataFormGroup.value,
-        guarantors: this.guarantorsFormArray.value,
-        warranties: this.warranties,
-        restrictions: this.restrictions
-      };
-      this.dossierDataService.generateAutoWarranties({ ...dossier }).subscribe(warranties => {
-        this.warranties = [...warranties];
+  private onChangeCustomerType(dossier: DossierData){
+    const personalInfo = dossier.customerData?.personalInfo;
+    this.dossierStore.typeClient$.subscribe(value=>{
+      const isClipri = value==='CLIPRI' && ['MCH/01', 'MCH/01PRI', 'MCH/09PRI'].includes(personalInfo?.market!);
+      if( (this.productCtx.isPpiMRE && isClipri) || this.productCtx.isPPIProduct){
+        this.isClipriMRE = !!isClipri;
+        this.applyRequestedNotaryFeeValidators(this.loanObjectFormControl?.value?.code);
         this.changeDetectorRef.detectChanges();
+        return;
+      }
+      
+      if(value === "CLIPRO" && !this.isClipriMRE){        
+        this.isClipriMRE = false;
+        this.acquisitionPriceFormControl?.clearValidators();
+        this.acquisitionPriceFormControl?.updateValueAndValidity();
+        
+        this.requestedNotaryFeeFormControl?.reset();
+        this.requestedNotaryFeeFormControl?.clearValidators();
+        this.requestedNotaryFeeFormControl?.updateValueAndValidity();
+        this.changeDetectorRef.detectChanges();
+      }
+    });
+  }
+  
+  private onChangePeriodicity(){
+    this.getControlValueChanges(this.periodicityFormControl).subscribe(() => {
+      this.deadlineNumberFormControl?.updateValueAndValidity();
+    });
+  }
+
+  public isItABuildingLotAcquisition() {
+    return this.loanDataFormGroup?.get('loanObject')?.value?.code === 'AQS' &&
+      this.loanDataFormGroup?.get('propertyType')?.value?.code === 'TRN';
+  }
+
+  public isMandatoryRiskAgreement(){
+    return  this.toForcedNumber(this.loanDataFormGroup.get('loanAmount')?.value)>500000 && this.productCtx.isMoulkia;
+  }
+
+  private validateAmounts() {
+    let controls: string[] = ['claimedAmountOfBuildDevelopment', 'claimedAmountOfPurchase', 'additionalCredit'];
+    const adlsakanControls: string[] = ['typeAloanAmount','typeBloanAmount'];
+    const imtilakControls: string[] = ['subsidizedCreditAmount','bonusCreditAmount', 'suportedCreditAmount'];
+    const SalafBaytiSanteControls: string[] = ['bonusCreditAmount'];   
+    if(this.productCtx.isImtilak || this.productCtx.isImtilakPPR) controls = [...controls, ...imtilakControls];
+    if(this.productCtx.isSalafBaytiSante || this.productCtx.isSalafBaytiSantePPR) controls = [...controls, ...SalafBaytiSanteControls];
+    if(this.productCtx.isAdlSakane || this.productCtx.isAdlSakanePPR) controls = [...controls, ...adlsakanControls];
+
+    const observables = controls.map(control =>
+      this.getControlValueChanges(this.loanDataFormGroup.get(control), 400, null)
+    );
+
+    combineLatest(observables).subscribe(() => {
+      if(this.isMechanismSelected()){
+        this.claimedAmountOfPurchaseFormControl?.addValidators([this.equalToMechanismSum()])
+
+        if(this.loanObjectFormControl?.value?.code?.includes('CST') || this.loanObjectFormControl?.value?.code?.includes('AMN')){
+          this.claimedAmountOfBuildFormControl?.addValidators([this.equalToMechanismSum()]);
+          this.claimedAmountOfBuildFormControl?.updateValueAndValidity();
+        }
+
+
+        this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
+      }
+    });
+  }
+
+  private setFormControlValueAndDisable(observable$: Observable<any>, formControl: FormControl, code: any) {
+    observable$?.pipe(
+      map(items => items.find((item: any) => item.code === code))
+    ).subscribe(value => {
+      if (value) {
+        formControl?.setValue(value);
+        formControl?.disable();
+        formControl?.updateValueAndValidity();
+      }
+    });
+  }
+
+  public onInitSalafBaytiSanteValues() {
+      if (!(this.productCtx.isSalafBaytiSante || this.productCtx.isSalafBaytiSantePPR)) return;
+      merge(
+        this.bonusCreditDurationFormControl.valueChanges.pipe(
+          startWith(this.bonusCreditDurationFormControl.value),
+          debounceTime(200),
+          distinctUntilChanged()
+        ),
+        this.additionalloanDurationFormControl.valueChanges.pipe(
+          startWith(this.additionalloanDurationFormControl.value),
+          debounceTime(200),
+          distinctUntilChanged()
+        )
+      ).subscribe(() => {
+          const durationBonus = this.loanDataFormGroup?.get('bonusCreditDuration')?.value;
+          const durationAdditional = this.loanDataFormGroup?.get('additionalLoanDuration')?.value;
+          // Mise à jour du taux pour la durée bonus
+          if (durationBonus < 84) {
+              this.setControlNumberValue(this.bonusCreditRateFormControl, 1.70);
+          } else if (durationBonus >= 84 && durationBonus < 180) {
+              this.setControlNumberValue(this.bonusCreditRateFormControl, 2.00);
+          } else if (durationBonus >= 180 && durationBonus <= 240) {
+              this.setControlNumberValue(this.bonusCreditRateFormControl, 2.25);
+          }
+          // Mise à jour du taux pour la durée additionnelle
+          if (durationAdditional < 84) {
+              this.setControlNumberValue(this.additionalCreditRateFormControl, 4.20);
+          } else if (durationAdditional >= 84 && durationAdditional < 180) {
+              this.setControlNumberValue(this.additionalCreditRateFormControl, 4.50);
+          } else if (durationAdditional >= 180 && durationAdditional <= 240) {
+              this.setControlNumberValue(this.additionalCreditRateFormControl, 4.75);
+          }
+          this.changeDetectorRef.detectChanges();
       });
+  }
+
+  public onChangeMechanisms() {
+    if (!(this.productCtx.isImtilak || this.productCtx.isImtilakPPR || this.productCtx.isAdlSakane || this.productCtx.isAdlSakanePPR)) return;
+    this.mechanismFormControl.valueChanges.pipe(
+      startWith({}),
+      debounceTime(200),
+      pairwise(),
+      tap(([previousValues, selectedValues]) => {
+        this.resetMechanismFormControls(selectedValues);
+        if (this.productCtx.isImtilak || this.productCtx.isImtilakPPR) { this.handleImtilakMechanisms(selectedValues); }
+        if (this.productCtx.isAdlSakane || this.productCtx.isAdlSakanePPR) {
+          const prevArray = Array.isArray(previousValues) ? previousValues : [];
+          const selectedArray = Array.isArray(selectedValues) ? selectedValues : [];
+          this.handleAdlSakaneMechanisms(prevArray, selectedArray);
+        }
+
+        this.changeDetectorRef.detectChanges();
+      })
+    ).subscribe();
+  }
+
+  private getDefaultRate( type: 'subventionné' | 'complémentaire' | 'soutenu',  years: number): number | null {
+    switch (type) {
+      case 'subventionné':
+        if (years <= 7)   return 2.20;
+        if (years <= 15)  return 2.50;
+        if (years <= 25)  return 2.75;
+        break;
+  
+      case 'complémentaire':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+  
+      case 'soutenu':
+        if (years <= 7)   return 4.20;
+        if (years <= 15)  return 4.50;
+        if (years <= 25)  return 4.75;
+        break;
+    }
+  
+    return null;
+  }
+
+  private resetMechanismFormControls(selectedValues: any[]) {
+    this.additionalCreditFormControl?.reset();
+    this.additionalCreditRateFormControl?.reset();
+    this.additionalloanDurationFormControl?.reset();
+
+    if (!this.isMechanismExists(selectedValues, MechanismType.MECHANISM_1)) {
+    this.subsidizedCreditRateFormControl?.reset();
+    this.subsidizedCreditDurationFormControl?.reset();
+    this.subsidizedCreditAmountFormControl?.reset();
+    }
+    if (!this.isMechanismExists(selectedValues, MechanismType.MECHANISM_2)) {
+    this.bonusCreditAmountFormControl?.reset();
+    this.bonusCreditRateFormControl?.reset();
+    this.bonusCreditDurationFormControl?.reset();
+    }
+    if (!this.isMechanismExists(selectedValues, MechanismType.MECHANISM_3)) {
+    this.suportedCreditAmountFormControl?.reset();
+    this.suportedCreditDurationFormControl?.reset();
+    this.suportedCreditRateFormControl?.reset();
+    }
+    if (!this.isMechanismExists(selectedValues, MechanismType.TYPE_A)) {
+    this.typeAloanAmountFormControl?.reset();
+    this.typeAloanDurationFormControl?.reset();
+    this.typeAloanRateFormControl?.reset();
+    }
+
+    if (!this.isMechanismExists(selectedValues, MechanismType.TYPE_B)) {
+      this.typeBloanAmountFormControl?.reset();
+      this.typeBloanDurationFormControl?.reset();
+      this.typeBloanRateFormControl?.reset();
+
+    }
+  }
+
+  private handleImtilakMechanisms(selectedValues: any) {
+    if (this.isMechanismExists(selectedValues, MechanismType.MECHANISM_1)) {
+      this.setControlNumberValue(this.subsidizedCreditRateFormControl, 2.20);
+      this.additionalloanDurationFormControl?.setValidators(this.getAdditionalLoanDurationValidators());
+      this.additionalCreditRateFormControl.reset();
+    }
+    if (this.isMechanismExists(selectedValues, MechanismType.MECHANISM_2)) {
+      this.bonusCreditDurationFormControl?.setValidators([
+        NumberValidators.sumLessThanEqualTo({ fieldNameToAdd: 'delayDuration', value: 300 }),
+        NumberValidators.lessThanEqualToWithCases({
+          conditionalExpression: () => this.isItABuildingLotAcquisition(),
+          fieldName: 'periodicity',
+          keyField: 'code',
+          maxValues: { 'MONTHLY': 120, 'ANNUAL': 10, 'BIMONTHLY': 240, 'QUARTERLY': 40 }
+        }),
+        NumberValidators.lessThanEqualTo({
+          conditionalExpression: () => this.isMechanism2(),
+          value: 180,
+          extraFieldsToUpdateValidator: ['mechanism']
+        })
+      ]);
+
+      this.additionalloanDurationFormControl?.setValidators(this.getAdditionalLoanDurationValidators());
+
+      this.setControlNumberValue(this.bonusCreditRateFormControl, 0);
+      this.additionalCreditRateFormControl.reset();
+    }
+
+    if (this.isMechanismExists(selectedValues, MechanismType.MECHANISM_3)) {
+      this.setControlNumberValue(this.suportedCreditRateFormControl, 4.20);
+    }
+    this.bonusCreditDurationFormControl?.updateValueAndValidity();
+    this.additionalloanDurationFormControl?.updateValueAndValidity();
+  }
+
+  private handleAdlSakaneMechanisms(previousValues: any[], selectedValues: any[]) {
+    if ( this.isMechanismExists(selectedValues, MechanismType.TYPE_A)) {
+      !this.typeAloanDurationFormControl?.value && this.setControlNumberValue(this.typeAloanDurationFormControl, 120, false);
+      ! this.typeAloanRateFormControl?.value &&   this.setControlNumberValue(this.typeAloanRateFormControl, 0);
+    }
+
+    if ( this.isMechanismExists(selectedValues, MechanismType.TYPE_B)) {
+      !this.typeBloanDurationFormControl?.value &&  this.setControlNumberValue(this.typeBloanDurationFormControl, 240, false);
+      !this.typeBloanRateFormControl?.value &&    this.setControlNumberValue(this.typeBloanRateFormControl, 2);
+    }
+  }
+
+  private getAdditionalLoanDurationValidators(): ValidatorFn[] {
+    const validators: ValidatorFn[] = [
+      NumberValidators.lessThanEqualTo({ value: 300 }),
+      NumberValidators.sumLessThanEqualTo({ fieldNameToAdd: 'delayDuration', value: 300 }),
+      NumberValidators.lessThanEqualToWithCases({
+        conditionalExpression: () => this.isItABuildingLotAcquisition(),
+        fieldName: 'periodicity',
+        keyField: 'code',
+        maxValues: { 'MONTHLY': 120, 'ANNUAL': 10, 'BIMONTHLY': 240, 'QUARTERLY': 40 }
+      })
+    ];
+
+    if (this.isMechanism1() || this.isMechanism2()) {
+      validators.unshift(Validators.required);
+    }
+    return validators;
+  }
+
+  private isAllFieldsValid(obj: any) :boolean{
+    if( obj &&  typeof obj=== 'object') {
+      return Object.keys(obj).every(key => obj[key] !== null && obj[key] !== undefined && (typeof obj[key] !=='number' || obj[key] !== 0) );
+    }
+    return false;
+  }
+
+  private isMechanismExists(arrayValues: Mechanism | Mechanism[], value: string): boolean {
+    if (!Array.isArray(arrayValues)) {
+      arrayValues = [arrayValues];
+    }
+    return !!arrayValues.find(mechanism => mechanism && mechanism.code === value);
+  }
+
+  public isSelectedProduct(productCode: string) { return this.selectedProduct?.code === productCode; }
+
+  public isSelectedProductIn(productsCode: string[]) { return productsCode.includes(this.selectedProduct?.code); }
+
+  public isMechanismSelected() {
+    const mechanism = this.mechanismFormControl?.value;
+    return mechanism && (mechanism.length > 0 || Object.keys(mechanism).length > 0);
+  }
+
+  private forceRepurchaseTypeINTForSpecificLoanObjects(): void {
+    if (!this.loanDataFormGroup) return;
+
+    this.loanObjectFormControl.valueChanges
+      .pipe(startWith(this.loanObjectFormControl.value), takeUntil(this.destroy$))
+      .subscribe((loanObject: any) => {
+        const code = loanObject?.code;
+        const mustForce = code === 'AQS_RCH_CSO' || code === 'AQS_RCH_CSO_AMN' || code === 'AQS_RCH_CSO_CST';
+
+        if (mustForce) {
+          this.setFormControlValueAndDisable(this.repurchaseTypes$, this.repurchaseTypeFormControl, 'INT');
+        } else {
+          this.repurchaseTypeFormControl.enable({ emitEvent: false });
+        }
+      });
+  }
+
+  private confirmResetRepurchasedCreditNumberOnLoanObjectChange(): void {
+    const loanObjectCtrl = this.loanDataFormGroup.get('loanObject') as FormControl | null;
+    const repurchasedCtrl = this.loanDataFormGroup.get('repurchasedCreditNumber') as FormControl | null;
+
+    if (!loanObjectCtrl || !repurchasedCtrl) return;
+
+    let previousLoanObject = loanObjectCtrl.value;
+
+    loanObjectCtrl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((nextLoanObject: any) => {
+        const prevCode = previousLoanObject?.code;
+        const cameFromAqsRch = !!prevCode && (prevCode.includes('AQS_RCH') || (this.productCtx.isPpoPpc && prevCode.includes('RCH')));
+
+        const currentNumber = (repurchasedCtrl.value ?? '').toString().trim();
+        const hasNumber = currentNumber.length > 0;
+
+        if (!cameFromAqsRch || !hasNumber) {
+          previousLoanObject = nextLoanObject;
+          return;
+        }
+        loanObjectCtrl.setValue(previousLoanObject, { emitEvent: false });
+
+        this.dialogConfirmationService.confirm({
+          headerKey: 'loan.repurchase.changeObject.confirm.header',
+          messageKey: 'loan.repurchase.changeObject.confirm.message',
+          acceptLabel: 'loan.repurchase.changeObject.confirm',
+          rejectLabel: 'loan.repurchase.changeObject.cancel',
+          acceptCallback: () => {
+            loanObjectCtrl.setValue(nextLoanObject, { emitEvent: false });
+            repurchasedCtrl.reset(null);
+            previousLoanObject = nextLoanObject;
+          }
+        });
+      });
+  }
+
+private confirmResetRepurchasedCreditNumberOnRepurchaseTypeChange(): void {
+  const repurchaseTypeCtrl = this.loanDataFormGroup.get('repurchaseTypes') as FormControl | null;
+  const repurchasedCtrl = this.loanDataFormGroup.get('repurchasedCreditNumber') as FormControl | null;
+
+  if (!repurchaseTypeCtrl || !repurchasedCtrl) {
+    return;
+  }
+
+  let previousRepurchaseType = repurchaseTypeCtrl.value;
+
+  repurchaseTypeCtrl.valueChanges
+    .pipe(takeUntil(this.destroy$))
+    .subscribe((nextRepurchaseType: any) => {
+         if (this.isLoanObjectChanging) {
+        return;
+      }
+
+      const wasInternal = this.isInternalRepurchaseSelected(previousRepurchaseType);
+
+      const isInternal = this.isInternalRepurchaseSelected(nextRepurchaseType);
+
+      const hasNumber = !!(repurchasedCtrl.value ?? '').toString().trim();
+
+      if ( this.productCtx.isPpoPpcFamily && wasInternal && !isInternal && hasNumber) {
+        repurchaseTypeCtrl.setValue(previousRepurchaseType, {
+          emitEvent: false
+        });
+
+        this.dialogConfirmationService.confirm({
+          headerKey: 'loan.repurchase.changeObject.confirm.header',
+          messageKey: 'loan.repurchase.changeObject.confirm.message',
+          acceptLabel: 'loan.repurchase.changeObject.confirm',
+          rejectLabel: 'loan.repurchase.changeObject.cancel',
+
+          acceptCallback: () => {
+            repurchaseTypeCtrl.setValue(nextRepurchaseType, {
+              emitEvent: false
+            });
+
+            repurchasedCtrl.reset(null, {
+              emitEvent: false
+            });
+
+            previousRepurchaseType = nextRepurchaseType;
+          }
+        });
+
+        return;
+      }
+      previousRepurchaseType = nextRepurchaseType;
+    });
+}
+
+  onChangePropertyType() {
+    this.getControlValueChanges(this.propertyTypeFormControl).subscribe(value => {
+      if(this.productCtx.isPpoPpc || this.productCtx.isYassir){
+        this.loanDataFormGroup.get('apport')?.reset()
+        this.loanDataFormGroup.get('percentOfApport')?.reset()
+        this.loanDataFormGroup.get('apport')?.updateValueAndValidity();
+        this.loanDataFormGroup.get('percentOfApport')?.updateValueAndValidity();
+      }
+    });
+  }
+
+  // ---------------------------  Loan validators  -----------------------------
+  
+  private loanAmountGroupValidator(): ValidatorFn {
+    return (group: AbstractControl): ValidationErrors | null => {
+      const fg = group as FormGroup;
+      const { loanAmount } = fg.getRawValue(); 
+  
+      if (loanAmount == null ) {
+        return null;
+      }
+
+      if (loanAmount < 100 ) {
+        return { loanAmountInvalid: { loanAmount} };
+      }
+  
+      return null;
     };
   }
 
-  calculateLoanAmount(): number {
-    const claimedAmountOfBuildDevelopment =  this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment')?.value;
-    const claimedAmountOfPurchase =  this.loanDataFormGroup.get('claimedAmountOfPurchase')?.value;
-    const requestedNotaryFee =  this.loanDataFormGroup.get('requestedNotaryFee')?.value;
 
-    const result =  NumberUtils.toForcedNumber(claimedAmountOfBuildDevelopment || 0) +
-                    NumberUtils.toForcedNumber(claimedAmountOfPurchase || 0) +
-                    NumberUtils.toForcedNumber(requestedNotaryFee || 0);
-
-    return parseFloat(result.toFixed(2));
-  }
-
-  public isSelectedProduct(productCode: string) {
-    return this.selectedProduct?.code === productCode;
-  }
-
-  initFormGroup() {
-    const isOptional = this.isSelectedProductIn([Products.YASSIR, Products.YASSIR_PPR, Products.PPO, Products.PPC, Products.PPO_PPR]);
-
-    this.formGroup = this.formBuilder.group({
-      propertyData: this.formBuilder.group({
-        properties: this.formBuilder.array([], isOptional ? [] : [DossierValidators.minLengthArray(1)]),
-        coFinancing: new FormControl()
-      }),
-      notary: this.formBuilder.group({
-        name: new FormControl(null, []),
-        address: new FormControl(null, []),
-        phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
-        email: new FormControl(null, [Validators.email])
-      }),
-      loanData: this.formBuilder.group({
-        loanAmount: new FormControl(null, []),
-        acquisitionPrice: new FormControl(null, []),
-        buildDevelopmentQuotation: new FormControl(null, []),
-        investmentAmount: new FormControl(null, []),
-        acquisitionFee: new FormControl(null, []),
-        requestedNotaryFee: new FormControl(null, []),
-        repurchaseTypes: new FormControl(this.data?.loanData?.repurchaseTypes ?? null),
-        repurchasedCreditNumber: new FormControl(this.data?.loanData?.repurchasedCreditNumber ?? null),
-        rateType: this.formBuilder.group({
-          code: new FormControl(null, [Validators.required]),
-        }),
-        cappedRate: new FormControl(null),
-        delayed: new FormControl(false, ...(this.data?.loanData?.delayed ? [Validators.required] : [])),
-        delayType: new FormControl(),
-        delayDuration: new FormControl()
-      }),
-      insuranceData: this.formBuilder.group({}),
-      beneficiaries: this.formBuilder.array([], isOptional ? [] : [DossierValidators.minLengthArray(1)]),
-      guarantors: this.formBuilder.array([]),
-      representatives: this.formBuilder.array([]),
-      warranties: this.formBuilder.array([], [DossierValidators.minLengthArray(1)]),
-    });
-
-
-    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
-      this.loanDataFormGroup.addControl( 'rate', new FormControl(null, [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]) );
-
-      this.loanDataFormGroup.addControl(
-        'deadlineNumber',
-        new FormControl(null, [
-          Validators.required,
-          NumberValidators.sumLessThanEqualTo({ conditionalExpression: () => !this.isPpoPpcFamily, fieldNameToAdd: 'delayDuration', value: 300 }),
-          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isYasserProduct(), value: 36 }),
-          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isPpoPpcProduct(), value: 120 }),
-          NumberValidators.lessThanEqualTo({ conditionalExpression: () => !this.isPpoPpcFamily && this.isItABuildingLotAcquisition(), value: this.maxDeadline })
-        ])
-      );
-    }
-
-    if (this.loanObject.includes('AMN') || this.loanObject.includes('CST')) {
-      this.loanDataFormGroup.addControl('claimedAmountOfBuildDevelopment', new FormControl(null, [
-        Validators.required, 
-        NumberValidators.lessThanEqualTo({ fieldName: 'buildDevelopmentQuotation' }), 
-        this.equalToMechanismSum()
-      ]));
-    }
-    if ((!this.isYassir && !this.isPpoPpc) && (this.loanObject.includes('RCH') || this.loanObject.includes('AQS') || this.loanObject?.includes('REGR_CRED')  || this.loanObject?.includes('REF_ACH_BI'))) {
-      this.loanDataFormGroup.addControl('claimedAmountOfPurchase', new FormControl(null, [Validators.required,  NumberValidators.lessThanEqualTo({ fieldName: 'acquisitionPrice' })]));
-    }
-
-    if (this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
-
-      this.loanDataFormGroup.addControl("additionalCredit", new FormControl());
-      this.loanDataFormGroup.addControl("additionalCreditRate", new FormControl());
-      this.loanDataFormGroup.addControl("additionalLoanDuration", new FormControl());
-
-      if (this.isAdlSakane || this.isAdlSakanePPR ){
-      this.loanDataFormGroup.addControl("typeAloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 100000 }) }));
-      this.loanDataFormGroup.addControl("typeBloanAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 150000 }) }));
-      this.loanDataFormGroup.addControl("typeAloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 120 }) }));
-      this.loanDataFormGroup.addControl("typeBloanDuration", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 240 }) }));
-      this.loanDataFormGroup.addControl("typeAloanRate", new FormControl());
-      this.loanDataFormGroup.addControl("typeBloanRate", new FormControl());
-
-      this.loanDataFormGroup.addValidators(this.equalToMechanismSum());
-      }
-      if (this.isSalafBaytiSante || this.isSalafBaytiSantePPR) {
-        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
-        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
-        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [
-          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 240, extraFieldsToUpdateValidator: ['mechanism'] }),
-        ]))
-        this.loanDataFormGroup.addValidators(this.equalToMechanismSum());
-      }
-      if (this.isImtilak || this.isImtilakPPR) {
-        this.loanDataFormGroup.addControl("subsidizedCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 300000 }) }));
-        this.loanDataFormGroup.addControl("bonusCreditAmount", new FormControl(null, { validators: NumberValidators.lessThanEqualTo({ value: 200000 }) }));
-        this.loanDataFormGroup.addControl("suportedCreditAmount", new FormControl());
-        this.loanDataFormGroup.addControl("subsidizedCreditRate", new FormControl());
-        this.loanDataFormGroup.addControl("bonusCreditRate", new FormControl());
-        this.loanDataFormGroup.addControl("suportedCreditRate", new FormControl());
-        this.loanDataFormGroup.addControl("subsidizedCreditDuration", new FormControl());
-        this.loanDataFormGroup.addControl("bonusCreditDuration", new FormControl(null, [
-          NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.isMechanism2(), value: 180, extraFieldsToUpdateValidator: ['mechanism'] }),
-        ]))
-        this.loanDataFormGroup.addControl("suportedCreditDuration", new FormControl());
-
-        this.loanDataFormGroup.addValidators(this.equalToMechanismSum());
-      }
-
-    }
-
-    this.initInsuranceDataForm()
-
-    this.loanDataFormGroup.addControl("applicationFee", new FormControl(null, [Validators.required]));
-    this.loanDataFormGroup.addControl("freeHandFee", new FormControl(800, [Validators.required]));
-    
-    if (!this.isPpoPpcFamily){
-      this.loanDataFormGroup.addValidators([this.applicationFeesValidator])
-    }
-    if (this.loanObject.includes('AQS_RCH') || (this.isPpoPpcFamily && this.isInternalRepurchaseSelected())) {
-      this.loanDataFormGroup.addControl('repurchasedCreditNumber', new FormControl(null));
-      this.loanDataFormGroup.addValidators(this.repurchasedCreditNumberValidator());
-      this.loanDataFormGroup.updateValueAndValidity({ emitEvent: false });
-    }
-    /** for regrouping notary & propertyData only in front presentation**/
-    this.propertyDataNotaryFormGroup = this.formBuilder.group({});
-    this.propertyDataNotaryFormGroup.addControl('notary', this.formGroup.get('notary') as FormGroup);
-  }
-
-  private initInsuranceDataForm() {
-    const insuranceDataFormGroup = this.formGroup.get('insuranceData') as FormGroup;
-    if (!this.isSelectedProductIn([Products.ADL_SAKANE,Products.ADL_SAKANE_PPR,Products.IMTILAK,Products.IMTILAK_PPR,Products.SALAF_BAYTI_SANTE,Products.SALAF_BAYTI_SANTE_PPR])) {
-      insuranceDataFormGroup.addControl("insuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-      insuranceDataFormGroup.addControl("promotionalInsuranceRate", new FormControl());
-      insuranceDataFormGroup.addControl("insuranceCoefficient", new FormControl(null, [Validators.required]));
-    } else {
-      if (this.isMechanism1()) {
-        insuranceDataFormGroup.addControl("subsidizedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("subsidizedPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("subsidizedInsuranceCoefficient", new FormControl(null, [Validators.required]));
-
-      }
-      if (this.isMechanism2()) {
-        insuranceDataFormGroup.addControl("bonusInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("bonusPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("bonusInsuranceCoefficient", new FormControl(null, [Validators.required]));
-
-      }
-      if (this.isMechanism3()) {
-        insuranceDataFormGroup.addControl("suportedInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("suportedPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("suportedInsuranceCoefficient", new FormControl(null, [Validators.required]));
-
-      }
-      if (this.isTypeA()) {
-        insuranceDataFormGroup.addControl("typeAInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("typeAPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("typeAInsuranceCoefficient", new FormControl(null, [Validators.required]));
-
-      }
-      if (this.isTypeB()) {
-        insuranceDataFormGroup.addControl("typeBInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("typeBPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("typeBInsuranceCoefficient", new FormControl(null, [Validators.required]));
-      }
-      if(!this.isMechanism3()){
-        insuranceDataFormGroup.addControl("aditionalCreditInsuredPercentage", new FormControl('', [Validators.required, NumberValidators.lessThanEqualTo({ value: 100 })]));
-        insuranceDataFormGroup.addControl("aditionalCreditPromotionalInsuranceRate", new FormControl());
-        insuranceDataFormGroup.addControl("aditionalCreditInsuranceCoefficient", new FormControl(null, [Validators.required]));
-      }
-    }
-  }
-  
   private equalToMechanismSum(): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
-      const hasCstOrAmn           = this.loanObject?.includes('CST') || this.loanObject?.includes('AMN');
-      const isAQS                 = this.loanObject?.includes('AQS');
+      const hasCstOrAmn           = this.loanObject?.code?.includes('CST') || this.loanObject?.code?.includes('AMN');
+      const isAQS                 = this.loanObject?.code?.includes('AQS');
       const montantConstruction   = this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment')?.value;
       const montantCredit         = this.loanDataFormGroup.get('claimedAmountOfPurchase')?.value;
 
@@ -568,8 +1082,64 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     };
   }
 
+  private lessThanEqualToSumOfAmounts(): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const loanAmount = this.loanAmountFormControl?.value;
+      const sumOfAmounts = this.getSumOfMecanismAmounts();
+
+      return sumOfAmounts <= loanAmount || sumOfAmounts === -1 ? null : { lessThanEqualToSumOfAmounts: true };
+    };
+  }
+
+  private repurchasedCreditNumberValidator(): ValidatorFn {
+    return (group: AbstractControl): ValidationErrors | null => {
+      const fg = group as FormGroup;
+
+      const loanObjectCode = fg.get('loanObject')?.value?.code ?? '';
+      const isAqsRepurchase = loanObjectCode.includes('AQS_RCH');
+      const isInternalPpoPpcRepurchase =this.productCtx.isPpoPpcFamily && this.isInternalRepurchaseSelected();
+
+     if (!isAqsRepurchase && !isInternalPpoPpcRepurchase ) {
+       return null;
+     }
+
+      const value: string = (fg.get('repurchasedCreditNumber')?.value ?? '').toString().trim();
+      if (!value) {
+        return { repurchasedCreditNumberRequired: true };
+      }
+
+      const dossier = this.dossierStore.get();
+      const debts = dossier?.debts ?? [];
+      const found = debts.some((d: any) => {
+        const fileNumber = (d?.fileNumber ?? '').toString().trim();
+        const establishmentCode = (d?.establishmentCode ?? '').toString().trim();
+        const codeProductFamily = (d?.codeProductFamily ?? '').toString().trim();
+        return (
+          fileNumber === value &&
+          establishmentCode === '022' &&
+          codeProductFamily.toUpperCase() === 'PPO-PPC'
+        );
+      });
+
+      if (!found) {
+        return { repurchasedCreditNotFound: true };
+      }
+
+      return null;
+    };
+  }
+  public isInternalRepurchaseSelected(value = this.repurchaseTypeFormControl?.value): boolean {
+
+  if (Array.isArray(value)) {
+    return value.some(item => item?.code === 'INT');
+  }
+
+  return value?.code === 'INT' || value === 'INT';
+}
+
+
   private getSumOfMecanismAmounts(): number {
-    const selectedMechanisms = this.selectedMechanism as Mechanism | Mechanism[];
+    const selectedMechanisms = this.mechanismFormControl?.value;
     const mechanism_controls: any= {
       [MechanismType.MECHANISM_1]: ["subsidizedCreditAmount", "additionalCredit"],
       [MechanismType.MECHANISM_2]: ["bonusCreditAmount", "additionalCredit"],
@@ -587,617 +1157,278 @@ export class BackToDecisionStepperComponent extends BaseComponent implements OnI
     return sum;
   } 
 
-  private applicationFeesValidator(control: AbstractControl): { [key: string]: any } | null {
-    const parse = (val: any) => {
-    if (val === null || val === undefined) return 0;
-    return parseFloat(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-    };
-
-    const claimedAmountOfPurchase = parse(control.get('claimedAmountOfPurchase')?.value);
-    const claimedAmountOfBuildDevelopment = parse(control.get('claimedAmountOfBuildDevelopment')?.value);
-    const requestedNotaryFee = parse(control.get('requestedNotaryFee')?.value);
-    const applicationFee = parse(control.get('applicationFee')?.value);
-
-    const sum = claimedAmountOfPurchase + claimedAmountOfBuildDevelopment + requestedNotaryFee;
-
-    if (sum * 0.001 < applicationFee) {
-    return { feeExcess: true };
-   }
-    return null;
-
-  };
-
-  private getDefaultRate( type: 'subventionné' | 'complémentaire' | 'soutenu',  years: number): number | null {
-    switch (type) {
-      case 'subventionné':
-        if (years <= 7)   return 2.20;
-        if (years <= 15)  return 2.50;
-        if (years <= 25)  return 2.75;
-        break;
-
-      case 'complémentaire':
-        if (years <= 7)   return 4.20;
-        if (years <= 15)  return 4.50;
-        if (years <= 25)  return 4.75;
-        break;
-
-      case 'soutenu':
-        if (years <= 7)   return 4.20;
-        if (years <= 15)  return 4.50;
-        if (years <= 25)  return 4.75;
-        break;
-    }
-
-    return null;
-  }
-
-  private initDurationListeners(): void {
-    if (!(this.isImtilak || this.isImtilakPPR)) return;
-    const subsidized$ = this.subsidizedCreditDurationFormControl.valueChanges.pipe(
-      startWith(this.subsidizedCreditDurationFormControl.value),
-      map(v => NumberUtils.toForcedNumber(v) / 12),
-      distinctUntilChanged()
-    );
-
-    const additional$ = this.additionalloanDurationFormControl.valueChanges.pipe(
-      startWith(this.additionalloanDurationFormControl.value),
-      map(v => NumberUtils.toForcedNumber(v) / 12),
-      distinctUntilChanged()
-    );
-    const supported$ = this.suportedCreditDurationFormControl.valueChanges.pipe(
-      startWith(this.suportedCreditDurationFormControl.value),
-      map(v => NumberUtils.toForcedNumber(v) / 12),
-      distinctUntilChanged()
-    );
-
-    combineLatest([subsidized$, additional$,supported$])
-      .subscribe(([subYears, addYears,supYears]) => {
-        const subRate = this.getDefaultRate('subventionné', subYears);
-        const addRate = this.getDefaultRate('complémentaire', addYears);
-        const supRate = this.getDefaultRate('soutenu', supYears);
-        if (this.isMechanism1()) {
-          this.setControlNumberValue(this.subsidizedCreditRateFormControl, subRate!);
-          }
-
-          if (this.isMechanism3()) {
-          this.setControlNumberValue(this.suportedCreditRateFormControl, supRate!);
-          }
-
-          if(this.isAnyMechanismOrType()){
-               this.setControlNumberValue(this.additionalCreditRateFormControl, addRate!);
-          }
-      });
-  }
-
-  public isYasserProduct() {
-    return this.isSelectedProductIn([Products.YASSIR,Products.YASSIR_PPR]);
-  }
-
-  public isPpoPpcProduct(){
-    return this.isSelectedProductIn([Products.PPO,Products.PPO_PPR,Products.PPC]);
-  }
-
-  public isItABuildingLotAcquisition() {
-    return this.loanObject === 'AQS' &&  this.propertyType === 'TRN';
-  }
-
-  calculateApplicationFee() {
-    if(this.isPpoPpcFamily) return;
-    const claimedAmountOfPurchase = this.loanDataFormGroup.get('claimedAmountOfPurchase');
-    const claimedAmountOfBuildDevelopment = this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment');
-    const requestedNotaryFee = this.loanDataFormGroup.get('requestedNotaryFee');
-
-    let sum = 0;
-    if(claimedAmountOfPurchase?.value){
-      sum += claimedAmountOfPurchase?.value;
-    }
-    if(claimedAmountOfBuildDevelopment?.value){
-      sum += claimedAmountOfBuildDevelopment?.value;
-    }
-    if(requestedNotaryFee?.value){
-      sum += requestedNotaryFee?.value;
-    }
-
-    this.applicationFeeFormControl?.patchValue(NumberUtils.round(sum/1000, 2));
-  }
-
-  private initCoefficientWithFallback(savedValue: any, control: FormControl, computeFallback: () => void): void {
-    if (savedValue !== undefined && savedValue !== null) {
-      control.setValue(this.decimalPipe.transform(savedValue, '1.4-4'));
-    } else {
-      computeFallback();
-    }
-  }
-
-  private computeInsuranceCoefficient(promotionalRate: any, Amount: number): string | null {
-    Amount = NumberUtils.toForcedNumber(Amount);
-
-    promotionalRate = NumberUtils.toForcedNumber(promotionalRate);
-    let rate = 0;
-
-    if (promotionalRate > 0) {
-      rate = promotionalRate / 12;
-      const decimalString: string = rate.toString();
-      const dotIndex = decimalString.indexOf('.');
-      if (dotIndex !== -1) {
-        const truncatedString: string = decimalString.substring(0, dotIndex + 4);
-        rate = Number(truncatedString);
-      }
-    } else if (Amount >= 600000) {
-      rate = 0.035;
-    } else {
-      rate = 0.04;
-    }
-
-    return this.decimalPipe.transform(Number(rate * 1.1 * 12), '1.4-4');
-  }
-
-  calculateInsuranceCoefficient() {
-    if(this.isPpoPpcFamily){
-      let coefficient = this.decimalPipe.transform( 0.8,    '1.4-4' );
-      coefficient = coefficient ? coefficient.replace(/\s/g, "").replace(".", ",") : "0";
-      this.insuranceCoefficientFormControl.setValue(coefficient);
-      return;
-    }
-    const loanAmount = this.data.loanData?.loanAmount;
-    const promotionalRate = this.promotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
-    this.insuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateSubsidizedInsuranceCoefficient() {
-    const subsidizedCreditAmount = this.data.loanData?.subsidizedCreditAmount;
-    const promotionalRate = this.subsidizedPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, subsidizedCreditAmount);
-    this.subsidizedInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateBonusInsuranceCoefficient() {
-    const bonusCreditAmount = this.data.loanData?.bonusCreditAmount;
-    const promotionalRate = this.bonusPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, bonusCreditAmount);
-    this.bonusInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateSuportedInsuranceCoefficient() {
-    const suportedCreditAmount = this.data.loanData?.suportedCreditAmount;
-    const promotionalRate = this.suportedPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, suportedCreditAmount);
-    this.suportedInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateTypeAInsuranceCoefficient() {
-    const loanAmount = this.data.loanData?.typeAloanAmount;
-    const promotionalRate = this.typeAPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
-    this.typeAInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateTypeBInsuranceCoefficient() {
-    const loanAmount = this.data.loanData?.typeBloanAmount;
-    const promotionalRate = this.typeBPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
-    this.typeBInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  calculateAdditionalInsuranceCoefficient() {
-    const loanAmount = this.data.loanData?.additionalCredit;
-    const promotionalRate = this.aditionalCreditPromotionalInsuranceRateFormControl?.value;
-    const coefficient = this.computeInsuranceCoefficient(promotionalRate, loanAmount);
-    this.aditionalCreditInsuranceCoefficientFormControl.setValue(coefficient);
-  }
-
-  initCappedRateValidators() {
-    this.formGroup.get('loanData.rateType.code')?.valueChanges.subscribe(value => {
-      if (value === this.rateTypes.CAPE) {
-        this.cappedRateFormControl?.addValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
-      } else {
-        this.cappedRateFormControl?.removeValidators([Validators.required, NumberValidators.greaterThanEqualTo({ fieldName: 'rate' })]);
-        this.cappedRateFormControl?.reset();
-      }
-      this.cappedRateFormControl?.updateValueAndValidity();
-    });
-  }
-
-  initClaimedAmountOfPurchaseValidators(){
-    if(!this.isYassir && !this.isPpoPpc) return;
-
-    if(this.isYassir){
-      this.setControlNumberValue(this.rateFormControl, 0);
-      this.rateFormControl.disable();
-    }
-   
-    this.loanDataFormGroup.addControl('claimedAmountOfPurchase', new FormControl(null, [
-      Validators.required,  
-      NumberValidators.lessThanEqualTo({ conditionalExpression: () => this.loanObject.includes('AQS'), fieldName: 'acquisitionPrice' }),
-      DossierValidators.lessThanEqualToFixValue(() => this.isYassir, this.loanDataFormGroup,  30000)
-    ]));
-    this.claimedAmountOfPurchaseFormControl?.updateValueAndValidity();
-  }
-
-  private initDelayedType() {
-      this.delayTypes$?.subscribe();
-  }
-
-  private initDelayed() {
-    this.getControlValueChanges(this.delayedFormControl).subscribe(value => {
-    const isPPRProduct= this.isImtilakPPR || this.isAdlSakanePPR||this.isSalafBaytiSantePPR;
-      if (value === true && !isPPRProduct) {
-        this.delayTypeFormControl.addValidators(Validators.required);
-        this.delayDurationFormControl.addValidators(Validators.required);
-      } else {
-        this.delayTypeFormControl.removeValidators(Validators.required);
-        this.delayTypeFormControl.reset();
-        this.delayDurationFormControl.removeValidators(Validators.required);
-        this.delayDurationFormControl.reset();
-      }
-      this.delayTypeFormControl.updateValueAndValidity();
-      this.delayDurationFormControl.updateValueAndValidity();
-    });
-  }
-
-  compareObjects(o1: any, o2: any): boolean {
-    return o1?.code === o2?.code
-  }
-
-
-  onValidate(): void {
-    if (!this.formGroup.valid) {
-      const errors: any[] = [];
-      this.calculateFormValidationErrors(this.formGroup, errors);
-
-      const errorMessage = errors.length > 0
-        ? errors.filter(({ errorName }) => errorName !== 'required')
-                .map(({ controlName }) => controlName)
-                .join('\n')
-        : '';
-
-      this.showErrorMessage({ bodyKey: "Veuillez vérifier les champs " + (errorMessage || '') });
-      return;
-    }
-
-    if (this.isFormValuesChanged()) {
-      const emitData = {
-        ...this.formGroup.getRawValue(),
-        warranties: this.warranties
-          .map(({id, type, ...rest}) => ({ ...rest, id: type === WarrantyType.AUTO || (this.data.isEdit && type === WarrantyType.TO_COLLECT ) ? id : null })),
-        restrictions: this.restrictions,
-      };
-      this.returnToDecision.emit(emitData);
-      this.dossierStore.update({ propertyData: this.oldPropertyData });
-      this.changeDetectorRef.detectChanges();
-      return;
-    }
-
-    this.showErrorMessage({ bodyKey: "Aucun changement n'a été effectué !" });
-  }
-
-
-  isFormValuesChanged(): boolean {
-    const { loanData, insuranceData, propertyData, beneficiaries, guarantors, representatives, notary, warranties , restrictions } =
-      this.data;
-
-    const formValue = this.formGroup.value;
-
-    const newFormObject: any = {
-      loanData: formValue.loanData,
-      propertyData: formValue.propertyData,
-      beneficiaries: formValue.beneficiaries ?? [],
-      guarantors: formValue.guarantors ?? [],
-      representatives: formValue.representatives ?? [],
-      notary: formValue.notary ?? {},
-      warranties: this.warranties ?? [],
-      restrictions: this.restrictions ?? [],
-      insuranceData: {
-        ...formValue.insuranceData,
-        insuranceCoefficient: NumberUtils.toForcedNumber(
-          this.isYassir || this.isPpoPpc ? 0.8 : formValue.insuranceData?.insuranceCoefficient
-        ),
-        subsidizedInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.subsidizedInsuranceCoefficient),
-        bonusInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.bonusInsuranceCoefficient),
-        suportedInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.suportedInsuranceCoefficient),
-        typeAInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.typeAInsuranceCoefficient),
-        typeBInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.typeBInsuranceCoefficient),
-        aditionalCreditInsuranceCoefficient: NumberUtils.toForcedNumber(formValue.insuranceData?.aditionalCreditInsuranceCoefficient),
-      },
-    };
-
-    const initialObject = { loanData, insuranceData, propertyData, beneficiaries, guarantors, representatives, notary: notary ?? {}, warranties , restrictions};
-    const cleanedCurrent = ObjectUtils.mergeFormWithInitial(initialObject, newFormObject);
-    const modifications = ObjectUtils.diffObjects(initialObject, cleanedCurrent);
-
-    return Object.keys(modifications).length > 0;
-  }
-
-  addWarranty(event: MatChipInputEvent): void {
-    const value = (event.value || '').trim();
-    if (value && value.trim() !== '') {
-      const warranty: Warranty = {
-        content: value,
-        type: WarrantyType.PROPOSED
-      };
-      this.warranties.push(warranty);
-      this.warrantiesSubject.next(this.warranties);
-    }
-    event.chipInput!.clear();
-  }
-
-  private buildProposedRestrictionType(family: RestrictionType): RestrictionType {
-    if (family === RestrictionType.DSC) {
-      return this.isCtb ? RestrictionType.PROPOSED_CTB : RestrictionType.PROPOSED_DSC;
-    }
-    return this.isCtb ? RestrictionType.PROPOSED_OBSERVATION_CTB : RestrictionType.PROPOSED_OBSERVATION;
-  }
-
-  removeWarranty(index: number, isAuto: boolean): void {
-    if (index >= 0 && !isAuto) {
-      this.warranties.splice(index, 1);
-      this.warrantiesSubject.next(this.warranties);
-    }
-  }
-
-  addRestriction(event: MatChipInputEvent, type: RestrictionType): void {
-    const value = (event.value || '').trim();
-    if (value && value.trim() !== '') {
-      const restriction: Restriction = {
-        content: value,
-        type: this.buildProposedRestrictionType(type)
-      };
-      this.restrictions.push(restriction);
-      this.restrictionsSubject.next(this.restrictions);
-    }
-    event.chipInput!.clear();
-  }
-
-  removeRestriction(restriction: Restriction): void {
-    const removeIndex = this.restrictions.indexOf(restriction);
-    if (removeIndex >= 0) {
-      this.restrictions.splice(removeIndex, 1);
-      this.restrictionsSubject.next([...this.restrictions]);
-    }
-  }
-
-  filterRestrictionByType(restrictions: Restriction[], type: RestrictionType) {
-    if (type === RestrictionType.DSC) {
-      return restrictions.filter(r =>
-        r.type === RestrictionType.DSC || r.type === RestrictionType.PROPOSED_DSC || (this.isCtb && r.type === RestrictionType.PROPOSED_CTB)
-      );
-    }
-    if (type === RestrictionType.OBSERVATION) {
-      return restrictions.filter(r =>
-        r.type === RestrictionType.OBSERVATION || r.type === RestrictionType.PROPOSED_OBSERVATION || (this.isCtb && r.type === RestrictionType.PROPOSED_OBSERVATION_CTB)
-      );
-    }
-    return restrictions.filter(r => r.type?.includes(type));
-  }
-
-  update = () => {
-    const dossier = this.dossierStore.get();
-    this.dossierStore.update({
-      ...dossier,
-      ...this.formGroupRawValue,
-    });
-  }
-
-  updatePropertyData(dossierPayload: any, savedDossier: any) {
-    const propertyData = dossierPayload.propertyData;
-    const newPropertyData: PropertyData = {
-      ...propertyData,
-      properties: savedDossier?.propertyData?.properties ?? propertyData?.properties,
-      coFinancing: savedDossier?.propertyData?.coFinancing ?? propertyData?.coFinancing
-    };
-
-    this.dossierStore.update({ propertyData: newPropertyData }, false);
-  }
-
-  private fieldsClearingCondition(fileds: 'Notary'): boolean {
-    const dossier = this.dossierStore.get();
-    const product = dossier.product?.code
-
-    const allowedCodesByField: Record<typeof fileds, string[]> = {
-      Notary: [Products.MOULKIA.toString(), Products.PPI_VEFA.toString(), Products.YASSIR.toString(), Products.YASSIR_PPR.toString(), Products.PPO.toString(), Products.PPO_PPR.toString(), Products.PPC.toString(),]
-    };
-
-    return (
-      this.dossierAccordPrincipe ||
-      this.isProspect ||
-      allowedCodesByField[fileds].includes(product!)
-    );
-  }
-
-  updateNotaryValidations() {
-    if (!this.formGroup || !this.notaryFormGroup) return;
-
-    if (this.fieldsClearingCondition('Notary')) {
-      this.clearNotaryFieldValidators();
-    }
-
-    // Mise à jour sécurisée de la validité
-    this.notaryMailFormControl?.updateValueAndValidity();
-    this.notaryPhoneFormControl?.updateValueAndValidity();
-    this.notaryFormGroup.get('name')?.updateValueAndValidity();
-    this.notaryFormGroup.get('address')?.updateValueAndValidity();
-  }
-
-  private clearNotaryFieldValidators(): void {
-    this.notaryMailFormControl.clearValidators();
-    this.notaryPhoneFormControl.clearValidators();
-    this.notaryMailFormControl.addValidators([Validators.email]);
-    this.notaryPhoneFormControl.addValidators([Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]);
-    this.notaryFormGroup.get('name')?.clearValidators();
-    this.notaryFormGroup.get('address')?.clearValidators();
-  }
-
-  public isInternalRepurchaseSelected(): boolean {
-    const value = this.loanDataFormGroup?.get('repurchaseTypes')?.value;
-    if (Array.isArray(value)) {
-      return value.some(
-        item => item?.code === 'INT' || item === 'INT'
-      );
-    }
-
-    return value?.code === 'INT' || value === 'INT';
-  }
-
+  // --------------------------- Loan business rules ---------------------------
+  /**
+   *  Determine if the loan is eligible for notary fees based on the loan object code and product type.
+   *  A loan is eligible for notary fees if:s
+   *  - The loan object code includes 'AQS' or includes 'RCH' but not 'AQS'.
+   *  - The product is either a PPI product or both PPI MRE and Clipri MRE.
+   */
   private notaryFeeRuleConfig(loanObjectCode?: string):{ isEligible: boolean, coefficient: number } {
     const code = loanObjectCode ?? '';
 
     const isAqs = code.includes('AQS');
     const isOnlyRch = code.includes('RCH') && !code.includes('AQS');
     const isConventionedProducts = this.isSelectedProductIn([Products.IMTILAK, Products.IMTILAK_PPR, Products.ADL_SAKANE, Products.ADL_SAKANE_PPR, Products.SALAF_BAYTI_SANTE, Products.SALAF_BAYTI_SANTE_PPR]);
-    const isPPIEngagementPromoteur = this.isSelectedProduct(Products.PPI_Engagement_Promoteur);
+    
     return {
-      isEligible: (isAqs || isOnlyRch) && (this.isPPIProduct || ((this.isPpiMRE || isConventionedProducts || isPPIEngagementPromoteur) && this.isClipriMRE)),
+      isEligible: (isAqs || isOnlyRch) && (this.productCtx.isPPIProduct || ((this.productCtx.isPpiMRE || isConventionedProducts || this.productCtx.isPPIEngagementPromoteur) && this.isClipriMRE)),
       coefficient:  isAqs ? 0.08 : 0.04
     };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  //
-  // ──────────────────────────────────────────────────────────────────────────
-
-
-  private repurchasedCreditNumberValidator(): ValidatorFn {
-   return (group: AbstractControl): ValidationErrors | null => {
-    const fg = group as FormGroup;
-    // Si pas de prêt rachat, pas de validation
-    const loanObject = this.loanObject ?? '';
-    const isAqsRepurchase = loanObject.includes('AQS_RCH');
-    const isInternalPpoPpcRepurchase = this.isPpoPpcFamily && this.isInternalRepurchaseSelected();
-    if (!isAqsRepurchase && !isInternalPpoPpcRepurchase) return null;
-
-
-    const value: string = (fg.get('repurchasedCreditNumber')?.value ?? '').toString().trim();
-    if (!value) {
-      return { repurchasedCreditNumberRequired: true };
-    }
-
-    const dossier = this.dossierStore.get();
-    const debts = dossier?.debts ?? [];
-    const found = debts.some((d: any) => {
-      const fileNumber = (d?.fileNumber ?? '').toString().trim();
-      const establishmentCode = (d?.establishmentCode ?? '').toString().trim();
-      const codeProductFamily = (d?.codeProductFamily ?? '').toString().trim();
-      return (
-        fileNumber === value &&
-        establishmentCode === '022' &&
-        codeProductFamily.toUpperCase() === 'PPO-PPC'
-      );
-    });
-
-    if (!found) {
-      return { repurchasedCreditNotFound: true };
-    }
-
-      return null;
-    };
-  }
+  // --------------------------- Loan calculations -----------------------------
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Listeners for loan calculation
+  // 1. Montant d'investissement
+  //    = acquisitionPrice + buildDevelopmentQuotation [+ acquisitionFee si PPI/ClipriMRE]
   // ───────────────────────────────────────────────────────────────────────────
-  private setupLoanCalculationListeners() {
-    const isNotaryFeesActive:boolean = this.notaryFeeRuleConfig(this.loanObject).isEligible;
-    this.loanCalculationService.setupInvestmentAmount(this.loanDataFormGroup, { isNotaryFeesActive }, this.destroy$);
-    this.loanCalculationService.setupLoanAmount(this.loanDataFormGroup, { isPpoPpcFamily: this.isPpoPpcFamily }, this.destroy$);
-  }
-
+  private calculateInvestmentAmount(): void {
+    const price$     = this.getControlValueChanges(this.acquisitionPriceFormControl, 0, this.acquisitionPriceFormControl?.value);
+    const quotation$ = this.getControlValueChanges(this.buildDevelopmentQuotationFormControl, 0, this.buildDevelopmentQuotationFormControl?.value);
+    const fee$       = this.getControlValueChanges(this.acquisitionFeeFormControl, 0, this.acquisitionFeeFormControl?.value);
+  
+    merge(price$, quotation$, fee$)
+      .pipe(
+        takeUntil(this.destroy$),
+        map(() => {
+          const acquisitionPrice     = this.toForcedNumber(this.acquisitionPriceFormControl?.value);
+          const developmentQuotation = this.toForcedNumber(this.buildDevelopmentQuotationFormControl?.value);
+          const acquisitionFee       = this.toForcedNumber(this.acquisitionFeeFormControl?.value);
+          return acquisitionPrice + developmentQuotation + acquisitionFee;
+        }),
+        tap(totalInvestment => {
+          if (totalInvestment > 0) {
+            this.setControlNumberValue(this.investmentAmountFormControl, totalInvestment);
+          }
+        })
+      )
+      .subscribe();
+  }  
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Mechanism checks
-  // ──────────────────────────────────────────────────────────────────────────
-  public isMechanism1() {
-    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_1);
+  // 2. Montant demandé
+  //    = claimedAmountOfBuildDevelopment + claimedAmountOfPurchase [+ requestedNotaryFee si PPI/ClipriMRE]
+  //    → met aussi à jour applicationFee (loanAmount × 0.001)
+  //    → notifie TopVipService
+  // ───────────────────────────────────────────────────────────────────────────
+  private calculateLoanAmount(): void {
+    const buildCost$ = this.getControlValueChanges( this.claimedAmountOfBuildFormControl,  0,  this.claimedAmountOfBuildFormControl?.value);
+    const purchase$  = this.getControlValueChanges(  this.claimedAmountOfPurchaseFormControl, 0, this.claimedAmountOfPurchaseFormControl?.value );
+    const notary$    = this.getControlValueChanges(this.requestedNotaryFeeFormControl, 0, this.requestedNotaryFeeFormControl?.value);
+  
+    merge(buildCost$, purchase$, notary$)
+      .pipe(
+        takeUntil(this.destroy$),
+        map(() => this.computeSum()),
+        tap(loanSum => {          
+          this.setControlNumberValue(this.loanDataFormGroup.get('loanAmount'), loanSum);
+          if(!this.productCtx.isPpoPpcFamily){
+            const applicationFee = NumberUtils.round(loanSum * 0.001, 2);
+            this.setControlNumberValue(this.loanDataFormGroup.get('applicationFee'), applicationFee);
+          }
+          this.topVipService.next(loanSum);
+        })
+      )
+      .subscribe();
   }
 
-  public isMechanism2() {
-    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_2);
+  private computeSum(): number {
+    const buildDevelopmentAmount = this.toForcedNumber(this.claimedAmountOfBuildFormControl?.value);
+    const purchaseAmount = this.toForcedNumber(this.claimedAmountOfPurchaseFormControl?.value);
+    const notaryFee = this.toForcedNumber(this.requestedNotaryFeeFormControl?.value);
+    return buildDevelopmentAmount + purchaseAmount + notaryFee;
   }
 
-  public isMechanism3() {
-    return this.isMechanismExists(this.selectedMechanism, MechanismType.MECHANISM_3);
-  }
-  public isTypeA() {
-    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_A);
-  }
-
-  public isTypeB() {
-    return this.isMechanismExists(this.selectedMechanism, MechanismType.TYPE_B);
-  }
-
-  private isMechanismExists(arrayValues: Mechanism | Mechanism[], value: string): boolean {
-    if (!Array.isArray(arrayValues)) {
-      arrayValues = [arrayValues];
-    }
-    return !!arrayValues.find(mechanism => mechanism && mechanism.code === value);
+  // ───────────────────────────────────────────────────────────────────────────
+  // 4. Pourcentage d'apport
+  //    = (apport / investmentAmount) × 100
+  // ───────────────────────────────────────────────────────────────────────────
+  private calculatePercentOfApport(): void {
+    const loanObject$   = this.getControlValueChanges(this.loanObjectFormControl, undefined, this.loanObjectFormControl?.value);
+    const apport$     = this.getControlValueChanges(this.loanDataFormGroup.get('apport'), 0, this.loanDataFormGroup.get('apport')!.value);
+    const investment$ = this.getControlValueChanges(this.loanDataFormGroup.get('investmentAmount'), 0, this.loanDataFormGroup.get('investmentAmount')!.value);
+  
+    merge(apport$, investment$, loanObject$)
+      .pipe(
+        takeUntil(this.destroy$),
+        map(() => {
+          const currentObjectCode = this.loanObjectFormControl?.value?.code;
+          if ((this.productCtx.isPpoPpc || this.productCtx.isYassir) && !currentObjectCode?.includes('AQS') ) {
+            return null;
+          }
+          const apportValue     = this.toForcedNumber(this.loanDataFormGroup.get('apport')!.value);
+          const investmentValue = this.toForcedNumber(this.loanDataFormGroup.get('investmentAmount')!.value);
+          return investmentValue > 0 ? (apportValue * 100) / investmentValue : 0;
+        }),
+        tap(percent => {
+          this.setControlNumberValue(this.loanDataFormGroup.get('percentOfApport'), NumberUtils.round(percent!, 2));
+        })
+      )
+      .subscribe();
   }
   
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3. Apport personnel
+  //    = max(investmentAmount - loanAmount, 0)
+  // ───────────────────────────────────────────────────────────────────────────
+  private calculateApport(): void {
+    
+    const loanObject$   = this.getControlValueChanges(this.loanObjectFormControl, undefined, this.loanObjectFormControl?.value);
+    const loan$       = this.getControlValueChanges(this.loanAmountFormControl, 0, this.loanAmountFormControl?.value);
+    const investment$ = this.getControlValueChanges(this.investmentAmountFormControl, 0, this.investmentAmountFormControl?.value);
+  
+    merge(loan$, investment$, loanObject$)
+      .pipe(
+        takeUntil(this.destroy$),
+        map(() => {
+          const currentObjectCode = this.loanObjectFormControl?.value?.code;
+          if ((this.productCtx.isPpoPpc || this.productCtx.isYassir) && !currentObjectCode?.includes('AQS') )  {
+            return null;
+          }
+          const loanValue       = this.toForcedNumber(this.loanAmountFormControl?.value);
+          const investmentValue = this.toForcedNumber(this.investmentAmountFormControl?.value);
+          return investmentValue - loanValue;
+        }),
+        tap(apportValue => {
+          this.setControlNumberValue(this.loanDataFormGroup.get('apport'), apportValue!);
+        })
+      )
+      .subscribe();
+  } 
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Form controls getters
+  // 5. Logement social (Fogarim / Fogaloge uniquement)
+  //    area entre 50 et 80 m² → socialHousing = true
   // ───────────────────────────────────────────────────────────────────────────
+  private calculateSocialHousing() {
+    if (this.productCtx.isFogaloge || this.productCtx.isFogarim) {
+      this.getControlValueChanges(this.areaFormControl, 600).subscribe(value => {
+        if(value){
+          this.socialHousingFormControl.setValue(value && !(value < 50 || value > 80))
+        }else{
+          this.monthlyCoefficientFormControl.reset()
+        }
+      });
+    }
+  }
 
-  get formGroupRawValue(): any {return this.formGroup.getRawValue();  }
-  get cappedRateFormControl() {return this.formGroup.get('loanData.cappedRate') as FormControl;  }
-  get applicationFeeFormControl() {return this.loanDataFormGroup.get('applicationFee') as FormControl;  }
-  get insuranceCoefficientFormControl() {return this.formGroup.get('insuranceData.insuranceCoefficient') as FormControl;  }
-  get aditionalCreditPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.aditionalCreditPromotionalInsuranceRate") as FormControl;  }
-  get aditionalCreditInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.aditionalCreditInsuredPercentage") as FormControl;  }
-  get aditionalCreditInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.aditionalCreditInsuranceCoefficient") as FormControl;  }
-  get subsidizedPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.subsidizedPromotionalInsuranceRate") as FormControl;  }
-  get bonusPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.bonusPromotionalInsuranceRate") as FormControl;  }
-  get suportedPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.suportedPromotionalInsuranceRate") as FormControl;  }
-  get subsidizedInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.subsidizedInsuranceCoefficient") as FormControl;  }
-  get bonusInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.bonusInsuranceCoefficient") as FormControl;  }
-  get suportedInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.suportedInsuranceCoefficient") as FormControl;  }
-  get subsidizedInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.subsidizedInsuredPercentage") as FormControl;  }
-  get bonusInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.bonusInsuredPercentage") as FormControl;  }
-  get suportedInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.suportedInsuredPercentage") as FormControl;  }
-  get typeAPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.typeAPromotionalInsuranceRate") as FormControl;  }
-  get typeAInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.typeAInsuredPercentage") as FormControl;  }
-  get typeAInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.typeAInsuranceCoefficient") as FormControl;  }
-  get typeBPromotionalInsuranceRateFormControl() {return this.formGroup.get("insuranceData.typeBPromotionalInsuranceRate") as FormControl;  }
-  get typeBInsuredPercentageFormControl() {return this.formGroup.get("insuranceData.typeBInsuredPercentage") as FormControl;  }
-  get typeBInsuranceCoefficientFormControl() {return this.formGroup.get("insuranceData.typeBInsuranceCoefficient") as FormControl;  }
-  get deadlineNumberFormControl() {return this.loanDataFormGroup.get('deadlineNumber') as FormControl;  }
-  get delayedFormControl() {return this.loanDataFormGroup.get('delayed') as FormControl;  }
-  get delayDurationFormControl() {return this.loanDataFormGroup.get('delayDuration') as FormControl;  }
-  get rateTypeCodeFormControl() {return this.formGroup.get('loanData.rateType.code') as FormControl;  }
-  get loanDataFormGroup() {return this.formGroup.get('loanData') as FormGroup;  }
-  get delayed() {return this.formGroup?.get('loanData.delayed')?.value;  }
-  get acquisitionPriceFormControl() {return this.loanDataFormGroup?.get('acquisitionPrice');  }
-  get delayType() {return this.formGroup?.get('loanData.delayType')?.value;  }
-  get delayDuration() {return this.formGroup?.get('loanData.delayDuration')?.value;  }
-  get rateFormControl() {return this.formGroup.get('loanData.rate') as FormControl;  }
-  get delayTypeFormControl() {return this.formGroup?.get('loanData.delayType') as FormControl;  }
-  get subsidizedCreditDurationFormControl() {return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl;  }
-  get bonusCreditDurationFormControl() {return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl;  }
-  get suportedCreditDurationFormControl() {return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl;  }
-  get additionalloanDurationFormControl() {return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;  }
-  get subsidizedCreditRateFormControl() {return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl;  }
-  get bonusCreditRateFormControl() {return this.loanDataFormGroup.get('bonusCreditRate') as FormControl;  }
-  get suportedCreditRateFormControl() {return this.loanDataFormGroup.get('suportedCreditRate') as FormControl;  }
-  get additionalCreditRateFormControl() {return this.loanDataFormGroup.get('additionalCreditRate') as FormControl;  }
-  get notaryPhoneFormControl(): FormControl {return this.notaryFormGroup?.get('phone') as FormControl;  }
-  get notaryMailFormControl(): FormControl {return this.notaryFormGroup?.get('email') as FormControl;  }
-  get propertyDataFormGroup(): FormGroup {return this.formGroup.get('propertyData') as FormGroup;  }
-  get notaryFormGroup(): FormGroup {return this.formGroup.get('notary') as FormGroup;  }
-  get claimedAmountOfBuildFormControl() { return this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment') as FormControl; }
-  get promotionalInsuranceRateFormControl() {  return this.formGroup?.get("insuranceData.promotionalInsuranceRate") as FormControl;  }
-  get claimedAmountOfPurchaseFormControl() {  return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl;  }
-  get warrantiesFormArray(): FormArray {  return this.formGroup.controls['warranties'] as FormArray;  }
-  get restrictionsFormArray(): FormArray {  return this.formGroup.controls['restrictions'] as FormArray;  }
-  get beneficiariesFormArray(): FormArray {  return this.formGroup.controls['beneficiaries'] as FormArray;  }
-  get guarantorsFormArray(): FormArray {  return this.formGroup.controls['guarantors'] as FormArray;  }
-  get representativesFormArray(): FormArray { return this.formGroup.controls['representatives'] as FormArray;}
-  get acquisitionFeeFormControl() { return this.loanDataFormGroup.get('acquisitionFee') as FormControl;}
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 6. Coefficient mensuel CCG (Fogarim / Fogaloge uniquement)
+  //    Appel HTTP via calculateCCGCommission — switchMap pour éviter les races
+  // ───────────────────────────────────────────────────────────────────────────
+  private calculateMonthlyCoefficient() {
+    if (this.productCtx.isFogaloge || this.productCtx.isFogarim) {
+      const loanAmount$ = this.getControlValueChanges(this.loanAmountFormControl, 400, 0);
+      const investmentAmount$ = this.getControlValueChanges(this.investmentAmountFormControl, 400, 0);
+      const deadlineNumber$ = this.getControlValueChanges(this.deadlineNumberFormControl, 400, 0);
+      const loanRate$ = this.getControlValueChanges(this.loanRateFormControl, 400, 0);
+      const ccgCommissionChargeType$ = this.getControlValueChanges(this.ccgCommissionChargeTypeFormControl, 400);
+      const socialHousing$ = this.getControlValueChanges(this.socialHousingFormControl, 400,false);
+      const areaHousing$ = this.getControlValueChanges(this.areaFormControl, 400,0);
+
+      const combinedValues$ = combineLatest([loanAmount$, investmentAmount$, deadlineNumber$, loanRate$, ccgCommissionChargeType$, socialHousing$,areaHousing$]).pipe(
+        map(([ loanAmount, investmentAmount, deadlineNumber,  loanRate, ccgCommissionChargeType, socialHousing, areaHousing]) => ({ loanAmount, investmentAmount, deadlineNumber, loanRate, ccgCommissionChargeType, socialHousing, areaHousing})));
+
+      combinedValues$.subscribe(({loanAmount, investmentAmount, deadlineNumber, loanRate, ccgCommissionChargeType, socialHousing, areaHousing}) => {
+        const ccgCommessionRequest={
+          loanAmount : NumberUtils.toForcedNumber(loanAmount),
+          investmentAmount : NumberUtils.toForcedNumber(investmentAmount),
+          loanRate :  NumberUtils.toForcedNumber(loanRate),
+          duration : NumberUtils.toForcedNumber(deadlineNumber),
+          isSocialHousing:socialHousing,
+          codeProduct:this.selectedProduct?.code,
+          ccgCommissionChargeType,
+          areaHousing
+        }
+        if(this.isAllFieldsValid(ccgCommessionRequest)){
+          this.dossierDataService.calculateCCGCommission(ccgCommessionRequest).subscribe((ccgCommissionData:CcgCommessionMatrix)=>{
+            this.dossierStore.update({ ccgCommessionMatrix: ccgCommissionData },true,false)
+            this.monthlyCoefficientFormControl.setValue(ccgCommissionData?.ccgCommission);
+          });
+        }
+      });
+    }
+  }
+
+
+  // Form values
+  public isMechanism1() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_1);}
+  public isMechanism2() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_2);}
+  public isMechanism3() { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.MECHANISM_3);}
+  public isTypeA()      { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.TYPE_A); }
+  public isTypeB()      { return this.isMechanismExists(this.mechanismFormControl?.value, MechanismType.TYPE_B); }
+  
+  get loanObject() { return this.loanDataFormGroup?.get('loanObject')?.value; }
+  get repurchaseType() { return this.loanDataFormGroup?.get('repurchaseTypes')?.value; }
+  get periodicity() { return this.loanDataFormGroup?.get('periodicity')?.value; }
+  get rateType() { return this.loanDataFormGroup?.get('rateType')?.value; }
+  get delayed() { return this.loanDataFormGroup?.get('delayed')?.value; }
+  get delayType() { return this.loanDataFormGroup?.get('delayType')?.value; }
+  get delayDuration() { return this.loanDataFormGroup?.get('delayDuration')?.value; }
+  get acquisitionPrice() { return this.loanDataFormGroup?.get('acquisitionPrice')?.value; }
+  get acquisitionPriceFormControl() { return this.loanDataFormGroup?.get('acquisitionPrice'); }
+  get acquisitionFee() { return this.loanDataFormGroup?.get('acquisitionFee')?.value; }
+  get buildDevelopmentQuotation() { return this.loanDataFormGroup?.get('buildDevelopmentQuotation')?.value; }
+  get ccgCommissionChargeType() { return this.loanDataFormGroup.get('ccgCommissionChargeType')?.value; }
+  get propertyType() { return this.loanDataFormGroup.get('propertyType')?.value; }
+
+  // Controls
+  get mechanismFormControl() { return this.loanDataFormGroup.get("mechanisms") as FormControl; }
+  get periodicityFormControl() { return this.loanDataFormGroup.get("periodicity") as FormControl; }
   get requestedNotaryFeeFormControl() { return this.loanDataFormGroup?.get('requestedNotaryFee') as FormControl; }
+  get claimedAmountOfBuildFormControl() { return this.loanDataFormGroup.get('claimedAmountOfBuildDevelopment') as FormControl; }
+  get claimedAmountOfPurchaseFormControl() { return this.loanDataFormGroup.get('claimedAmountOfPurchase') as FormControl; }
+  get deadlineNumberFormControl() { return this.loanDataFormGroup.get('deadlineNumber') as FormControl; }
+  get areaFormControl() { return this.loanDataFormGroup.get('area') as FormControl; }
+  get socialHousingFormControl() { return this.loanDataFormGroup.get('socialHousing') as FormControl; }
+  get loanAmountFormControl() { return this.loanDataFormGroup.get('loanAmount') as FormControl; }
+  get investmentAmountFormControl() { return this.loanDataFormGroup.get('investmentAmount') as FormControl; }
+  get loanRateFormControl() { return this.loanDataFormGroup.get('rate') as FormControl; }
+  get ccgCommissionChargeTypeFormControl() { return this.loanDataFormGroup.get('ccgCommissionChargeType') as FormControl; }
+  get monthlyCoefficientFormControl() { return this.loanDataFormGroup.get('monthlyCoefficient') as FormControl; }
+  get subsidizedCreditRateFormControl() { return this.loanDataFormGroup.get('subsidizedCreditRate') as FormControl; }
+  get bonusCreditRateFormControl() { return this.loanDataFormGroup.get('bonusCreditRate') as FormControl; }
+  get suportedCreditRateFormControl() { return this.loanDataFormGroup.get('suportedCreditRate') as FormControl; }
+  get additionalCreditRateFormControl() { return this.loanDataFormGroup.get('additionalCreditRate') as FormControl; }
+  get typeAloanAmountFormControl() { return this.loanDataFormGroup.get('typeAloanAmount') as FormControl; }
+  get typeBloanAmountFormControl() { return this.loanDataFormGroup.get('typeBloanAmount') as FormControl; }
+  get subsidizedCreditDurationFormControl() { return this.loanDataFormGroup.get('subsidizedCreditDuration') as FormControl; }
+  get bonusCreditDurationFormControl() { return this.loanDataFormGroup.get('bonusCreditDuration') as FormControl; }
+  get suportedCreditDurationFormControl() { return this.loanDataFormGroup.get('suportedCreditDuration') as FormControl; }
+  get typeAloanDurationFormControl() { return this.loanDataFormGroup.get('typeAloanDuration') as FormControl; }
+  get typeBloanDurationFormControl() { return this.loanDataFormGroup.get('typeBloanDuration') as FormControl;}
+  get typeAloanRateFormControl() { return this.loanDataFormGroup.get('typeAloanRate') as FormControl;}
+  get typeBloanRateFormControl() { return this.loanDataFormGroup.get('typeBloanRate') as FormControl;}
+  get subsidizedCreditAmountFormControl() { return this.loanDataFormGroup.get('subsidizedCreditAmount') as FormControl;}
+  get bonusCreditAmountFormControl() { return this.loanDataFormGroup.get('bonusCreditAmount') as FormControl;}
+  get suportedCreditAmountFormControl() { return this.loanDataFormGroup.get('suportedCreditAmount') as FormControl;}
+  get additionalCreditFormControl() { return this.loanDataFormGroup.get('additionalCredit') as FormControl;}
+  get additionalloanDurationFormControl() { return this.loanDataFormGroup.get('additionalLoanDuration') as FormControl;}
+  get rateTypeFormControl() { return this.loanDataFormGroup.get('rateType') as FormControl;}
+  get rateNatureFormControl(){ return this.loanDataFormGroup.get('rateNature') as FormControl;}
+  get cappedRateFormControl() { return this.loanDataFormGroup.get('cappedRate') as FormControl;}
+  get rateFormControl() { return this.loanDataFormGroup.get('rate') as FormControl;}
+  get loanObjectFormControl() { return this.loanDataFormGroup.get('loanObject') as FormControl;}
+  get buildDevelopmentQuotationFormControl() { return this.loanDataFormGroup.get('buildDevelopmentQuotation') as FormControl;}
+  get acquisitionFeeFormControl() { return this.loanDataFormGroup.get('acquisitionFee') as FormControl;}
+  get repurchaseTypeFormControl() { return this.loanDataFormGroup.get('repurchaseTypes') as FormControl;}
+  get delayedFormControl() { return this.loanDataFormGroup.get('delayed') as FormControl;}
+  get applicationFeeFormControl() { return this.loanDataFormGroup.get('applicationFee') as FormControl;}
+  get delayTypeFormControl() { return this.loanDataFormGroup.get('delayType') as FormControl;}
+  get delayDurationFormControl() { return this.loanDataFormGroup.get('delayDuration') as FormControl;}
+  get firstDueDateFormControl() { return this.loanDataFormGroup.get('firstDueDate') as FormControl;}
+  get externalRealStateLoanFormControl() { return this.loanDataFormGroup.get('externalRealStateLoan') as FormControl;}
+  get externalConsomptionLoanFormControl() { return this.loanDataFormGroup.get('externalConsomptionLoan') as FormControl;}
+  get propertyTypeFormControl() { return this.loanDataFormGroup.get('propertyType') as FormControl;}
+  get isRepurchaseTypeForcedToINT(): boolean {
+    const code = this.loanObjectFormControl?.value?.code;
+    return code === 'AQS_RCH_CSO' || code === 'AQS_RCH_CSO_AMN' || code === 'AQS_RCH_CSO_CST';
+  }
   get showRiskAgreementWarningForPpoPpc(): boolean {
     const isTargetProduct = this.isSelectedProductIn([Products.PPO, Products.PPC]); 
     const duration = this.toForcedNumber(this.deadlineNumberFormControl?.value);
     return isTargetProduct && duration > 84;
   }
-
 }
-
-
