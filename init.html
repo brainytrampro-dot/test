@@ -1,157 +1,59 @@
-
-isJointAccount: boolean = false;
-
-get jointCustomersFormArray(): FormArray {
-  return this.formGroup.get('jointCustomersForms') as FormArray;
-}
-
-private createJointCustomerGroup(client: CustomerData, cutomerType: string): FormGroup {
-  return this.formBuilder.group({
-    customerData: new FormControl(client),
-    employer: this.formBuilder.group({
-      activitySector: new FormControl(null, [Validators.required]),
-      cutomerType: new FormControl(cutomerType),
-      contractType: new FormControl(),
-      isTitularized: new FormControl(false),
-      name: new FormControl(null, [Validators.required]),
-      address: new FormControl(null),
-      separation: new FormControl(true, [Validators.required]),
-      profession: new FormControl(),
-      phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
-    }, { validators: [DossierValidators.titularizedValidator] }),
-    financialData: this.formBuilder.group({
-      income: new FormControl(null, [Validators.required]),
-      spouseIncome: new FormControl(),
-      otherIncome: new FormControl(),
-      rentalIncome: new FormControl(),
-      familyAllowance: new FormControl(),
-      pension: new FormControl(),
-      dividends: new FormControl(),
-    }),
-  });
-}
-
-doneCustomerStep = () => {
-  this.update();
-  this.nextStep();
-};
-
-jointCustomersForms: this.formBuilder.array([]),
-
-ngoninit
-
-const jointAccounts = dossierData.jointsAccountsCUstomerData ?? [];
-this.isJointAccount = jointAccounts.length > 0;
-
-if (this.isJointAccount) {
-  this.employerFormGroup.disable({ emitEvent: false });
-  this.financialDataFormGroup.disable({ emitEvent: false });
-}
-
-
-
-ngafterviewinit
-
-
-if (this.isJointAccount) {
-  this.jointCustomersFormArray.clear();
-  const allClients = [
-    ...(dossier.customerData ? [dossier.customerData] : []),
-    ...(dossier.jointsAccountsCUstomerData ?? []),
-  ];
-  allClients.forEach((client) => {
-    this.jointCustomersFormArray.push(this.createJointCustomerGroup(client, cutomerType));
-  });
-
-  this.formGroup.patchValue({
-    loanData,
-    personalInfo: dossier.customerData?.personalInfo,
-  });
-} else {
-
-
-
-
-
-
-<!-- BRANCHE 1 : CAS CONJOINT -->
-<ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
-  <app-stepper
-    [nextFunction]="update"
-    [doneFunction]="doneCustomerStep"
-    [firstPreviousFunction]="previousStep"
-    [showNavigationList]="true"
-    doneButtonLabel="Suivant"
-    [disableFirstStepPreviousButton]="true">
-
-    <ng-container formArrayName="jointCustomersForms">
-      <cdk-step
-        *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index"
-        [formGroupName]="i"
-        [stepControl]="customerCtrl"
-        [completed]="customerCtrl.valid">
-
-        <ng-template cdkStepLabel>
-          <span>
-            {{ customerCtrl.get('customerData')?.value?.personalInfo?.firstName }}
-            {{ customerCtrl.get('customerData')?.value?.personalInfo?.lastName }}
-          </span>
-        </ng-template>
-
-        <div formGroupName="employer">
-          <ng-container *ngTemplateOutlet="employerFieldsTpl; context: {
-            empGroup: customerCtrl.get('employer'),
-            clientName: (customerCtrl.get('customerData')?.value?.personalInfo?.firstName + ' ' + customerCtrl.get('customerData')?.value?.personalInfo?.lastName)
-          }"></ng-container>
-        </div>
-
-        <div formGroupName="financialData">
-          <ng-container *ngTemplateOutlet="financialFieldsTpl; context: {
-            finGroup: customerCtrl.get('financialData')
-          }"></ng-container>
-        </div>
-
-      </cdk-step>
-    </ng-container>
-
-  </app-stepper>
-</ng-container>
-
-<!-- BRANCHE 2 : CAS NOMINAL -->
-<ng-template #nominalCustomerStepper>
-  <app-stepper [nextFunction]="update" [doneFunction]="nextStep" [firstPreviousFunction]="previousStep"
-    [showNavigationList]="false" doneButtonLabel="Suivant" [disableFirstStepPreviousButton]="true" [disabledDoneButton]="customerHasNonSegement && !employerCutomerTypeControl.valid">
-
-    <!-- <cdk-step personalInfo> dyalk ibqa kifma kan -->
-
-    <cdk-step formGroupName="employer" [stepControl]="employerFormGroup">
-      <ng-container *ngTemplateOutlet="employerFieldsTpl; context: { empGroup: employerFormGroup }"></ng-container>
-    </cdk-step>
-
-    <cdk-step formGroupName="financialData" [stepControl]="financialDataFormGroup">
-      <ng-container *ngTemplateOutlet="financialFieldsTpl; context: { finGroup: financialDataFormGroup }"></ng-container>
-    </cdk-step>
-
-  </app-stepper>
-</ng-template>
-
-
-................
-
 <form [formGroup]="formGroup" autocomplete="off" class="initiation-form">
   <app-stepper #principalStepper linear="false" (selectionChange)="onSelectionChange($event)" [showIndicator]="false" [showNavigationButtons]="false">
     <ng-template #additionalActions>
       <div class="dossierNumber">
         <img src="../../../../assets/svg/dossierNumber.svg" width="20" alt="dossier Number" />
         <span *ngIf="dossierData?.codeDossier">N°{{dossierData?.codeDossier}}</span>
+        <span>{{isJointAccount}}</span>
       </div>
     </ng-template>
-    <cdk-step [stepControl]="customerDataFormGroup" [completed]="isStepCompleted(customerDataFormGroup, 0)" [hasError]="isStepHasError(customerDataFormGroup, 0)">
-      <ng-template cdkStepLabel>
-        <span>{{"customer.loan.initiation.steps.customerdata.label" | translate}}</span>
-      </ng-template>
+    <!-- BRANCHE 1 : CAS CONJOINT -->
+    <ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
+      <app-stepper
+        [nextFunction]="update"
+        [doneFunction]="doneCustomerStep"
+        [firstPreviousFunction]="previousStep"
+        [showNavigationList]="true"
+        doneButtonLabel="Suivant"
+        [disableFirstStepPreviousButton]="true">
+
+        <ng-container formArrayName="jointCustomersForms">
+          <cdk-step
+            *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index"
+            [formGroupName]="i"
+            [stepControl]="customerCtrl"
+            [completed]="customerCtrl.valid">
+
+            <ng-template cdkStepLabel>
+              <span>
+                {{i}} -> LASTNAME FIRSTNAME
+              </span>
+            </ng-template>
+
+            <div formGroupName="employer">
+              <ng-container *ngTemplateOutlet="employerFieldsTpl; context: {
+                empGroup: customerCtrl.get('employer'),
+                clientName: (customerCtrl.get('customerData')?.value?.personalInfo?.firstName + ' ' + customerCtrl.get('customerData')?.value?.personalInfo?.lastName)
+              }"></ng-container>
+            </div>
+
+            <div formGroupName="financialData">
+              <ng-container *ngTemplateOutlet="financialFieldsTpl; context: {
+                finGroup: customerCtrl.get('financialData')
+              }"></ng-container>
+            </div>
+
+          </cdk-step>
+        </ng-container>
+
+      </app-stepper>
+    </ng-container>
+
+    <!-- BRANCHE 2 : CAS NOMINAL -->
+    <ng-template #nominalCustomerStepper>
       <app-stepper [nextFunction]="update" [doneFunction]="nextStep" [firstPreviousFunction]="previousStep"
         [showNavigationList]="false" doneButtonLabel="Suivant" [disableFirstStepPreviousButton]="true" [disabledDoneButton]="customerHasNonSegement && !employerCutomerTypeControl.valid">
+
         <cdk-step *ngIf="isProspect && personalInfoFormGroup" formGroupName="personalInfo" [stepControl]="personalInfoFormGroup">
           <div class="step-header">
             <div class="step-title-container">
@@ -425,263 +327,16 @@ if (this.isJointAccount) {
             </div>
           </div>
         </cdk-step>
+
         <cdk-step formGroupName="employer" [stepControl]="employerFormGroup">
-          <div class="step-header">
-            <div class="step-title-container">
-              <div class="step-visual">
-                <img src="../../../../assets/img/steps/client-informations.svg" width="217" alt="Données Professionnelles">
-              </div>
-              <div class="step-title-wrapper">
-                <h2 class="step-title">
-                  1. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
-                </h2>
-                <p class="step-description">
-                  {{"customer.loan.initiation.steps.customerdata.description1" | translate }}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="step-form">
-            <div class="stepper-content-body">
-              <div class="step-form-container">
-                <div class="row" *ngIf="customerHasNonSegement">
-                  <div class="col">
-                    <mat-form-field class="matselectsearch-dialog matselectsearch">
-                      <mat-label class="form-control-label">{{ "customer.type.label" | translate }}<span>*</span></mat-label>
-                      <div class="form-control-container">
-                        <mat-select formControlName="cutomerType"  placeholder="choisissez un type client"
-                         disableOptionCentering>                    
-                            <mat-option value="CLIPRI">{{ "Particulier" | translate}}</mat-option>
-                            <mat-option value="CLIPRO">{{ "Professionnel" | translate}}</mat-option>
-                        </mat-select>
-                      </div>
-                      <div class="error-container" *ngIf="formGroup.get('employer.contractType')?.hasError('required')">
-                      <span>{{"field.requierd.error.message" | translate}}</span>
-                      </div>
-                    </mat-form-field>
-                  </div>
-                </div>
-                <div class="row" *ngIf="showContractType">
-                  <div class="col">
-                    <mat-form-field class="matselectsearch-dialog matselectsearch">
-                      <mat-label class="form-control-label">{{ "employment.contract.label" | translate }}<span>*</span></mat-label>
-                      <div class="form-control-container">
-                        <mat-select formControlName="contractType"  placeholder="choisissez nature du contrat de travail" disableOptionCentering>                    
-                            <mat-option value="CDI">{{ "CDI" | translate}}</mat-option>
-                            <mat-option value="CDD">{{ "CDD" | translate}}</mat-option>
-                        </mat-select>
-                      </div>
-                    </mat-form-field>
-                  </div>
-                </div>
-                <div class="row" *ngIf="showContractType && contratType==='CDI'">
-                  <div class="col-md-auto">
-                    <label class="check-control">
-                      <input type="checkbox" formControlName="isTitularized">
-                      <div class="form-control-wrapper">
-                        <span class="fake-check"></span>
-                        <span class="fake-label">{{ "customer.employer.isTitularized" | translate }}</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <mat-form-field class="matselectsearch-dialog matselectsearch">
-                      <mat-label class="form-control-label">{{ "customer.activity.sector" | translate }}</mat-label>
-                      <div class="form-control-container">
-                        <mat-select [compareWith]="compareObjects" formControlName="activitySector"
-                          placeholder="choisissez un secteur d'activité" disableOptionCentering>
-                          <mat-option>
-                            <ngx-mat-select-search [formControl]="sectorActivityFilterControl"
-                            [placeholderLabel]="'Recherche ici'"
-                            [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
-                          </ngx-mat-select-search>
-                          <span class="icon-search-select"></span>
-                        </mat-option>
-                          <mat-option *ngFor="let activity of  filteredActivitiesSectors$ | async" [value]="activity">
-                            {{ activity?.designation | titlecase }}
-                          </mat-option>
-                        </mat-select>
-                      </div>
-                    </mat-form-field>
-                  </div>
-                </div>
-                <div class="row" *ngIf="showSeparation">
-                  <div class="col-md-auto" >
-                    <label class="check-control">
-                      <input type="checkbox" formControlName="separation">
-                      <div class="form-control-wrapper">
-                        <span class="fake-check"></span>
-                        <span class="fake-label">{{ "Séparation vie privée / vie professionnelle" | translate }}</span>
-                      </div>
-                    </label>
-                  </div>
-                  </div>
-                  <div class="row" *ngIf="!separation && showProfessionList">
-                  <div class="col" >
-                    <mat-form-field class="matselectsearch-dialog matselectsearch">
-                      <mat-label class="form-control-label">{{ "Profession" | translate }}</mat-label>
-                      <div class="form-control-container">
-                        <mat-select [compareWith]="compareObjects" formControlName="profession" disableOptionCentering>
-                          <mat-option>
-                            <ngx-mat-select-search [formControl]="professionFilterControl"
-                                                   [placeholderLabel]="'Recherche ici'"
-                                                   [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
-                            </ngx-mat-select-search>
-                            <span class="icon-search-select"></span>
-                          </mat-option>
-                          <mat-option *ngFor="let prof of filteredProfessions$ | async" [value]="prof">
-                            {{ prof.designation }}
-                          </mat-option>
-                        </mat-select>
-                      </div>
-                    </mat-form-field>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">{{ "customer.employer" | translate }}</label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" formControlName="name" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper" [ngClass]="{'has-error': employerPhoneControl.errors?.pattern}">
-                      <label class="form-control-label">{{ "customer.employer.phone" | translate }}</label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" formControlName="phone" />
-                      </div>
-                      <div class="error-container" *ngIf="employerPhoneControl?.errors?.pattern">
-                        <span>{{ "customer.invalid.phone.message" | translate }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">{{ "customer.employer.address" | translate }}</label>
-                      <div class="form-control-container">
-                        <textarea class="form-control-textarea" type="text" formControlName="address"></textarea>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ng-container *ngTemplateOutlet="employerFieldsTpl; context: { empGroup: employerFormGroup }"></ng-container>
         </cdk-step>
+
         <cdk-step formGroupName="financialData" [stepControl]="financialDataFormGroup">
-          <div class="step-header">
-            <div class="step-title-container">
-              <div class="step-visual">
-                <img src="../../../../assets/img/steps/client-informations.svg" width="217"
-                  alt="Données Professionnelles">
-              </div>
-              <div class="step-title-wrapper">
-                <h2 class="step-title">
-                  2. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
-                </h2>
-                <p class="step-description">
-                  {{"customer.loan.initiation.steps.customerdata.description2" | translate }}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="step-form">
-            <div class="stepper-content-body">
-              <div class="step-form-container">
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">{{ "customer.income.label" | translate }}<span>*</span></label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="income" />
-                      </div>
-                        <div class="error-container" *ngIf="incomeControl.touched && incomeControl.hasError('required')">
-                          {{ "field.requierd.error.message" | translate }}
-                        </div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">{{
-                        "customer.spouseIncome.label" | translate
-                        }}</label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="spouseIncome" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">
-                        {{"rental-income" | translate}}
-                      </label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="rentalIncome" />
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">
-                        {{"family-allowance" | translate}}
-                      </label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n
-                          formControlName="familyAllowance" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">
-                        {{"pension" | translate}}
-                      </label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="pension" />
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">
-                        {{"dividends" | translate}}
-                      </label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="dividends" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col">
-                    <div class="form-control-wrapper">
-                      <label class="form-control-label">{{
-                        "customer.otherIncome.label" | translate
-                        }}</label>
-                      <div class="form-control-container">
-                        <input class="form-control-input" type="text" appDecimalI18n formControlName="otherIncome" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ng-container *ngTemplateOutlet="financialFieldsTpl; context: { finGroup: financialDataFormGroup }"></ng-container>
         </cdk-step>
       </app-stepper>
-    </cdk-step>
+    </ng-template>
     <cdk-step [stepControl]="loanDataFormGroup" formGroupName="loanData" [completed]="isStepCompleted(loanDataFormGroup,1)" [hasError]="isStepHasError(loanDataFormGroup,1)">
       <ng-template cdkStepLabel>
         <span>{{"customer.loan.initiation.steps.loandata.label" | translate}}</span>
@@ -817,12 +472,12 @@ if (this.isJointAccount) {
           {{ "customer.loan.initiation.steps.beneficiary.label" | translate }}
         </span>
       </ng-template>
-      <app-beneficiaries-data-table 
+      <app-beneficiaries-data-table
       [representativeList]="dossierData?.representatives || []"
       [beneficiaryList]="dossierData?.beneficiaries || []"
       [guarantorsList]="dossierData?.guarantors || []"
       [propertyData]="dossierData?.propertyData || {}"
-      [beneficiariesFormArray]="beneficiariesFormArray" 
+      [beneficiariesFormArray]="beneficiariesFormArray"
       [guarantorsFormArray]="guarantorsFormArray"
       ></app-beneficiaries-data-table>
     </cdk-step>
@@ -840,12 +495,13 @@ if (this.isJointAccount) {
                 [representativesFormArray]="representativesFormArray">
         </app-representatives-data-table>
     </cdk-step>
-    <cdk-step [stepControl]="insuranceDataFormGroup" [completed]="isStepCompleted(insuranceDataFormGroup,5)"
-      [hasError]="isStepHasError(insuranceDataFormGroup,5)">
+    <cdk-step [stepControl]="insuranceDataFormGroup" [completed]="isInsuranceStepCompleted()"
+      [hasError]="isInsuranceStepHasError()">
       <ng-template cdkStepLabel>
         <span>{{ 'customer.loan.initiation.steps.insurancedata.label' | translate}}</span>
       </ng-template>
-      <app-customer-assurance-data-form [insuranceDataFormGroup]="insuranceDataFormGroup">
+      <app-customer-assurance-data-form [insuranceDataFormGroup]="insuranceDataFormGroup"
+        (insuranceValidityChange)="onJointInsuranceValidityChange($event)">
       </app-customer-assurance-data-form>
     </cdk-step>
     <cdk-step [stepControl]="warrantiesFormArray" [completed]="isStepCompleted(warrantiesFormArray,6)"
@@ -860,3 +516,261 @@ if (this.isJointAccount) {
     </cdk-step>
   </app-stepper>
 </form>
+
+
+<ng-template #financialFieldsTpl let-i="index" let-finGroup="finGroup" >
+  <div class="step-header">
+    <div class="step-title-container">
+      <div class="step-visual">
+        <img src="../../../../assets/img/steps/client-informations.svg" width="217"
+          alt="Données Professionnelles">
+      </div>
+      <div class="step-title-wrapper">
+        <h2 class="step-title">
+          2. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
+        </h2>
+        <p class="step-description">
+          {{"customer.loan.initiation.steps.customerdata.description2" | translate }}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="step-form">
+    <div class="stepper-content-body">
+      <div class="step-form-container">
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">{{ "customer.income.label" | translate }}<span>*</span></label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="income" />
+              </div>
+                <div class="error-container" *ngIf="incomeControl.touched && incomeControl.hasError('required')">
+                  {{ "field.requierd.error.message" | translate }}
+                </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">{{
+                "customer.spouseIncome.label" | translate
+                }}</label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="spouseIncome" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">
+                {{"rental-income" | translate}}
+              </label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="rentalIncome" />
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">
+                {{"family-allowance" | translate}}
+              </label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n
+                  formControlName="familyAllowance" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">
+                {{"pension" | translate}}
+              </label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="pension" />
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">
+                {{"dividends" | translate}}
+              </label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="dividends" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">{{
+                "customer.otherIncome.label" | translate
+                }}</label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" appDecimalI18n formControlName="otherIncome" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #employerFieldsTpl let-empGroup="empGroup" let-i="index" let-clientName="clientName">
+  <div class="step-header">
+    <div class="step-title-container">
+      <div class="step-visual">
+        <img src="../../../../assets/img/steps/client-informations.svg" width="217" alt="Données Professionnelles">
+      </div>
+      <div class="step-title-wrapper">
+        <h2 class="step-title">
+          1. {{"customer.loan.initiation.steps.customerdata.label" | translate }}
+        </h2>
+        <p class="step-description">
+          {{"customer.loan.initiation.steps.customerdata.description1" | translate }}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="step-form">
+    <div class="stepper-content-body">
+      <div class="step-form-container">
+        <div class="row" *ngIf="customerHasNonSegement">
+          <div class="col">
+            <mat-form-field class="matselectsearch-dialog matselectsearch">
+              <mat-label class="form-control-label">{{ "customer.type.label" | translate }}<span>*</span></mat-label>
+              <div class="form-control-container">
+                <mat-select formControlName="cutomerType"  placeholder="choisissez un type client"
+                  disableOptionCentering>
+                    <mat-option value="CLIPRI">{{ "Particulier" | translate}}</mat-option>
+                    <mat-option value="CLIPRO">{{ "Professionnel" | translate}}</mat-option>
+                </mat-select>
+              </div>
+              <div class="error-container" *ngIf="formGroup.get('employer.contractType')?.hasError('required')">
+              <span>{{"field.requierd.error.message" | translate}}</span>
+              </div>
+            </mat-form-field>
+          </div>
+        </div>
+        <div class="row" *ngIf="showContractType">
+          <div class="col">
+            <mat-form-field class="matselectsearch-dialog matselectsearch">
+              <mat-label class="form-control-label">{{ "employment.contract.label" | translate }}<span>*</span></mat-label>
+              <div class="form-control-container">
+                <mat-select formControlName="contractType"  placeholder="choisissez nature du contrat de travail" disableOptionCentering>
+                    <mat-option value="CDI">{{ "CDI" | translate}}</mat-option>
+                    <mat-option value="CDD">{{ "CDD" | translate}}</mat-option>
+                </mat-select>
+              </div>
+            </mat-form-field>
+          </div>
+        </div>
+        <div class="row" *ngIf="showContractType && contratType==='CDI'">
+          <div class="col-md-auto">
+            <label class="check-control">
+              <input type="checkbox" formControlName="isTitularized">
+              <div class="form-control-wrapper">
+                <span class="fake-check"></span>
+                <span class="fake-label">{{ "customer.employer.isTitularized" | translate }}</span>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <mat-form-field class="matselectsearch-dialog matselectsearch">
+              <mat-label class="form-control-label">{{ "customer.activity.sector" | translate }}</mat-label>
+              <div class="form-control-container">
+                <mat-select [compareWith]="compareObjects" formControlName="activitySector"
+                  placeholder="choisissez un secteur d'activité" disableOptionCentering>
+                  <mat-option>
+                    <ngx-mat-select-search [formControl]="sectorActivityFilterControl"
+                    [placeholderLabel]="'Recherche ici'"
+                    [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
+                  </ngx-mat-select-search>
+                  <span class="icon-search-select"></span>
+                </mat-option>
+                  <mat-option *ngFor="let activity of  filteredActivitiesSectors$ | async" [value]="activity">
+                    {{ activity?.designation | titlecase }}
+                  </mat-option>
+                </mat-select>
+              </div>
+            </mat-form-field>
+          </div>
+        </div>
+        <div class="row" *ngIf="showSeparation">
+          <div class="col-md-auto" >
+            <label class="check-control">
+              <input type="checkbox" formControlName="separation">
+              <div class="form-control-wrapper">
+                <span class="fake-check"></span>
+                <span class="fake-label">{{ "Séparation vie privée / vie professionnelle" | translate }}</span>
+              </div>
+            </label>
+          </div>
+          </div>
+          <div class="row" *ngIf="!separation && showProfessionList">
+          <div class="col" >
+            <mat-form-field class="matselectsearch-dialog matselectsearch">
+              <mat-label class="form-control-label">{{ "Profession" | translate }}</mat-label>
+              <div class="form-control-container">
+                <mat-select [compareWith]="compareObjects" formControlName="profession" disableOptionCentering>
+                  <mat-option>
+                    <ngx-mat-select-search [formControl]="professionFilterControl"
+                                            [placeholderLabel]="'Recherche ici'"
+                                            [noEntriesFoundLabel]="'Aucun element correspondant trouvé'" ngDefaultControl>
+                    </ngx-mat-select-search>
+                    <span class="icon-search-select"></span>
+                  </mat-option>
+                  <mat-option *ngFor="let prof of filteredProfessions$ | async" [value]="prof">
+                    {{ prof.designation }}
+                  </mat-option>
+                </mat-select>
+              </div>
+            </mat-form-field>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">{{ "customer.employer" | translate }}</label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" formControlName="name" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper" [ngClass]="{'has-error': employerPhoneControl.errors?.pattern}">
+              <label class="form-control-label">{{ "customer.employer.phone" | translate }}</label>
+              <div class="form-control-container">
+                <input class="form-control-input" type="text" formControlName="phone" />
+              </div>
+              <div class="error-container" *ngIf="employerPhoneControl?.errors?.pattern">
+                <span>{{ "customer.invalid.phone.message" | translate }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-control-wrapper">
+              <label class="form-control-label">{{ "customer.employer.address" | translate }}</label>
+              <div class="form-control-container">
+                <textarea class="form-control-textarea" type="text" formControlName="address"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-template>
