@@ -22,7 +22,7 @@ import {
   WarrantyType,
 } from '@core/models';
 import { Observable, Subject, Subscription } from 'rxjs';
-import { map, skip, take } from 'rxjs/operators';
+import { debounceTime, map, skip, take } from 'rxjs/operators';
 import { BaseComponent } from '@shared/components';
 import { Guarantor } from '@core/models/guarantor';
 import { DossierDataService, DossierDataStoreService, ReferentialService } from '@core/services';
@@ -75,9 +75,11 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   prospect: boolean | undefined;
   accountFilterControl = new FormControl('');
   isPpoPpcFamily:boolean=false;
+  jointInsuranceFormsValid: boolean = false;
   @Output() goToloanHistoryStep=new EventEmitter<any>();
   @Output() validation = new EventEmitter<any>();
   @ViewChild('principalStepper') principalStepper!: CdkStepper;
+  isJointAccount: boolean = false;
 
   constructor(
     public dossierStore: DossierDataStoreService,
@@ -108,6 +110,12 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
       const isMRE=dossierData.customerData?.personalInfo?.residenceCountry !== "MAROC";
       const marketitem = dossierData.customerData?.personalInfo?.market?.split('/')[1];
 
+      this.isJointAccount = !!dossierData.customerData?.isJointAccount;
+
+      if (this.isJointAccount) {
+        this.employerFormGroup.disable({ emitEvent: false });
+        this.financialDataFormGroup.disable({ emitEvent: false });
+      }
       this.isClientMRE=isMRE;
       this.segmentClient=segementClient!;
       this.showContractType= dossierData.codeStatus !== Status.ADDITIONAL_AGENCY_INFORMATION_VALIDATION;
@@ -207,7 +215,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
 
     loanObjectCtrl?.valueChanges.subscribe(value => {
       const shouldRequire = ['AQS_BSN_COML', 'AQS_BSN_COML_RCH'].includes(value?.code);
-      
+
       if (shouldRequire) {
         this.restoreBeneficiaryValidators();
         this.restorePropertyDataValidators();
@@ -219,7 +227,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   }
 
   private setupAutoSave(){
-    this.dossierStoreSubscription = this.dossierStore.dossierData$.pipe(skip(1)).subscribe(dossierData => {
+    this.dossierStoreSubscription = this.dossierStore.dossierData$.pipe(skip(1), debounceTime(0)).subscribe(dossierData => {
       this.dossierData= dossierData;
       if(dossierData.changeToSave){
         this.onSave(convertFormValuesToDossierData(this.formGroupRawValue, dossierData));
@@ -228,6 +236,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   }
 
   ngAfterViewInit(): void {
+    
     if (this.patchedForm) {
       const dossier = this.dossierStore.get();
       const isImtilak = [Products.IMTILAK.toString(), Products.IMTILAK_PPR.toString()].includes(dossier.product?.code!);
@@ -237,14 +246,29 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
       const formattedRepurchaseTypes = isMultipleRepurchase ? repurchaseTypes : (repurchaseTypes.length > 0 ? repurchaseTypes[0] : null);
 
       const loanData = {
-        ...dossier.loanData, 
+        ...dossier.loanData,
         mechanisms: (isImtilak && mechanisms.length > 0) ? mechanisms[0]: mechanisms,
         repurchaseTypes: formattedRepurchaseTypes
       };
       const market = dossier.customerData?.personalInfo?.market || '';
       const cutomerType =market.endsWith('PRI') ? 'CLIPRI' :market.endsWith('PRO') ? 'CLIPRO' :'';
-      this.formGroup.patchValue({...dossier, loanData, personalInfo: dossier.customerData?.personalInfo,employer: {...dossier.employer,cutomerType
-      }});
+      if (this.isJointAccount) {
+        this.jointCustomersFormArray.clear();
+        const allClients = [
+          ...(dossier.customerData ? [dossier.customerData] : []),
+          ...(dossier.jointsAccountsCustomerData ?? []),
+        ];
+        allClients.forEach((client) => {
+          this.jointCustomersFormArray.push(this.createJointCustomerGroup(client, cutomerType));
+        });
+
+        this.formGroup.patchValue({
+          loanData,
+          personalInfo: dossier.customerData?.personalInfo,
+        });
+      } else {
+        this.formGroup.patchValue({...dossier, loanData, personalInfo: dossier.customerData?.personalInfo, employer: {...dossier.employer,cutomerType}});
+      }
       this.customerDataFormGroup?.updateValueAndValidity();
       this.propertyDataNotaryFormGroup?.updateValueAndValidity();
       this.employerFormGroup?.updateValueAndValidity();
@@ -274,7 +298,10 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   }
 
   update = () => {
-    if(!this.customerHasNonSegement ||( this.customerHasNonSegement  && this.employerCutomerTypeControl?.valid)){
+  if (this.isJointAccount) {
+    console.log("jointCustomersData",this.jointCustomersFormArray.getRawValue());
+  }
+  if(!this.customerHasNonSegement ||( this.customerHasNonSegement  && this.employerCutomerTypeControl?.valid)){
       const dossier = this.dossierStore.get();
       const market = this.computeMarketFromCustomerType(dossier);
       this.dossierStore.update({
@@ -336,6 +363,24 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
 
   isStepHasError(formGroup: AbstractControl, stepIndex: number) {
     return this.stepsVisited[stepIndex] && formGroup?.invalid
+  }
+
+  onJointInsuranceValidityChange(isValid: boolean): void {
+    this.jointInsuranceFormsValid = isValid;
+  }
+
+  isInsuranceStepValid(): boolean {
+    const hasJointCustomers = (this.dossierStore.get()?.jointsAccountsCustomerData ?? [])
+      .some(customer => !!customer?.customerCode);
+    return hasJointCustomers ? this.jointInsuranceFormsValid : !!this.insuranceDataFormGroup?.valid;
+  }
+
+  isInsuranceStepCompleted(): boolean {
+    return !!this.stepsVisited[5] && this.isInsuranceStepValid();
+  }
+
+  isInsuranceStepHasError(): boolean {
+    return !!this.stepsVisited[5] && !this.isInsuranceStepValid();
   }
 
   onSave(dossierPayload: DossierData) {
@@ -464,9 +509,42 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
     baseDate.setDate(baseDate.getDate() + 1);
     return baseDate;
   }
+  
+  doneCustomerStep = () => {
+    this.update();
+    this.nextStep();
+  };
+
+  
+  private createJointCustomerGroup(client: CustomerData, cutomerType: string): FormGroup {
+    return this.formBuilder.group({
+      customerData: new FormControl(client),
+      employer: this.formBuilder.group({
+        activitySector: new FormControl(null, [Validators.required]),
+        cutomerType: new FormControl(cutomerType),
+        contractType: new FormControl(),
+        isTitularized: new FormControl(false),
+        name: new FormControl(null, [Validators.required]),
+        address: new FormControl(null),
+        separation: new FormControl(true, [Validators.required]),
+        profession: new FormControl(),
+        phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
+      }, { validators: [DossierValidators.titularizedValidator] }),
+      financialData: this.formBuilder.group({
+        income: new FormControl(null, [Validators.required]),
+        spouseIncome: new FormControl(),
+        otherIncome: new FormControl(),
+        rentalIncome: new FormControl(),
+        familyAllowance: new FormControl(),
+        pension: new FormControl(),
+        dividends: new FormControl(),
+      }),
+    });
+  }
 
   private buildInitiationForm( ) {
     this.formGroup = this.formBuilder.group({
+      jointCustomersForms: this.formBuilder.array([]),
       personalInfo: this.buildProspectFormGroup(),
       employer: this.formBuilder.group({
         activitySector: new FormControl(null, [Validators.required]),
@@ -530,9 +608,9 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
 
     const allowedCodesByField: Record<typeof fileds, string[]> = {
       Notary: [
-        Products.MOULKIA.toString(), 
-        Products.PPI_VEFA.toString(), 
-        Products.YASSIR.toString(), 
+        Products.MOULKIA.toString(),
+        Products.PPI_VEFA.toString(),
+        Products.YASSIR.toString(),
         Products.YASSIR_PPR.toString(),
         Products.PPO.toString(),
         Products.PPO_PPR.toString(),
@@ -540,13 +618,13 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
         Products.PPI_Engagement_Promoteur.toString()],
       propertyData: [
         Products.MOULKIA.toString(),
-        Products.YASSIR.toString(), 
+        Products.YASSIR.toString(),
         Products.YASSIR_PPR.toString(),
         Products.PPO.toString(),
         Products.PPO_PPR.toString(),
         Products.PPC.toString()],
       Beneficiary: [
-        Products.YASSIR.toString(), 
+        Products.YASSIR.toString(),
         Products.YASSIR_PPR.toString(),
         Products.PPO.toString(),
         Products.PPO_PPR.toString(),
@@ -691,4 +769,7 @@ export class InitiationStepperComponent extends BaseComponent implements OnInit,
   get beneficiariesFormArray(): FormArray {           return this.formGroup.controls['beneficiaries'] as FormArray;}
   get representativesFormArray(): FormArray {         return this.formGroup.controls['representatives'] as FormArray;}
   get propertiesFormArray(): FormArray {              return this.propertyDataFormGroup.controls['properties'] as FormArray;}
+  get jointCustomersFormArray(): FormArray {
+    return this.formGroup.get('jointCustomersForms') as FormArray;
+  }
 }
