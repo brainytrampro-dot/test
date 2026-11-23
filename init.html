@@ -1,93 +1,64 @@
 
-<ng-template #financialFieldsTpl let-i="index">
-
-
-<ng-template #employerFieldsTpl let-i="index" let-clientName="clientName">
-
-<cdk-step [stepControl]="customerDataFormGroup" [completed]="isStepCompleted(customerDataFormGroup, 0)" [hasError]="isStepHasError(customerDataFormGroup, 0)">
-  <ng-template cdkStepLabel>
-    <span>{{"customer.loan.initiation.steps.customerdata.label" | translate}}</span>
-  </ng-template>
-
+<!-- BRANCHE 1 : CAS CONJOINT -->
+<ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
   <app-stepper
     [nextFunction]="update"
     [doneFunction]="doneCustomerStep"
     [firstPreviousFunction]="previousStep"
-    [showNavigationList]="isJointAccount"
+    [showNavigationList]="true"
     doneButtonLabel="Suivant"
-    [disableFirstStepPreviousButton]="true"
-    [disabledDoneButton]="customerHasNonSegement && !employerCutomerTypeControl.valid">
+    [disableFirstStepPreviousButton]="true">
 
-    <!-- =================================================================== -->
-    <!-- CAS 1 : JOINT ACCOUNT (Kola Client = 1 Step f <app-stepper>)        -->
-    <!-- =================================================================== -->
-    <ng-container *ngIf="isJointAccount; else nominalCustomerStepsTpl">
+    <ng-container formArrayName="jointCustomersForms">
       <cdk-step
-        *ngFor="let client of allClientsList; let i = index"
-        [stepControl]="getCustomerStepControl(i)"
-        [completed]="isCustomerStepValid(i)">
+        *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index"
+        [formGroupName]="i"
+        [stepControl]="customerCtrl"
+        [completed]="customerCtrl.valid">
 
-        <!-- Smiya dyal l-client li ghat-ban f l-navigation bar -->
         <ng-template cdkStepLabel>
           <span>
-            {{ client?.personalInfo?.firstName }} {{ client?.personalInfo?.lastName }}
+            {{ customerCtrl.get('customerData')?.value?.personalInfo?.firstName }}
+            {{ customerCtrl.get('customerData')?.value?.personalInfo?.lastName }}
           </span>
         </ng-template>
 
-        <!-- 1. Employer dyal Client i -->
-        <div formArrayName="employer">
-          <div [formGroupName]="i">
-            <ng-container *ngTemplateOutlet="employerFieldsTpl; context: { index: i, clientName: (client?.personalInfo?.firstName + ' ' + client?.personalInfo?.lastName) }"></ng-container>
-          </div>
+        <div formGroupName="employer">
+          <ng-container *ngTemplateOutlet="employerFieldsTpl; context: {
+            empGroup: customerCtrl.get('employer'),
+            clientName: (customerCtrl.get('customerData')?.value?.personalInfo?.firstName + ' ' + customerCtrl.get('customerData')?.value?.personalInfo?.lastName)
+          }"></ng-container>
         </div>
 
-        <!-- 2. FinancialData dyal Client i -->
-        <div formArrayName="financialData">
-          <div [formGroupName]="i">
-            <ng-container *ngTemplateOutlet="financialFieldsTpl; context: { index: i }"></ng-container>
-          </div>
+        <div formGroupName="financialData">
+          <ng-container *ngTemplateOutlet="financialFieldsTpl; context: {
+            finGroup: customerCtrl.get('financialData')
+          }"></ng-container>
         </div>
 
       </cdk-step>
     </ng-container>
 
-    <!-- =================================================================== -->
-    <!-- CAS 2 : NOMINAL (Client wahed - bhal li kan b-dabt)                -->
-    <!-- =================================================================== -->
-    <ng-template #nominalCustomerStepsTpl>
-      <!-- Step Prospect (ibqa kifma kan) -->
-      <cdk-step *ngIf="isProspect && personalInfoFormGroup" formGroupName="personalInfo" [stepControl]="personalInfoFormGroup">
-        <!-- ... L-HTML dyal personalInfo dyalk ... -->
-      </cdk-step>
+  </app-stepper>
+</ng-container>
 
-      <!-- Step Employer (index 0) -->
-      <cdk-step formArrayName="employer" [stepControl]="employerFormGroup">
-        <div [formGroupName]="0">
-          <ng-container *ngTemplateOutlet="employerFieldsTpl; context: { index: 0 }"></ng-container>
-        </div>
-      </cdk-step>
+<!-- BRANCHE 2 : CAS NOMINAL -->
+<ng-template #nominalCustomerStepper>
+  <app-stepper [nextFunction]="update" [doneFunction]="nextStep" [firstPreviousFunction]="previousStep"
+    [showNavigationList]="false" doneButtonLabel="Suivant" [disableFirstStepPreviousButton]="true" [disabledDoneButton]="customerHasNonSegement && !employerCutomerTypeControl.valid">
 
-      <!-- Step FinancialData (index 0) -->
-      <cdk-step formArrayName="financialData" [stepControl]="financialDataFormGroup">
-        <div [formGroupName]="0">
-          <ng-container *ngTemplateOutlet="financialFieldsTpl; context: { index: 0 }"></ng-container>
-        </div>
-      </cdk-step>
-    </ng-template>
+    <!-- <cdk-step personalInfo> dyalk ibqa kifma kan -->
+
+    <cdk-step formGroupName="employer" [stepControl]="employerFormGroup">
+      <ng-container *ngTemplateOutlet="employerFieldsTpl; context: { empGroup: employerFormGroup }"></ng-container>
+    </cdk-step>
+
+    <cdk-step formGroupName="financialData" [stepControl]="financialDataFormGroup">
+      <ng-container *ngTemplateOutlet="financialFieldsTpl; context: { finGroup: financialDataFormGroup }"></ng-container>
+    </cdk-step>
 
   </app-stepper>
-</cdk-step>
-
-
-
-
-
-
-
-
-
-
-
+</ng-template>
 
 
 ................
