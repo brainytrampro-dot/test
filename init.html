@@ -1,4 +1,79 @@
 
+isJointAccount: boolean = false;
+
+get jointCustomersFormArray(): FormArray {
+  return this.formGroup.get('jointCustomersForms') as FormArray;
+}
+
+private createJointCustomerGroup(client: CustomerData, cutomerType: string): FormGroup {
+  return this.formBuilder.group({
+    customerData: new FormControl(client),
+    employer: this.formBuilder.group({
+      activitySector: new FormControl(null, [Validators.required]),
+      cutomerType: new FormControl(cutomerType),
+      contractType: new FormControl(),
+      isTitularized: new FormControl(false),
+      name: new FormControl(null, [Validators.required]),
+      address: new FormControl(null),
+      separation: new FormControl(true, [Validators.required]),
+      profession: new FormControl(),
+      phone: new FormControl(null, [Validators.pattern('^(0[0-9]{9}|\\+?[1-9]\\d{1,14})$')]),
+    }, { validators: [DossierValidators.titularizedValidator] }),
+    financialData: this.formBuilder.group({
+      income: new FormControl(null, [Validators.required]),
+      spouseIncome: new FormControl(),
+      otherIncome: new FormControl(),
+      rentalIncome: new FormControl(),
+      familyAllowance: new FormControl(),
+      pension: new FormControl(),
+      dividends: new FormControl(),
+    }),
+  });
+}
+
+doneCustomerStep = () => {
+  this.update();
+  this.nextStep();
+};
+
+jointCustomersForms: this.formBuilder.array([]),
+
+ngoninit
+
+const jointAccounts = dossierData.jointsAccountsCUstomerData ?? [];
+this.isJointAccount = jointAccounts.length > 0;
+
+if (this.isJointAccount) {
+  this.employerFormGroup.disable({ emitEvent: false });
+  this.financialDataFormGroup.disable({ emitEvent: false });
+}
+
+
+
+ngafterviewinit
+
+
+if (this.isJointAccount) {
+  this.jointCustomersFormArray.clear();
+  const allClients = [
+    ...(dossier.customerData ? [dossier.customerData] : []),
+    ...(dossier.jointsAccountsCUstomerData ?? []),
+  ];
+  allClients.forEach((client) => {
+    this.jointCustomersFormArray.push(this.createJointCustomerGroup(client, cutomerType));
+  });
+
+  this.formGroup.patchValue({
+    loanData,
+    personalInfo: dossier.customerData?.personalInfo,
+  });
+} else {
+
+
+
+
+
+
 <!-- BRANCHE 1 : CAS CONJOINT -->
 <ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
   <app-stepper
