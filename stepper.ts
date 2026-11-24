@@ -251,3 +251,121 @@ export class StepperComponent extends CdkStepper implements OnInit {
     <ng-container *ngIf="selected" [ngTemplateOutlet]="stepBody"></ng-container>
   </div>
 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Parent
+
+
+
+       <div class="workflow-task-container " [ngClass]="{expanded:toggleShow}">
+  <div class="data-capture-main">
+    <div mode="side" opened class="stepper-list-container">
+      <ul class="stepper-list">
+        <li>
+          <span class="step-title">INSTRUCTION</span>
+          <ul class="second-step-level">
+            <li>
+              <button class="step-title active" type="button" (click)="instructionToggle = true">
+                <span>Données</span>
+              </button>
+              <app-initiation-stepper *ngIf="instructionToggle" (validation)="showDocuments()" (goToloanHistoryStep)="OnGoToLoanHistoryStep($event)"></app-initiation-stepper>
+            </li>
+            <li>
+              <button class="step-title" [ngClass]="{active:!instructionToggle}" type="button">
+                <span> Documents </span>
+              </button>
+              <app-loan-attachments *ngIf="!instructionToggle"></app-loan-attachments>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="data-view-main r-data-view-main">
+    <app-vertical-tabs #verticalStepper  [(toggleShow)]="toggleShow">
+      <app-vertical-tab-item [label]="'customer.info.data.tiers' | translate">
+        <app-customer-personal-info>
+        </app-customer-personal-info>
+      </app-vertical-tab-item>
+      <app-vertical-tab-item *ngIf="!(dossierData$ | async)?.customerData?.personalInfo?.prospect" [label]="'customer.info.mvt.bank' | translate">
+        <app-customer-balance-activity-wrapper>
+        </app-customer-balance-activity-wrapper>
+      </app-vertical-tab-item>
+     <app-vertical-tab-item [label]="'customer.info.loan.history' | translate">
+       <app-loan-history></app-loan-history>
+      </app-vertical-tab-item>
+    </app-vertical-tabs>
+  </div>
+</div>
+
+
+
+       import { CdkStepper } from '@angular/cdk/stepper';
+import { Injector, Component, ViewChild } from '@angular/core';
+import { DossierData } from '@core/models';
+import { DossierDataStoreService } from '@core/services';
+import { BaseComponent } from '@shared/components';
+import { Observable } from 'rxjs';
+
+@Component({
+  selector: 'app-init-view',
+  templateUrl: './init-view.component.html',
+  styleUrls: ['./init-view.component.scss'],
+  providers: [DossierDataStoreService],
+})
+export class InitViewComponent extends BaseComponent {
+  dossierData$!: Observable<DossierData>;
+  toggleShow = false;
+  instructionToggle = true;
+  router: any;
+  @ViewChild('verticalStepper') verticalStepper!: CdkStepper;
+
+
+  constructor(injector: Injector, private dossierStore: DossierDataStoreService
+  ) {
+    super(injector);
+    this.dossierData$ = this.dossierStore.dossierData$;
+    this.initState();
+  }
+
+  private initState() {
+    const initialState = this.router.getCurrentNavigation()?.extras.state;
+    if (!initialState) {
+      this.router.navigateByUrl('/');
+    }
+    this.dossierStore.init({...initialState, mode: 'CREATE'});
+  }
+
+  showDocuments() {
+    this.instructionToggle = false;
+  }
+
+  OnGoToLoanHistoryStep(event: any): void {
+    this.goToStep(2);
+    this.toggleShow=false;
+  }
+
+
+  goToStep(index:number){
+    if(index>=0 && index<this.verticalStepper?.steps?.length){
+      this.verticalStepper.selectedIndex=index;
+    }
+  }
+}
+
