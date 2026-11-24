@@ -1,3 +1,36 @@
+:host ::ng-deep .third-step-level > li.stepper-label:first-child .step-title {
+  flex-wrap: wrap;
+}
+
+:host ::ng-deep .sub-clients-list {
+  flex-basis: 100%;
+  width: 100%;
+  list-style: none;
+  padding-left: 16px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  border-left: 1px solid #d9d9d9;
+
+  li {
+    display: block;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #6c757d;
+    cursor: pointer;
+    transition: color 0.2s;
+
+    &:hover,
+    &.active {
+      font-weight: 600;
+      color: #e33550;
+    }
+
+    &.completed:not(.active) {
+      color: #28a745;
+    }
+  }
+}
 
 
 @ViewChild('principalStepper') principalStepper!: CdkStepper;
