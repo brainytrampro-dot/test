@@ -1,3 +1,65 @@
+<!-- BRANCHE 1 : CAS CONJOINT -->
+<ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
+  <app-stepper
+    #jointCustomerStepper
+    [showNavigationList]="false"
+    [showNavigationButtons]="false"
+    [showIndicator]="false">
+
+    <ng-container formArrayName="jointCustomersForms">
+      <cdk-step
+        *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index; let isLast = last; let isFirst = first"
+        [formGroupName]="i"
+        [stepControl]="customerCtrl"
+        [completed]="customerCtrl.valid">
+
+        <!-- Stepper interne du Client i : Step 1 (Employer) -> Step 2 (FinancialData) -->
+        <app-stepper
+          [nextFunction]="update"
+          [doneFunction]="isLast ? doneCustomerStep : nextJointCustomer"
+          [firstPreviousFunction]="isFirst ? previousStep : previousJointCustomer"
+          [showNavigationList]="false"
+          [showNavigationButtons]="true"
+          doneButtonLabel="Suivant"
+          [disableFirstStepPreviousButton]="isFirst"
+          [disabledDoneButton]="customerCtrl.invalid">
+
+          <!-- Sub-Step 1 : Employer -->
+          <cdk-step formGroupName="employer" [stepControl]="customerCtrl.get('employer')!">
+            <ng-container *ngTemplateOutlet="employerFieldsTpl; context: {
+              empGroup: customerCtrl.get('employer'),
+              clientName: (customerCtrl.get('customerData')?.value?.personalInfo?.firstName + ' ' + customerCtrl.get('customerData')?.value?.personalInfo?.lastName)
+            }"></ng-container>
+          </cdk-step>
+
+          <!-- Sub-Step 2 : FinancialData -->
+          <cdk-step formGroupName="financialData" [stepControl]="customerCtrl.get('financialData')!">
+            <ng-container *ngTemplateOutlet="financialFieldsTpl; context: {
+              finGroup: customerCtrl.get('financialData')
+            }"></ng-container>
+          </cdk-step>
+
+        </app-stepper>
+
+      </cdk-step>
+    </ng-container>
+
+  </app-stepper>
+</ng-container>
+nextJointCustomer = () => {
+  this.update();
+  this.jointCustomerStepper?.next();
+};
+
+previousJointCustomer = () => {
+  this.jointCustomerStepper?.previous();
+};
+
+
+
+
+
+
 :host ::ng-deep .third-step-level > li.stepper-label:first-child .step-title {
   flex-wrap: wrap;
 }
