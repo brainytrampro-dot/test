@@ -1,3 +1,104 @@
+
+
+@ViewChild('principalStepper') principalStepper!: CdkStepper;
+@ViewChild('jointCustomerStepper') jointCustomerStepper?: CdkStepper;
+
+
+
+<cdk-step [stepControl]="customerDataFormGroup" [completed]="isStepCompleted(customerDataFormGroup, 0)" [hasError]="isStepHasError(customerDataFormGroup, 0)">
+  <ng-template cdkStepLabel>
+    <span>{{"customer.loan.initiation.steps.customerdata.label" | translate}}</span>
+
+    <!-- Sous-liste des clients affichée directement sous "Données Client" dans la sidebar -->
+    <ul *ngIf="isJointAccount && principalStepper?.selectedIndex === 0" class="sub-clients-list" (click)="$event.stopPropagation()">
+      <li
+        *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index"
+        [class.active]="jointCustomerStepper?.selectedIndex === i"
+        [class.completed]="customerCtrl.valid"
+        (click)="jointCustomerStepper && (jointCustomerStepper.selectedIndex = i)">
+        <span>
+          {{ customerCtrl.get('customerData')?.value?.personalInfo?.lastName }}
+          {{ customerCtrl.get('customerData')?.value?.personalInfo?.firstName }}
+        </span>
+      </li>
+    </ul>
+  </ng-template>
+
+  <!-- BRANCHE 1 : CAS CONJOINT -->
+  <ng-container *ngIf="isJointAccount; else nominalCustomerStepper">
+    <app-stepper
+      #jointCustomerStepper
+      [nextFunction]="update"
+      [doneFunction]="doneCustomerStep"
+      [firstPreviousFunction]="previousStep"
+      [showNavigationList]="false"
+      doneButtonLabel="Suivant"
+      [disableFirstStepPreviousButton]="true">
+
+      <ng-container formArrayName="jointCustomersForms">
+        <cdk-step
+          *ngFor="let customerCtrl of jointCustomersFormArray.controls; let i = index"
+          [formGroupName]="i"
+          [stepControl]="customerCtrl"
+          [completed]="customerCtrl.valid">
+
+          <div formGroupName="employer">
+            <ng-container *ngTemplateOutlet="employerFieldsTpl; context: {
+              empGroup: customerCtrl.get('employer'),
+              clientName: (customerCtrl.get('customerData')?.value?.personalInfo?.firstName + ' ' + customerCtrl.get('customerData')?.value?.personalInfo?.lastName)
+            }"></ng-container>
+          </div>
+
+          <div formGroupName="financialData">
+            <ng-container *ngTemplateOutlet="financialFieldsTpl; context: {
+              finGroup: customerCtrl.get('financialData')
+            }"></ng-container>
+          </div>
+
+        </cdk-step>
+      </ng-container>
+
+    </app-stepper>
+  </ng-container>
+
+  <!-- BRANCHE 2 : CAS NOMINAL (INCHANGÉ) -->
+  <ng-template #nominalCustomerStepper>
+    <!-- ... ton code nominal inchangé ... -->
+  </ng-template>
+</cdk-step>
+
+
+.sub-clients-list {
+  list-style: none;
+  padding-left: 16px;
+  margin-top: 8px;
+  border-left: 1px solid #d9d9d9;
+
+  li {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #6c757d;
+    cursor: pointer;
+    transition: color 0.2s;
+
+    &:hover {
+      color: #e33550; // Couleur primaire SGMA
+    }
+
+    &.active {
+      font-weight: 600;
+      color: #e33550;
+    }
+
+    &.completed:not(.active) {
+      color: #28a745;
+    }
+  }
+}
+
+
+
+
 import { trigger, transition, style, animate } from '@angular/animations';
 import {
   CdkStepper,
